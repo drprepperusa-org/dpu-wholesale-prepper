@@ -218,7 +218,7 @@ VALUES (
   'DR Prepper Admin',
   'DJ',
   'admin@drprepper.com',
-  '$(node -e "const bcrypt=require('bcrypt'); bcrypt.hash('YOUR_ADMIN_PASSWORD', 10).then(h => process.stdout.write(h))")',
+  '$(node -e "const bcrypt=require('bcryptjs'); bcrypt.hash('YOUR_ADMIN_PASSWORD', 10).then(h => process.stdout.write(h))")',
   true
 );
 EOF
