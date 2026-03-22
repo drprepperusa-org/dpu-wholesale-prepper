@@ -159,6 +159,7 @@ const loginRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true,
+  keyGenerator: (req) => req.ip,
   handler: (req, res) => {
     res.status(429).json({ error: 'Too many login attempts. Please try again in 15 minutes.' });
   },
