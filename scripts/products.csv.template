@@ -1,0 +1,31 @@
+category_id,name,sku,weight,bags_per_case,cases_per_pallet
+1,Lay's Classic Potato Chips,LAYS001,155g,24,60
+1,Lay's Barbecue Chips,LAYS002,155g,24,60
+1,Lay's Salt & Vinegar Chips,LAYS003,155g,24,60
+2,Samyang Hot Ramen,SAMY001,120g,30,60
+2,Samyang Buldak Ramen,SAMY002,120g,30,60
+2,Nongshim Shin Ramen,NONGSIM001,120g,30,60
+3,Choco Pie Original,CHOCO001,30g,12,60
+3,Wafer Cookie Assortment,WAFER001,200g,12,60
+4,Gummy Candy Mix,GUMMY001,100g,24,60
+4,Hard Candy Lemon,CANDY001,150g,20,60
+5,Korean Rice Crackers,KOR001,100g,25,60
+5,Seaweed Snack Pack,SEAW001,30g,50,60
+6,Bottled Mango Juice,BEV001,250ml,24,60
+6,Bottled Orange Juice,BEV002,250ml,24,60
+7,Ice Cream Vanilla,ICE001,100ml,12,60
+
+NOTES:
+- category_id: Reference to categories table (1-22, see CATEGORIES list in seed.js)
+- name: Product name (required)
+- sku: SKU code (required, must be unique)
+- weight: Package weight (e.g., "155g", "120g", "100ml")
+- bags_per_case: Number of bags/packages per case (default: 24)
+- cases_per_pallet: Number of cases per pallet (default: 60)
+
+TO USE THIS FILE:
+1. Replace the sample products with your actual 205-product list
+2. Save as scripts/products.csv
+3. Run: npm run seed
+
+The seeding script will import all products and create demo customer accounts.
