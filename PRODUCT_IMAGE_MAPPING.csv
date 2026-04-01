@@ -1,0 +1,206 @@
+product_id,product_name,image_index,image_file
+V036B02101-1,LS-Potato Chips (Cucumber),0,product-000.jpg
+V036B02102-1,LS-Potato Chips (Tomato),1,product-001.jpg
+V036B02104,LS-Potato Chips (Braised Pork Flavor),2,product-002.jpg
+V036B02106,LS-Potato Avocado Chips (Wasabi),3,product-003.jpg
+V036B02107,LS-Potato Chips (Roasted Seaweed),4,product-004.jpg
+V036B02110,LS-Potato Chips (Spicy Crayfish),5,product-005.jpg
+V036B02201,LS-Potato Chips (Cucumber),6,product-006.jpg
+V036B02202,LS-Potato Chips (Spicy Hot Pot),7,product-007.jpg
+V036B02203,LS-Potato Chips (Italian Red Meat),8,product-008.jpg
+V036B02204,LS-Potato Chips (Mexican Tomato Chicken),9,product-009.jpg
+V036B02208,LS-Potato Chips (Crispy Grilled Fish),10,product-010.jpg
+V036B02210,LS-Potato Chips (Garlic Roasted Oyster),11,product-011.jpg
+V036B02211,LS-Potato Chips (Cumin Kebab),12,product-012.jpg
+V036B02217,Lay's Potato Chips (Spicy Hot Pot),13,product-013.jpg
+V036B02218,Lay's Potato Chips (Sesame Sauce Hot Pot),14,product-014.jpg
+V036B02301,LS-Wave Chips (BBQ Squid),15,product-015.jpg
+V036B02302,LS-Wave Chips (BBQ Chicken),16,product-016.jpg
+V036B02304,LS-Wave Chips (Spicy),17,product-017.jpg
+V036B02305,LS-Wave Potato Chips (Pure Tomato),18,product-018.jpg
+V036B02401,LS-Potato Chips (Spicy Crayfish),19,product-019.jpg
+V036B02403,LS-Potato Chips (Fried Crab),20,product-020.jpg
+V036B02501,LS-Yam Chips (Cucumber),21,product-021.jpg
+V036B02502,LS-Yam Chips (Tomato),22,product-022.jpg
+V036B02618,Lay's Potato Chips (Spiced Braised Artificial Beef Fla),23,product-023.jpg
+V036B02619,Lay's Potato Chips (Hot & Spicy Braised Artificial Duck Tongue),24,product-024.jpg
+V036B02622,Lay's Potato Chips (Hot & Sour Lemon Braised Artificial),25,product-025.jpg
+V036B02628,Lay's Potato Chips (Imitation Peppercorn Crispy Artificial),26,product-026.jpg
+V036B02629,Lay's Potato Chips (Imitation Sweet and Spicy Fried Artificial),27,product-027.jpg
+V036B02630,Lay's Potato Chips (Imitation Mustard Octopus Flavor),28,product-028.jpg
+V036B08701,Weilong Crispy Fire Spicy Flavor 320g (boxed),29,product-029.jpg
+V036B08702,Weilong Crispy Fire Lime Flavor 320g (boxed),30,product-030.jpg
+V036B08703,Weilong Crispy Fire Spicy Flavor 45g (bag),31,product-031.jpg
+V036B08704,Weilong Crispy Fire Lime Flavor 45g (bag),32,product-032.jpg
+V036B23101-1,QD-Corn Sticks (Japanese Steak),33,product-033.jpg
+V036B23102-2,QD-Corn Sticks (American Turkey),34,product-034.jpg
+V036B28101-1,XWX-XHX Snack Noodles (BBQ),35,product-035.jpg
+V036B28102-1,XWX-Snack Noodles (New Orleans Roast Chicken),36,product-036.jpg
+V036B28103-1,XHX-Snack Noodles (Spicy Crab),37,product-037.jpg
+V036B28105-1,XWX-Snack Noodles (Red Stew),38,product-038.jpg
+V036B41202,ZX-Natural Series Seaweed Crackers,39,product-039.jpg
+V036B41203,ZX-Butter Cheese Biscuits,40,product-040.jpg
+V036B41301,ZX-Natural Series Nougat Sandwich Crackers,41,product-041.jpg
+V036B41402,ZX-Sandwich Crackers - Strawberry,42,product-042.jpg
+V036B41403,ZX-Sandwich Crackers - Lemon,43,product-043.jpg
+V036B41404,ZX-Sandwich Crackers - Chocolate,44,product-044.jpg
+V036B41405,ZX-Sandwich Crackers - Blueberry Yogurt Flavor,45,product-045.jpg
+V036B41501,ZX-Coffee Biscuits,46,product-046.jpg
+V036B56304,XFJ-Marshmallow Yogurt,47,product-047.jpg
+V036B56305,XFJ-Marshmallow Peach,48,product-048.jpg
+V036B56306,XFJ-Marshmallow Grape,49,product-049.jpg
+V036B56306-1,Hsu Fu Chi Stuffed Marshmallow Grape Flavor,50,product-050.jpg
+V036B56307,XFJ-Blueberry Flavor Marshmallow,51,product-051.jpg
+V036B56307-1,HSU FU CHI Blueberry Flavor Marshmallow,52,product-052.jpg
+V036B56310-1,HSU FU CHI Strawberry Flavor Crispy Rolls,53,product-053.jpg
+V036B56311-1,HSU FU CHI Vanilla Flavor Crispy Rolls,54,product-054.jpg
+V036B56316,XFJ-Orange Flavor Marshmallow,55,product-055.jpg
+V036B56321,Hsu Fu Chi Passion Fruit Green Tea Flavor Absorb Jelly,56,product-056.jpg
+V036B56322,Hsu Fu Chi Yuzu Oolong Tea Flavor Suction Jelly,57,product-057.jpg
+V036B56330,HSU FU CHI Strawberry Flavor Wafer Biscuit,58,product-058.jpg
+V036B56333,HSU FU CHI Raw Coconut Original Jelly,59,product-059.jpg
+V036B56334,HSU FU CHI Raw Coconut Pineapple Flavor Jelly,60,product-060.jpg
+V036B56335,HSU FU CHI Raw Coconut Latte Flavor Jelly,61,product-061.jpg
+V036B56411,XFJ-Nougat Candy (Blueberry/Strawberry),62,product-062.jpg
+V036B56412-1,HSU FU CHI Nougat Candy (Milk Cranberry Flavor),63,product-063.jpg
+V036B56413,HSU FU CHI Mixed Flavor Nougat Candy Can,64,product-064.jpg
+V036B56415-1,HSU FU CHI Cream Flavor Corn Soft Candy,65,product-065.jpg
+V036B56416,XFJ-Durian Flavor Soft Candy,66,product-066.jpg
+V036J07401,EC-Herbal Jelly (Pear Flavor),67,product-067.jpg
+V036J07402,EC-Herbal Jelly (Osmanthus Flavor),68,product-068.jpg
+V036J07403,EC-Herbal Jelly (Bayberry Flavor),69,product-069.jpg
+V036B56501,HSU FU CHI Antarctic Krill Corn Balls,70,product-070.jpg
+V036B56502,HSU FU CHI Cheese Cheddar Corn Balls,71,product-071.jpg
+V036B56507,XFJ-Dr. Bear Fruit Cake Flavor Fruit Juice Gummy,72,product-072.jpg
+V036B56508,XFJ-Dr. Bear Sour Peach Flavor Fruit Juice Gummy,73,product-073.jpg
+V036B59104,LYFEN Glutinous Rice Chips (Spicy Flavor),74,product-074.jpg
+V036B76101,Nestle Cuicuisha Chocolate Flavor Wafer,75,product-075.jpg
+V036B76101-1,Nestle Cuicuisha Chocolate Flavor Wafer,76,product-076.jpg
+V036B76102,Nestle Cuicuisha Milk Flavor Wafer,77,product-077.jpg
+V036B76102-1,Nestle Cuicuisha Milk Flavor Wafer,78,product-078.jpg
+V036B76103,Nestle Cuicuisha Peanut Flavor Wafer,79,product-079.jpg
+V036B76104-1,Nestle Cuicuisha Wafer Assorted Flavor,80,product-080.jpg
+V036B76105,MILO Chocolate Flavoured Cookie with Chocolate Flavoured,81,product-081.jpg
+V036B76105-1,MILO Chocolate Flavoured Cookie with Chocolate Flavoured,82,product-082.jpg
+HQ001,HQ Ningxia Lemon Flavored Ice Cream,83,product-083.jpg
+HQ002,HQ Taoqi Peach Flavored Ice Cream,84,product-084.jpg
+HQ003,HQ Fumang Mango Flavored Ice Cream,85,product-085.jpg
+AIKO001,Aiko Garden Mandarin Flavored Ice Cream,86,product-086.jpg
+HQ004,HQ Lemon Yogurt Ice Cream,87,product-087.jpg
+HQ005,HQ Taoshan Milk Flavored Ice Cream,88,product-088.jpg
+AIKO002,Aiko Garden Grape Flavored Ice Cream,89,product-089.jpg
+AIKO003,Aiko Garden Strawberry Flavored Ice Cream,90,product-090.jpg
+BD001,Buldak Chips - Original,91,product-091.jpg
+BD002,Buldak Chips - Habanero Lime,92,product-092.jpg
+BD003,Buldak Chips - Quattro Cheese,93,product-093.jpg
+BD004,Buldak Big Bowl - Original,94,product-094.jpg
+BD005,Buldak Big Bowl - Carbonara,95,product-095.jpg
+BD006,Buldak Big Bowl - Cream Carbonara,96,product-096.jpg
+BD007,Buldak Big Bowl - Rose,97,product-097.jpg
+BD008,Buldak Big Bowl - Cheese,98,product-098.jpg
+BD009,Buldak Big Bowl - Taco,99,product-099.jpg
+BD010,Buldak Big Bowl - Habanero Lime,100,product-100.jpg
+BD011,Buldak Big Bowl - Tomyum,101,product-101.jpg
+BD012,Buldak Cups - Cheese,102,product-102.jpg
+BD013,Buldak Cups - 2x Spicy,103,product-103.jpg
+BD014,Buldak Cups - Original,104,product-104.jpg
+BD015,Buldak Cups - Carbonara,105,product-105.jpg
+BD016,Buldak - Spicy Dumplings - Carbonara,106,product-106.jpg
+BD017,Buldak - Spicy Rice Cake,107,product-107.jpg
+BD018,Buldak - Spicy Dumplings - Original,108,product-108.jpg
+BD019,Buldak - Fried Rice - Original,109,product-109.jpg
+BD020,Buldak - Fried Rice - Carbonara,110,product-110.jpg
+BD021,Buldak Multi - Carbonara,111,product-111.jpg
+BD022,Buldak Multi - Cream Carbonara,112,product-112.jpg
+BD023,Buldak Multi - Habanero Lime,113,product-113.jpg
+BD024,Buldak Multi - Taco,114,product-114.jpg
+BD025,Buldak Multi - Tomyum,115,product-115.jpg
+BD026,Buldak Multi - Swicy,116,product-116.jpg
+BD027,Buldak Multi - Habanero Lime,117,product-117.jpg
+BD028,Buldak Multi - 2x Spicy,118,product-118.jpg
+BD029,Buldak Multi - Original,119,product-119.jpg
+BD030,Buldak Multi - Cheese,120,product-120.jpg
+BD031,Buldak Multi - Quattro Cheese,121,product-121.jpg
+BD032,Buldak Multi - Yakisoba,122,product-122.jpg
+BD033,Buldak Multi - Rose,123,product-123.jpg
+V036A01101,KSF-Ice Black Tea Drink,124,product-124.jpg
+V036A01102,KSF-Honey Grapefruit Drink,125,product-125.jpg
+V036A01103,KSF-Green Tea Drink,126,product-126.jpg
+V036A01104,KSF-Snow Pear Juice,127,product-127.jpg
+V036A01105,KSF-Honey Jasmine Tea Drink,128,product-128.jpg
+V036A01106,KSF-Jasmine Tea Drink,129,product-129.jpg
+V036A01108,KSF-Syrup of Plum Drink,130,product-130.jpg
+V036A01111,KSF-Peach Drink,131,product-131.jpg
+V036A01112,KSF-Mango Ice Black Tea Drink,132,product-132.jpg
+V036A01119,KSF-Peach Flavor Drink,133,product-133.jpg
+V036A01123,KSF-Ice Black Tea Drink (Sugar Free),134,product-134.jpg
+V036A04101,BBY-Refined Mandarin Soda,135,product-135.jpg
+V036A04102,BBY-Tangerine Drink,136,product-136.jpg
+V036A04103,BBY-Orange Drink,137,product-137.jpg
+V036A09102,WY-Plant Protein Beverage,138,product-138.jpg
+V036A09102-2,Plant Protein Beverage,139,product-139.jpg
+V036A11102,YS-Coconut Juice,140,product-140.jpg
+V036A11103,YS-Coconut Juice,141,product-141.jpg
+V036A11104,YS-Coconut Juice,142,product-142.jpg
+V036A25101,GF-Oolong Tea Original,143,product-143.jpg
+V036A25108,CF-Tangerine Puerh Unsweetened Tea,144,product-144.jpg
+V036A16101,MD-Vitamin Drink-Peach,145,product-145.jpg
+V036A16102,MD-Vitamin Drink-Lime,146,product-146.jpg
+V036A16103,MD-Vitamin Drink-Orange,147,product-147.jpg
+V036A16107,MD-Vitamin Drink-Mango,148,product-148.jpg
+V036A17102,ChaPai-Peach Oolong Tea,149,product-149.jpg
+V036A17103,ChaPai-Grapefruit Jasmine Tea,150,product-150.jpg
+V036A18101,TY-Assam Milk Tea Drink (Plain Flavor),151,product-151.jpg
+V036A25109,GF FaCha Osmanthus Pu-erh Tea,152,product-152.jpg
+V036A21102,HCT-Yogurt Drink,153,product-153.jpg
+V036A25110,GF-Jasmine Unsweetened Tea,154,product-154.jpg
+V036A25202,GF-Sparkling W WH Peach,155,product-155.jpg
+V036A25207,GF-Sparkling W Lychee,156,product-156.jpg
+V036A37101,Sangaria-Grape Flavor Soda,157,product-157.jpg
+V036A37102,Sangaria-Original Flavor Soda,158,product-158.jpg
+V036A37103,Sangaria-Melon Flavor Soda,159,product-159.jpg
+V036A37301,Sangaria WH Grape Pulp Juice,160,product-160.jpg
+V036A37302,Sangaria Mellow Strawberry & Milk,161,product-161.jpg
+V036A37401,Sangaria-Princess Royal Milk Tea,162,product-162.jpg
+V036A50103,Kimura Peach Flavor Sparkling Water,163,product-163.jpg
+V036A50104,Kimura Apple Flavor Sparkling Water,164,product-164.jpg
+V036A60101,Hata Ramune Soda (Original Fla),165,product-165.jpg
+V036A60102,Hata Ramune Soda (Strawberry Fla),166,product-166.jpg
+V036A60103,Hata Ramune Soda (Cantaloupe),167,product-167.jpg
+V036A60104,Hata Ramune Soda (Blueberry Fla),168,product-168.jpg
+V036A60105,Hata Ramune Soda (Watermelon Fla),169,product-169.jpg
+V036A60107,Hata Ramune Soda (Lychee Fla),170,product-170.jpg
+V036A60108,Hata Ramune Soda (Cola Flavor),171,product-171.jpg
+V036B12303-1,KITKAT Chocolate Mini Wafer Dark Chocolate Flavor 11pcs,172,product-172.jpg
+V036B12304,Kitkat-Chocolate Mini Wafer Mocha Fla 11pcs,173,product-173.jpg
+V036B12305-1,KITKAT Chocolate Mini Wafer Strawberry Flavor 10pcs,174,product-174.jpg
+V036B12301-1,KITKAT Chocolate Mini Wafer Original Flavor 12pcs,175,product-175.jpg
+V036B12307,KITKAT Chocolate Mini Wafer Milk Tea Flavor 7pcs,176,product-176.jpg
+V036B54102,Bourbon Burger Shaped Chocolatey Filled Cookies,177,product-177.jpg
+V036B58103,FUJIYA-Katchkochi Milky Bag,178,product-178.jpg
+V036B64103-1,Orion Turtle Chip Choco Churros,179,product-179.jpg
+V036B53302,Glico-Bisco L Bag Assorted 2pcs,180,product-180.jpg
+V036B64104,Orion Korebob Marine Boy (Seaweed Flavored),181,product-181.jpg
+V036B64106,Orion Choco Boy (Twin Pack),182,product-182.jpg
+V036B64107-1,Orion FCIO0001 Chocopie,183,product-183.jpg
+V036B65301,NS Onion Ring,184,product-184.jpg
+V036B65201,NS Honey Twist Snack,185,product-185.jpg
+V036B64125,Orion Turtle Chips New Hot Spicy,186,product-186.jpg
+V036B64108,Orion Turtle Chips Corn,187,product-187.jpg
+V036B64109,Orion Turtle Chips Truffle Salt,188,product-188.jpg
+V036B64110,Orion Custard Soft Cake,189,product-189.jpg
+V036B64111,Orion Banana Chocopie,190,product-190.jpg
+V036B64113,Orion FCIO0177 Turtle Chip Flamin Lime,191,product-191.jpg
+V036B64115,Orion FCIO0210 Turtle Chip Seaweed,192,product-192.jpg
+V036B64118,Orion FCIO0225 O'Jelly Soft Grape,193,product-193.jpg
+V036B64119,Orion FCIO0226 O'Jelly Soft Peach,194,product-194.jpg
+V036B64120,Orion FCIO0227 O'Jelly Soft Green Grape,195,product-195.jpg
+V036B64122,Orion Turtle Chips Sour Cream and Onion,196,product-196.jpg
+V036B64123,Orion FCIO0260 O'Tube Honey Butter,197,product-197.jpg
+V036B64124,Orion Turtle Chips Cheese,198,product-198.jpg
+V036B65103,NS Shrimp Cracker,199,product-199.jpg
+V036B65101,NS Shrimp Cracker (Family Pack),200,product-200.jpg
+V036B65102,NS Shrimp Cracker (Hot & Spicy),201,product-201.jpg
+B02214,Lay's Potato Chips (Texas Grilled BBQ),202,product-202.jpg
+B02220,Lay's Korean Kimchi Flavored Potato Chips,203,product-203.jpg
+LS-WAVEPORK-01,Lay's Wave Chips (Imitation Charcoal Grilled Pork Belly),204,product-204.jpg
