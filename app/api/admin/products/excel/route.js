@@ -128,14 +128,22 @@ export async function POST(request) {
     const catMap = {};
     cats.rows.forEach(c => { catMap[c.name.toLowerCase()] = { id: c.id, super_id: c.super_category_id } });
 
+    // Pre-load all existing product IDs and SKUs into maps (1 query instead of 2 per row)
+    const existingProducts = await pool.query('SELECT id, sku FROM products');
+    const idSet = new Set(existingProducts.rows.map(p => p.id));
+    const skuToId = {};
+    existingProducts.rows.forEach(p => { if (p.sku) skuToId[p.sku.toLowerCase()] = p.id });
+
     let created = 0, updated = 0, skipped = 0;
     const errors = [];
+    const toUpdate = [];
+    const toCreate = [];
 
+    // Parse all rows first
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const rowNum = i + 2; // Excel row (1-indexed + header)
+      const rowNum = i + 2;
 
-      // Normalize column names (handle various casing)
       const get = (keys) => {
         for (const k of keys) {
           const val = row[k] ?? row[k.toLowerCase()] ?? row[k.toUpperCase()];
@@ -153,9 +161,7 @@ export async function POST(request) {
       const bagsPerCase = get(['Bags Per Case', 'bags_per_case', 'Bags/Case']);
       const casesPerPallet = parseInt(get(['Cases Per Pallet', 'cases_per_pallet', 'Cases/Pallet']) || 0) || null;
       let imageUrl = get(['Image URL', 'image_url', 'Image', 'image']);
-      // Resolve local file paths to uploaded Supabase URLs using the imageMap
       if (imageUrl && !imageUrl.startsWith('http')) {
-        // Extract just the filename from paths like "Downloads\dish1.jpg" or "C:\Users\...\dish1.jpg"
         const filename = imageUrl.replace(/\\/g, '/').split('/').pop().toLowerCase();
         const filenameNoExt = filename.replace(/\.[^.]+$/, '');
         imageUrl = imageMap[filename] || imageMap[filenameNoExt] || null;
@@ -164,7 +170,6 @@ export async function POST(request) {
       const isOos = ['yes', 'true', '1'].includes((get(['Out of Stock', 'is_oos', 'OOS', 'oos']) || '').toLowerCase());
       const showPrice = !['no', 'false', '0'].includes((get(['Show Price', 'show_price']) || '').toLowerCase());
 
-      // Resolve category
       const superCatName = get(['Super Category', 'super_category', 'Super_Category']);
       const catName = get(['Category', 'category']);
       const superCatId = get(['Super Category ID', 'super_category_id']) || (superCatName ? superMap[superCatName.toLowerCase()] : null);
@@ -178,41 +183,42 @@ export async function POST(request) {
 
       const productId = get(['Product ID (leave blank for new)', 'Product ID', 'product_id', 'id', 'ID']);
 
-      try {
-        // Try to find existing product: by ID first, then by SKU
-        let existingId = null;
-        if (productId) {
-          const check = await pool.query('SELECT id FROM products WHERE id = $1', [productId]);
-          if (check.rows.length > 0) existingId = check.rows[0].id;
-        }
-        if (!existingId && sku) {
-          const check = await pool.query('SELECT id FROM products WHERE sku = $1', [sku]);
-          if (check.rows.length > 0) existingId = check.rows[0].id;
-        }
+      // Lookup existing using pre-loaded maps (no DB query)
+      let existingId = null;
+      if (productId && idSet.has(productId)) existingId = productId;
+      if (!existingId && sku && skuToId[sku.toLowerCase()]) existingId = skuToId[sku.toLowerCase()];
 
-        if (existingId) {
-          // Update existing product
-          await pool.query(`
-            UPDATE products SET name=$1, sku=$2, price=$3, weight=$4, bags_per_case=$5,
-            cases_per_pallet=$6, image_url=COALESCE(NULLIF($7,''), image_url), is_hidden=$8, is_oos=$9,
-            show_price=$10, super_category_id=$11, category_id=$12
-            WHERE id=$13
-          `, [name, sku, price, weight, bagsPerCase, casesPerPallet, imageUrl || '', isHidden, isOos, showPrice, superCatId, catId, existingId]);
-          updated++;
-        } else {
-          // Create new product - auto-generate ID and SKU if not provided
-          const newId = productId || uuidv4();
-          const newSku = sku || `SKU-${newId.substring(0, 8).toUpperCase()}`;
-          await pool.query(`
-            INSERT INTO products (id, name, sku, price, weight, bags_per_case, cases_per_pallet, image_url, is_hidden, is_oos, show_price, super_category_id, category_id)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-          `, [newId, name, newSku, price, weight, bagsPerCase, casesPerPallet, imageUrl, isHidden, isOos, showPrice, superCatId, catId]);
-          created++;
-        }
-      } catch (dbErr) {
-        errors.push(`Row ${rowNum}: "${name}" - ${dbErr.message}`);
-        skipped++;
+      if (existingId) {
+        toUpdate.push([name, sku, price, weight, bagsPerCase, casesPerPallet, imageUrl || '', isHidden, isOos, showPrice, superCatId, catId, existingId]);
+      } else {
+        const newId = productId || uuidv4();
+        const newSku = sku || `SKU-${newId.substring(0, 8).toUpperCase()}`;
+        toCreate.push([newId, name, newSku, price, weight, bagsPerCase, casesPerPallet, imageUrl, isHidden, isOos, showPrice, superCatId, catId]);
       }
+    }
+
+    // Batch execute updates (10 at a time in parallel)
+    const BATCH = 10;
+    for (let i = 0; i < toUpdate.length; i += BATCH) {
+      const batch = toUpdate.slice(i, i + BATCH);
+      await Promise.all(batch.map(params =>
+        pool.query(`UPDATE products SET name=$1, sku=$2, price=$3, weight=$4, bags_per_case=$5,
+          cases_per_pallet=$6, image_url=COALESCE(NULLIF($7,''), image_url), is_hidden=$8, is_oos=$9,
+          show_price=$10, super_category_id=$11, category_id=$12 WHERE id=$13`, params)
+          .then(() => { updated++ })
+          .catch(e => { errors.push(`Update "${params[0]}": ${e.message}`); skipped++ })
+      ));
+    }
+
+    // Batch execute creates (10 at a time in parallel)
+    for (let i = 0; i < toCreate.length; i += BATCH) {
+      const batch = toCreate.slice(i, i + BATCH);
+      await Promise.all(batch.map(params =>
+        pool.query(`INSERT INTO products (id, name, sku, price, weight, bags_per_case, cases_per_pallet, image_url, is_hidden, is_oos, show_price, super_category_id, category_id)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, params)
+          .then(() => { created++ })
+          .catch(e => { errors.push(`Create "${params[1]}": ${e.message}`); skipped++ })
+      ));
     }
 
     return NextResponse.json({

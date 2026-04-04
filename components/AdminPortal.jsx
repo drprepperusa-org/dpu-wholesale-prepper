@@ -1728,26 +1728,28 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
     setExcelUploading(true); setExcelResult(null); setImportProgress('Uploading images...')
     try {
       const token = localStorage.getItem('token')
-      // Step 1: Upload all image files and build a filename→URL map
       const imageMap = {}
       if (importImageFiles.length > 0) {
-        for (let i = 0; i < importImageFiles.length; i++) {
-          const img = importImageFiles[i]
-          setImportProgress(`Uploading image ${i + 1}/${importImageFiles.length}: ${img.name}`)
-          const fd = new FormData(); fd.append('image', img)
-          const res = await fetch('/api/upload', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: fd })
-          if (res.ok) {
-            const data = await res.json()
-            // Map by full name and name without extension
-            imageMap[img.name.toLowerCase()] = data.url
-            const nameNoExt = img.name.replace(/\.[^.]+$/, '').toLowerCase()
-            imageMap[nameNoExt] = data.url
-          }
+        // Upload images in parallel batches of 5
+        const BATCH = 5
+        for (let i = 0; i < importImageFiles.length; i += BATCH) {
+          const batch = importImageFiles.slice(i, i + BATCH)
+          setImportProgress(`Uploading images ${i + 1}-${Math.min(i + BATCH, importImageFiles.length)} of ${importImageFiles.length}...`)
+          const results = await Promise.allSettled(batch.map(async (img) => {
+            const fd = new FormData(); fd.append('image', img)
+            const res = await fetch('/api/upload', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: fd })
+            if (res.ok) return { name: img.name, url: (await res.json()).url }
+            return null
+          }))
+          results.forEach(r => {
+            if (r.status === 'fulfilled' && r.value) {
+              imageMap[r.value.name.toLowerCase()] = r.value.url
+              imageMap[r.value.name.replace(/\.[^.]+$/, '').toLowerCase()] = r.value.url
+            }
+          })
         }
       }
-
-      // Step 2: Upload Excel with the image URL map
-      setImportProgress('Processing Excel...')
+      setImportProgress(`Processing ${importExcelFile.name}...`)
       const fd = new FormData()
       fd.append('file', importExcelFile)
       fd.append('imageMap', JSON.stringify(imageMap))
