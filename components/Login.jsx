@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react'
+import { Flame, Eye, EyeOff, XCircle, CheckCircle, ArrowRight, Loader2 } from 'lucide-react'
 
 function Login({ onLogin }) {
   const [formMode, setFormMode] = useState('signin')
@@ -13,34 +14,16 @@ function Login({ onLogin }) {
   const [successMessage, setSuccessMessage] = useState('')
   const [registrationEnabled, setRegistrationEnabled] = useState(true)
 
-  // Registration form
   const [reg, setReg] = useState({
-    companyName: '',
-    contactName: '',
-    email: '',
-    phone: '',
-    password: '',
-    confirmPassword: ''
+    companyName: '', contactName: '', email: '', phone: '', password: '', confirmPassword: ''
   })
   const [regPwdStrength, setRegPwdStrength] = useState(0)
-  const mode = 'customer' // Always customer portal
-
-  const fillDemo = () => {
-    setEmail('buyer@happysnacks.com')
-    setPassword('demo1234')
-  }
-
-  const fillAdminDemo = () => {
-    setEmail('admin@drprepper.com')
-    setPassword('')
-  }
+  const mode = 'customer'
 
   const regPwdLabel = ['', 'Weak', 'Fair', 'Good', 'Strong', 'Very Strong'][regPwdStrength] || ''
-  const regPwdColor = ['', '#c0392b', '#e67e22', '#2980b9', '#2d7a4f', '#2d7a4f'][regPwdStrength] || ''
+  const regPwdColor = ['', '#ef4444', '#f59e0b', '#3b82f6', '#10b981', '#10b981'][regPwdStrength] || ''
 
-  useEffect(() => {
-    loadRegistrationSetting()
-  }, [])
+  useEffect(() => { loadRegistrationSetting() }, [])
 
   const checkRegPwdStrength = () => {
     const val = reg.password
@@ -53,106 +36,45 @@ function Login({ onLogin }) {
     setRegPwdStrength(score)
   }
 
-  useEffect(() => {
-    checkRegPwdStrength()
-  }, [reg.password])
+  useEffect(() => { checkRegPwdStrength() }, [reg.password])
 
-  const validateEmail = (email) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  }
+  const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
   const handleSignIn = async () => {
-    setErrorMessage('')
-    setSuccessMessage('')
-
-    if (!email || !password) {
-      setErrorMessage('Please enter your email and password')
-      return
-    }
-    if (!validateEmail(email)) {
-      setErrorMessage('Please enter a valid email address')
-      return
-    }
-
+    setErrorMessage(''); setSuccessMessage('')
+    if (!email || !password) { setErrorMessage('Please enter your email and password'); return }
+    if (!validateEmail(email)) { setErrorMessage('Please enter a valid email address'); return }
     setLoading(true)
-
     try {
       const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       })
-
       const data = await res.json()
-
-      if (!res.ok) {
-        setErrorMessage(data.error || 'Sign in failed. Please check your credentials.')
-        return
-      }
-
-      // server.js returns 'vendor' for admin users and 'customer' for clients
+      if (!res.ok) { setErrorMessage(data.error || 'Sign in failed. Please check your credentials.'); return }
       const userObj = data.vendor || data.customer || {}
-
-      // Ensure consistent role storage
       const role = data.role || userObj.role || 'customer'
-
-      // Emit login event so parent can switch views
-      onLogin({
-        token: data.token,
-        user: userObj,
-        role
-      })
+      onLogin({ token: data.token, user: userObj, role })
     } catch (err) {
       console.error('Login error:', err)
       setErrorMessage('Connection error. Please try again.')
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
   const handleRegister = async () => {
-    setErrorMessage('')
-    setSuccessMessage('')
-
-    if (!reg.companyName || !reg.contactName || !reg.email || !reg.password) {
-      setErrorMessage('Please fill in all required fields')
-      return
-    }
-    if (!validateEmail(reg.email)) {
-      setErrorMessage('Please enter a valid email address')
-      return
-    }
-    if (reg.password.length < 8) {
-      setErrorMessage('Password must be at least 8 characters')
-      return
-    }
-    if (reg.password !== reg.confirmPassword) {
-      setErrorMessage('Passwords do not match')
-      return
-    }
-
+    setErrorMessage(''); setSuccessMessage('')
+    if (!reg.companyName || !reg.contactName || !reg.email || !reg.password) { setErrorMessage('Please fill in all required fields'); return }
+    if (!validateEmail(reg.email)) { setErrorMessage('Please enter a valid email address'); return }
+    if (reg.password.length < 8) { setErrorMessage('Password must be at least 8 characters'); return }
+    if (reg.password !== reg.confirmPassword) { setErrorMessage('Passwords do not match'); return }
     setLoading(true)
-
     try {
       const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyName: reg.companyName,
-          contactName: reg.contactName,
-          email: reg.email,
-          phone: reg.phone,
-          password: reg.password
-        })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyName: reg.companyName, contactName: reg.contactName, email: reg.email, phone: reg.phone, password: reg.password })
       })
-
       const data = await res.json()
-
-      if (!res.ok) {
-        setErrorMessage(data.error || 'Registration failed. Please try again.')
-        return
-      }
-
+      if (!res.ok) { setErrorMessage(data.error || 'Registration failed. Please try again.'); return }
       setSuccessMessage('Account request submitted! Admin will review and approve your account.')
       setFormMode('signin')
       setReg({ companyName: '', contactName: '', email: '', phone: '', password: '', confirmPassword: '' })
@@ -160,9 +82,7 @@ function Login({ onLogin }) {
     } catch (err) {
       console.error('Register error:', err)
       setErrorMessage('Connection error. Please try again.')
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
   const loadRegistrationSetting = async () => {
@@ -175,316 +95,167 @@ function Login({ onLogin }) {
           setRegistrationEnabled(val === undefined ? true : (val === 'true' || val === true))
         }
       }
-    } catch (e) {
-      setRegistrationEnabled(true)
-    }
+    } catch (e) { setRegistrationEnabled(true) }
   }
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <div className="login-brand">
-          <div className="brand-logo">{'\uD83D\uDD25'}</div>
-          <div className="brand-text">
-            <div className="brand-name"><span>DR</span> Prepper</div>
-            <div className="brand-tagline">Wholesale Portal</div>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-5 font-sans">
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-xl w-full max-w-[400px] p-8 max-sm:p-6 max-sm:rounded-xl">
+        {/* Brand */}
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-11 h-11 bg-indigo-500 rounded-xl flex items-center justify-center shrink-0">
+            <Flame className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <div className="text-lg font-bold text-slate-800 tracking-tight leading-tight">
+              <span className="text-indigo-500">DR</span> Prepper
+            </div>
+            <div className="text-[11px] text-slate-400 font-medium tracking-wide">Wholesale Portal</div>
           </div>
         </div>
 
-        <div className="login-subtitle">Customer Portal</div>
+        <div className="text-[13px] text-slate-400 font-medium tracking-wide mb-5">Customer Portal</div>
 
         {errorMessage && (
-          <div className="login-error">
-            {'\u274C'} {errorMessage}
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 rounded-lg px-3.5 py-2.5 text-[13px] font-medium mb-3.5">
+            <XCircle className="w-4 h-4 shrink-0" /> {errorMessage}
           </div>
         )}
 
         {successMessage && (
-          <div className="login-success">
-            {'\u2705'} {successMessage}
+          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-lg px-3.5 py-2.5 text-[13px] font-medium mb-3.5">
+            <CheckCircle className="w-4 h-4 shrink-0" /> {successMessage}
           </div>
         )}
 
         {formMode === 'signin' && (
-          <div className="login-form">
-            <div className="form-title">Sign In</div>
+          <div className="flex flex-col gap-3.5">
+            <div className="text-xl font-bold text-slate-800 tracking-tight">Sign In</div>
 
-            <div className="form-group">
-              <label>Email Address</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
-                onKeyUp={(e) => e.key === 'Enter' && handleSignIn()}
-                disabled={loading}
-                autoComplete="email"
-              />
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Email Address</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com"
+                onKeyUp={(e) => e.key === 'Enter' && handleSignIn()} disabled={loading} autoComplete="email"
+                className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400 focus:bg-white disabled:opacity-60 disabled:cursor-not-allowed" />
             </div>
 
-            <div className="form-group">
-              <label>Password</label>
-              <div className="pwd-field">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  onKeyUp={(e) => e.key === 'Enter' && handleSignIn()}
-                  disabled={loading}
-                  autoComplete="current-password"
-                />
-                <button
-                  className="pwd-eye"
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  tabIndex="-1"
-                >
-                  {showPassword ? '\uD83D\uDE48' : '\uD83D\uDC41'}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Password</label>
+              <div className="relative">
+                <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••"
+                  onKeyUp={(e) => e.key === 'Enter' && handleSignIn()} disabled={loading} autoComplete="current-password"
+                  className="w-full px-3 py-2.5 pr-10 border border-slate-200 rounded-lg text-sm text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400 focus:bg-white disabled:opacity-60" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} tabIndex="-1"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 border-none bg-transparent cursor-pointer text-slate-400 hover:text-slate-600 transition-colors p-1">
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
-            <div className="form-options">
-              <label className="remember-me">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                />
+            <div className="flex items-center">
+              <label className="flex items-center gap-2 text-xs text-slate-500 cursor-pointer">
+                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)}
+                  className="cursor-pointer accent-indigo-500" />
                 Remember me
               </label>
             </div>
 
-            <button
-              className="btn-signin"
-              onClick={handleSignIn}
-              disabled={loading}
-            >
-              {loading ? <span className="spinner">{'\u27F3'}</span> : 'Sign In \u2192'}
+            <button onClick={handleSignIn} disabled={loading}
+              className="w-full py-3 bg-indigo-500 border-none rounded-xl text-white font-semibold text-[15px] cursor-pointer transition-all flex items-center justify-center gap-2 hover:bg-indigo-600 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/25 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none">
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Sign In <ArrowRight className="w-4 h-4" /></>}
             </button>
 
             {registrationEnabled && mode === 'customer' && (
-              <div className="login-footer">
-                <span className="footer-text">New customer?</span>
-                <button className="link-btn" onClick={() => setFormMode('register')}>Create account</button>
-              </div>
-            )}
-
-            {mode === 'customer' && (
-              <div className="demo-hint">
-                <span className="demo-label">Demo:</span>
-                <button className="demo-fill" onClick={fillDemo}>buyer@happysnacks.com / demo1234</button>
-              </div>
-            )}
-            {mode === 'admin' && (
-              <div className="demo-hint">
-                <span className="demo-label">Admin:</span>
-                <button className="demo-fill" onClick={fillAdminDemo}>admin@drprepper.com</button>
+              <div className="flex items-center justify-center gap-1.5 text-[13px] text-slate-400">
+                <span>New customer?</span>
+                <button onClick={() => setFormMode('register')}
+                  className="border-none bg-transparent text-indigo-500 font-semibold text-[13px] cursor-pointer p-0 underline hover:text-indigo-700">
+                  Create account
+                </button>
               </div>
             )}
           </div>
         )}
 
         {formMode === 'register' && (
-          <div className="login-form">
-            <div className="form-title">Create Account</div>
-            <div className="form-subtitle">Submit a request — admin will approve your account</div>
+          <div className="flex flex-col gap-3.5">
+            <div className="text-xl font-bold text-slate-800 tracking-tight">Create Account</div>
+            <div className="text-xs text-slate-400 -mt-2 leading-relaxed">Submit a request — admin will approve your account</div>
 
-            <div className="form-group">
-              <label>Company Name <span className="req">*</span></label>
-              <input
-                type="text"
-                value={reg.companyName}
-                onChange={(e) => setReg({...reg, companyName: e.target.value})}
-                placeholder="e.g. Happy Snacks Co."
-                disabled={loading}
-              />
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Company Name <span className="text-red-500">*</span></label>
+              <input type="text" value={reg.companyName} onChange={(e) => setReg({...reg, companyName: e.target.value})}
+                placeholder="e.g. Happy Snacks Co." disabled={loading}
+                className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400 focus:bg-white disabled:opacity-60" />
             </div>
 
-            <div className="form-row">
-              <div className="form-group">
-                <label>Contact Name <span className="req">*</span></label>
-                <input
-                  type="text"
-                  value={reg.contactName}
-                  onChange={(e) => setReg({...reg, contactName: e.target.value})}
-                  placeholder="John Smith"
-                  disabled={loading}
-                />
-              </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Contact Name <span className="text-red-500">*</span></label>
+              <input type="text" value={reg.contactName} onChange={(e) => setReg({...reg, contactName: e.target.value})}
+                placeholder="John Smith" disabled={loading}
+                className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400 focus:bg-white disabled:opacity-60" />
             </div>
 
-            <div className="form-group">
-              <label>Email <span className="req">*</span></label>
-              <input
-                type="email"
-                value={reg.email}
-                onChange={(e) => setReg({...reg, email: e.target.value})}
-                placeholder="buyer@company.com"
-                disabled={loading}
-              />
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Email <span className="text-red-500">*</span></label>
+              <input type="email" name="reg-email" autoComplete="email" value={reg.email} onChange={(e) => setReg({...reg, email: e.target.value})}
+                placeholder="buyer@company.com" disabled={loading}
+                className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400 focus:bg-white disabled:opacity-60" />
             </div>
 
-            <div className="form-group">
-              <label>Phone</label>
-              <input
-                type="tel"
-                value={reg.phone}
-                onChange={(e) => setReg({...reg, phone: e.target.value})}
-                placeholder="(555) 000-0000"
-                disabled={loading}
-              />
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Phone</label>
+              <input type="tel" name="reg-phone" autoComplete="tel" value={reg.phone} onChange={(e) => setReg({...reg, phone: e.target.value})}
+                placeholder="(555) 000-0000" disabled={loading}
+                className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400 focus:bg-white disabled:opacity-60" />
             </div>
 
-            <div className="form-group">
-              <label>Password <span className="req">*</span></label>
-              <div className="pwd-field">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={reg.password}
-                  onChange={(e) => setReg({...reg, password: e.target.value})}
-                  placeholder="Min 8 characters"
-                  disabled={loading}
-                  autoComplete="new-password"
-                />
-                <button className="pwd-eye" type="button" onClick={() => setShowPassword(!showPassword)} tabIndex="-1">
-                  {showPassword ? '\uD83D\uDE48' : '\uD83D\uDC41'}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Password <span className="text-red-500">*</span></label>
+              <div className="relative">
+                <input type={showPassword ? 'text' : 'password'} value={reg.password} onChange={(e) => setReg({...reg, password: e.target.value})}
+                  placeholder="Min 8 characters" disabled={loading} autoComplete="new-password"
+                  className="w-full px-3 py-2.5 pr-10 border border-slate-200 rounded-lg text-sm text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400 focus:bg-white disabled:opacity-60" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} tabIndex="-1"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 border-none bg-transparent cursor-pointer text-slate-400 hover:text-slate-600 transition-colors p-1">
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
               {reg.password && (
-                <div className="pwd-strength">
-                  <div className="pwd-bar">
-                    <div
-                      className="pwd-fill"
-                      style={{
-                        width: (regPwdStrength / 5 * 100) + '%',
-                        background: regPwdColor
-                      }}
-                    ></div>
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="flex-1 h-1 bg-slate-200 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-300" style={{ width: (regPwdStrength / 5 * 100) + '%', background: regPwdColor }} />
                   </div>
-                  <span className="pwd-label" style={{ color: regPwdColor }}>{regPwdLabel}</span>
+                  <span className="text-[11px] font-medium whitespace-nowrap" style={{ color: regPwdColor }}>{regPwdLabel}</span>
                 </div>
               )}
             </div>
 
-            <div className="form-group">
-              <label>Confirm Password <span className="req">*</span></label>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={reg.confirmPassword}
-                onChange={(e) => setReg({...reg, confirmPassword: e.target.value})}
-                placeholder="Repeat password"
-                onKeyUp={(e) => e.key === 'Enter' && handleRegister()}
-                disabled={loading}
-                autoComplete="new-password"
-              />
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Confirm Password <span className="text-red-500">*</span></label>
+              <input type={showPassword ? 'text' : 'password'} value={reg.confirmPassword} onChange={(e) => setReg({...reg, confirmPassword: e.target.value})}
+                placeholder="Repeat password" onKeyUp={(e) => e.key === 'Enter' && handleRegister()} disabled={loading} autoComplete="new-password"
+                className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400 focus:bg-white disabled:opacity-60" />
               {reg.confirmPassword && reg.password !== reg.confirmPassword && (
-                <div className="field-error">
-                  Passwords don't match
-                </div>
+                <div className="text-[11px] text-red-500 font-medium">Passwords don&apos;t match</div>
               )}
             </div>
 
-            <button
-              className="btn-signin"
-              onClick={handleRegister}
-              disabled={loading}
-            >
-              {loading ? <span className="spinner">{'\u27F3'}</span> : <span>Submit Request {'\u2192'}</span>}
+            <button onClick={handleRegister} disabled={loading}
+              className="w-full py-3 bg-indigo-500 border-none rounded-xl text-white font-semibold text-[15px] cursor-pointer transition-all flex items-center justify-center gap-2 hover:bg-indigo-600 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-indigo-500/25 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none">
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Submit Request <ArrowRight className="w-4 h-4" /></>}
             </button>
 
-            <div className="login-footer">
-              <span className="footer-text">Already have an account?</span>
-              <button className="link-btn" onClick={() => setFormMode('signin')}>Sign in</button>
+            <div className="flex items-center justify-center gap-1.5 text-[13px] text-slate-400">
+              <span>Already have an account?</span>
+              <button onClick={() => setFormMode('signin')}
+                className="border-none bg-transparent text-indigo-500 font-semibold text-[13px] cursor-pointer p-0 underline hover:text-indigo-700">
+                Sign in
+              </button>
             </div>
           </div>
         )}
       </div>
-
-      <style jsx>{`
-        :root {
-          --bg: #f5f4f0;
-          --surface: #fff;
-          --border: #e2ddd8;
-          --red: #c0392b;
-          --red-light: #f9eeec;
-          --red-mid: #e8c5c0;
-          --text: #1a1a18;
-          --sub: #5a5750;
-          --muted: #9a948c;
-          --green: #2d7a4f;
-          --green-bg: #edf6f1;
-          --shadow: 0 1px 3px rgba(0,0,0,0.07), 0 4px 12px rgba(0,0,0,0.04);
-          --shadow-lg: 0 20px 60px rgba(0,0,0,0.18);
-          --radius: 10px;
-        }
-
-        .login-page {
-          min-height: 100vh;
-          background: var(--bg, #f5f4f0);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 20px;
-          font-family: 'DM Sans', sans-serif;
-        }
-
-        .login-card {
-          background: var(--surface, #fff);
-          border: 1px solid var(--border, #e2ddd8);
-          border-radius: 18px;
-          box-shadow: 0 20px 60px rgba(0,0,0,0.12);
-          width: 100%;
-          max-width: 400px;
-          padding: 32px 28px;
-        }
-
-        .login-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
-        .brand-logo { width: 44px; height: 44px; background: #c0392b; border-radius: 11px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
-        .brand-text { display: flex; flex-direction: column; }
-        .brand-name { font-size: 18px; font-weight: 700; color: var(--text, #1a1a18); letter-spacing: -0.4px; line-height: 1.2; }
-        .brand-name span { color: #c0392b; }
-        .brand-tagline { font-size: 11px; color: var(--muted, #9a948c); font-weight: 500; letter-spacing: 0.3px; }
-        .login-subtitle { font-size: 13px; color: var(--muted, #9a948c); font-weight: 500; letter-spacing: 0.3px; margin-bottom: 20px; }
-        .login-error { background: #fdf0ef; border: 1px solid #f0c5c0; color: #b03a2e; border-radius: 9px; padding: 10px 14px; font-size: 13px; margin-bottom: 14px; font-weight: 500; }
-        .login-success { background: #edf6f1; border: 1px solid #b7dfca; color: #2d7a4f; border-radius: 9px; padding: 10px 14px; font-size: 13px; margin-bottom: 14px; font-weight: 500; }
-        .login-form { display: flex; flex-direction: column; gap: 14px; }
-        .form-title { font-size: 20px; font-weight: 700; color: var(--text, #1a1a18); letter-spacing: -0.4px; }
-        .form-subtitle { font-size: 12px; color: var(--muted, #9a948c); margin-top: -8px; line-height: 1.5; }
-        .form-row { display: flex; gap: 10px; }
-        .form-group { display: flex; flex-direction: column; gap: 5px; flex: 1; }
-        .form-group label { font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--muted, #9a948c); }
-        .req { color: #c0392b; }
-        .form-group input { padding: 10px 12px; border: 1px solid var(--border, #e2ddd8); border-radius: 9px; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text, #1a1a18); background: var(--bg, #f5f4f0); outline: none; transition: border-color 0.15s, background 0.15s; }
-        .form-group input:focus { border-color: #c0392b; background: #fff; }
-        .form-group input:disabled { opacity: 0.6; cursor: not-allowed; }
-        .pwd-field { position: relative; }
-        .pwd-field input { width: 100%; padding-right: 40px; }
-        .pwd-eye { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); border: none; background: transparent; cursor: pointer; font-size: 14px; padding: 2px; opacity: 0.6; transition: opacity 0.15s; }
-        .pwd-eye:hover { opacity: 1; }
-        .pwd-strength { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
-        .pwd-bar { flex: 1; height: 4px; background: #e2ddd8; border-radius: 2px; overflow: hidden; }
-        .pwd-fill { height: 100%; border-radius: 2px; transition: width 0.3s, background 0.3s; }
-        .pwd-label { font-size: 11px; font-weight: 500; white-space: nowrap; }
-        .field-error { font-size: 11px; color: #c0392b; font-weight: 500; }
-        .form-options { display: flex; align-items: center; }
-        .remember-me { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--sub, #5a5750); cursor: pointer; }
-        .remember-me input { cursor: pointer; accent-color: #c0392b; }
-        .btn-signin { width: 100%; padding: 12px; background: #c0392b; border: none; border-radius: 10px; color: #fff; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 15px; cursor: pointer; transition: all 0.18s; letter-spacing: -0.2px; display: flex; align-items: center; justify-content: center; gap: 8px; }
-        .btn-signin:hover:not(:disabled) { background: #a93226; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(192,57,43,0.35); }
-        .btn-signin:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
-        .spinner { display: inline-block; animation: spin 0.8s linear infinite; }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .login-footer { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; color: var(--muted, #9a948c); }
-        .link-btn { border: none; background: transparent; color: #c0392b; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; padding: 0; text-decoration: underline; }
-        .link-btn:hover { color: #a93226; }
-        .demo-hint { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; color: var(--muted, #9a948c); }
-        .demo-label { font-weight: 600; }
-        .demo-fill { border: none; background: transparent; color: var(--muted, #9a948c); font-family: 'DM Sans', sans-serif; font-size: 12px; cursor: pointer; padding: 0; text-decoration: underline; transition: color 0.15s; }
-        .demo-fill:hover { color: #c0392b; }
-        @media (max-width: 480px) { .login-card { padding: 24px 20px; border-radius: 14px; } .login-page { align-items: flex-start; padding-top: 40px; } }
-      `}</style>
     </div>
   )
 }

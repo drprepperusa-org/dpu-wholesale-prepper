@@ -14,16 +14,14 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 403 });
     }
 
-    const { searchParams } = new URL(request.url);
-
     let query = `
       SELECT o.id, o.customer_id, o.status, o.total_cases, o.created_at,
-             c.company_name, c.email
+             c.company_name, c.contact_name, c.email, c.phone, c.alt_phone,
+             c.address_line1, c.address_line2, c.city, c.state, c.zip, c.country
       FROM orders o
       JOIN customers c ON o.customer_id = c.id
       WHERE 1=1
     `;
-
     const params = [];
 
     if (!admin) {
@@ -31,20 +29,36 @@ export async function GET(request) {
       params.push(customer.id);
     }
 
-    const statusFilter = searchParams.get('status');
+    const statusFilter = new URL(request.url).searchParams.get('status');
     if (statusFilter) {
       query += ` AND o.status = $${params.length + 1}`;
       params.push(statusFilter);
     }
 
     query += ' ORDER BY o.created_at DESC';
-
     const result = await pool.query(query, params);
 
-    return NextResponse.json({
-      success: true,
-      orders: result.rows
-    });
+    // Fetch items for each order
+    const orders = [];
+    for (const order of result.rows) {
+      const itemsResult = await pool.query(`
+        SELECT oi.product_id, oi.qty, oi.unit, p.name, p.sku, p.price
+        FROM order_items oi
+        JOIN products p ON oi.product_id = p.id
+        WHERE oi.order_id = $1
+        ORDER BY oi.id
+      `, [order.id]);
+
+      orders.push({
+        ...order,
+        customer_name: order.company_name,
+        items: itemsResult.rows,
+        skus: itemsResult.rows.length,
+        cases: order.total_cases || itemsResult.rows.reduce((s, i) => s + i.qty, 0)
+      });
+    }
+
+    return NextResponse.json({ success: true, orders });
   } catch (err) {
     console.error('Get orders error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -68,36 +82,23 @@ export async function POST(request) {
     }
 
     const orderId = uuidv4();
+    const totalCases = items.reduce((sum, item) => sum + (item.qty || 0), 0);
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
       await client.query(
-        'INSERT INTO orders (id, customer_id, status) VALUES ($1, $2, $3)',
-        [orderId, customer.id, 'Pending']
+        'INSERT INTO orders (id, customer_id, status, total_cases) VALUES ($1, $2, $3, $4)',
+        [orderId, customer.id, 'Pending', totalCases]
       );
 
       for (const item of items) {
         await client.query(
           'INSERT INTO order_items (order_id, product_id, qty, unit) VALUES ($1, $2, $3, $4)',
-          [orderId, item.product_id, item.qty, item.unit]
+          [orderId, item.product_id, item.qty, item.unit || 'cases']
         );
       }
-
-      // Calculate total cases
-      const totalResult = await pool.query(`
-        SELECT SUM(CASE WHEN unit = 'cases' THEN qty ELSE qty * p.cases_per_pallet END) as total
-        FROM order_items oi
-        JOIN products p ON oi.product_id = p.id
-        WHERE oi.order_id = $1
-      `, [orderId]);
-      const totalCases = totalResult.rows[0]?.total || 0;
-
-      await client.query(
-        'UPDATE orders SET total_cases = $1 WHERE id = $2',
-        [totalCases, orderId]
-      );
 
       await client.query(
         'INSERT INTO activity_log (customer_id, type, detail) VALUES ($1, $2, $3)',

@@ -10,8 +10,10 @@ export async function GET(request) {
     }
 
     const result = await pool.query(`
-      SELECT p.id, p.name, p.weight, p.bags_per_case, p.category_id, c.name as category,
-             p.super_category_id, s.name as super_category, p.image_url, p.sku
+      SELECT p.id, p.name, p.price, p.weight, p.bags_per_case, p.cases_per_pallet,
+             p.category_id, c.name as category,
+             p.super_category_id, s.name as super_category, p.image_url, p.sku,
+             p.is_hidden, p.is_oos, p.show_price, p.created_at
       FROM favorites f
       JOIN products p ON f.product_id = p.id
       JOIN categories c ON p.category_id = c.id

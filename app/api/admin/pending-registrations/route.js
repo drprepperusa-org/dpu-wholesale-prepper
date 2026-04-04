@@ -43,15 +43,18 @@ export async function POST(request) {
       const existing = await client.query('SELECT id FROM customers WHERE email = $1', [registration.email]);
       if (existing.rows.length > 0) {
         await client.query('ROLLBACK');
-        await pool.query("UPDATE pending_registrations SET status = 'rejected' WHERE id = $1", [id]);
-        return NextResponse.json({ error: 'A customer with this email already exists' }, { status: 409 });
+        return NextResponse.json({ error: 'A customer with this email already exists. Registration left as pending.' }, { status: 409 });
       }
+
+      // Generate customer ID
+      const custId = 'CUST-' + Date.now().toString(36).toUpperCase();
+      const passwordHash = registration.password_hash || '$2a$10$placeholder';
 
       // Insert into customers
       await client.query(
-        `INSERT INTO customers (company_name, contact_name, email, phone, password_hash, active)
-         VALUES ($1, $2, $3, $4, $5, TRUE)`,
-        [registration.company_name, registration.contact_name, registration.email, registration.phone, registration.password_hash]
+        `INSERT INTO customers (id, company_name, contact_name, email, phone, password_hash, active)
+         VALUES ($1, $2, $3, $4, $5, $6, TRUE)`,
+        [custId, registration.company_name, registration.contact_name || '', registration.email, registration.phone || '', passwordHash]
       );
 
       // Update pending status

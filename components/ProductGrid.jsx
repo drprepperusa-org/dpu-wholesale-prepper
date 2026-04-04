@@ -1,11 +1,20 @@
 'use client';
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import ProductCard from './ProductCard'
 
-function ProductGrid({ products, favorites, cart, cardSize, onProductSelected, onAddToCart, onToggleFavorite }) {
+function ProductGrid({ products, favorites, cart, cardSize, onProductSelected, onAddToCart, onToggleFavorite, onCardResize, showPrices = true }) {
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 640)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
   if (!products || products.length === 0) {
     return (
-      <div className="empty-state">
+      <div className="text-center py-12 text-slate-400">
         <p>No products found.</p>
       </div>
     )
@@ -13,11 +22,16 @@ function ProductGrid({ products, favorites, cart, cardSize, onProductSelected, o
 
   const isFavorited = (product) => favorites.some(f => f.id === product.id)
   const isInCart = (product) => cart.some(item => item.id === product.id)
+  const scale = cardSize || 1
+
+  const gridStyle = isMobile
+    ? { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }
+    : { display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${148 * scale}px, 1fr))`, gap: `${10 * scale}px` }
 
   return (
-    <div className="products-grid" style={{ '--card-scale': cardSize }}>
+    <div style={gridStyle}>
       {products.map((product, index) => (
-        <ProductCard 
+        <ProductCard
           key={product.id}
           product={product}
           isFirst={index === 0}
@@ -26,30 +40,11 @@ function ProductGrid({ products, favorites, cart, cardSize, onProductSelected, o
           onProductSelected={onProductSelected}
           onAddToCart={onAddToCart}
           onToggleFavorite={onToggleFavorite}
-          cardSize={cardSize}
+          cardSize={isMobile ? 1 : cardSize}
+          onCardResize={onCardResize}
+          showPrices={showPrices}
         />
       ))}
-
-      <style jsx>{`
-        .products-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(calc(148px * var(--card-scale, 1)), 1fr));
-          gap: calc(10px * var(--card-scale, 1));
-        }
-
-        .empty-state {
-          text-align: center;
-          padding: 50px;
-          color: #9a948c;
-        }
-
-        @media (max-width: 640px) {
-          .products-grid {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-          }
-        }
-      `}</style>
     </div>
   )
 }

@@ -1,11 +1,33 @@
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import BulkEditView from './BulkEditView'
+import {
+  Flame, Package, Zap, Users, ClipboardList, FolderOpen, Settings,
+  Search, Ban, AlertTriangle, Trash2, Pencil, Check, X, GripVertical,
+  LogOut, ChevronDown, ChevronRight, ChevronLeft, Camera, Eye,
+  DollarSign, Trophy, BarChart3, Shield, Key, Heart, User,
+  XCircle, CheckCircle, MoreHorizontal, Plus, LayoutGrid, AlignJustify,
+  ArrowUpRight, Star, CheckCircle2, Boxes, Megaphone, ImageIcon, Type, Upload, Link, Download, FileSpreadsheet
+} from 'lucide-react'
 
 function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
   // ==================== STATE ====================
-  const [activePage, setActivePage] = useState('catalog')
+  const [activePage, setActivePage] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('admin_active_page')
+      if (saved && ['catalog', 'bulk-edit', 'views', 'orders', 'categories', 'settings'].includes(saved)) return saved
+    }
+    return 'catalog'
+  })
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false)
+  const [viewsZoom, setViewsZoom] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('admin_views_zoom')
+      if (saved) return parseInt(saved) || 100
+    }
+    return 100
+  })
   const [sidebarFilter, setSidebarFilter] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [currentFilter, setCurrentFilter] = useState('all')
@@ -62,14 +84,17 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
 
   // Registration and Activity log
   const [registrationEnabled, setRegistrationEnabled] = useState(true)
+  const [priceVisibility, setPriceVisibility] = useState(true)
+  const [promoBanner, setPromoBanner] = useState({ enabled: false, type: 'text', label: 'LIMITED TIME OFFER', headline: 'Free freight on orders over $2,000', subtitle: 'Use code SPRINGDEAL at checkout for an extra 5% off your first container order.', ctaText: 'Shop New Arrivals', ctaLink: '', imageUrl: '' })
   const [pendingRegistrations, setPendingRegistrations] = useState([])
   const [activityLog, setActivityLog] = useState([
-    { customer: 'Happy Snacks Co.', message: 'Logged in', type: 'login', icon: '\u{1F511}', time: 'just now' },
-    { customer: 'Dragon Imports', message: "Favorited: Lay's Cheetos", type: 'favorite', icon: '\u2764\uFE0F', time: '5 min' }
+    { customer: 'Happy Snacks Co.', message: 'Logged in', type: 'login', icon: 'key', time: 'just now' },
+    { customer: 'Dragon Imports', message: "Favorited: Lay's Cheetos", type: 'favorite', icon: 'heart', time: '5 min' }
   ])
   const [activityCustFilter, setActivityCustFilter] = useState('all')
   const [activityTypeFilter, setActivityTypeFilter] = useState('all')
   const [orderFilter, setOrderFilter] = useState('all')
+  const [expandedOrderId, setExpandedOrderId] = useState(null)
   const [catReorderStatus, setCatReorderStatus] = useState('')
 
   // Pagination
@@ -114,10 +139,19 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
   // Debounce
   const searchDebounceRef = useRef(null)
   const imageFileInputRef = useRef(null)
+  const excelFileInputRef = useRef(null)
+  const [excelUploading, setExcelUploading] = useState(false)
+  const [excelResult, setExcelResult] = useState(null)
+  const [importModalOpen, setImportModalOpen] = useState(false)
+  const [importExcelFile, setImportExcelFile] = useState(null)
+  const [importImageFiles, setImportImageFiles] = useState([])
+  const [importProgress, setImportProgress] = useState('')
 
   // ==================== COMPUTED ====================
   const hiddenCount = useMemo(() => products.filter(p => p.is_hidden).length, [products])
   const oosCount = useMemo(() => products.filter(p => p.is_oos).length, [products])
+  const inStockCount = useMemo(() => products.filter(p => !p.is_oos && !p.is_hidden).length, [products])
+  const newThisWeekCount = useMemo(() => products.filter(p => { if (!p.created_at) return false; return ((new Date() - new Date(p.created_at)) / (1000 * 60 * 60 * 24)) <= 7 }).length, [products])
 
   const superCatNames = useMemo(() => categoryTree.map(c => c.name), [categoryTree])
 
@@ -293,7 +327,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
     dragItemRef.current = index
     setDragContext({ listType, superId })
     e.dataTransfer.effectAllowed = 'move'
-    e.target.closest('.cat-item').classList.add('cat-dragging')
+    e.target.closest('.cat-item').classList.add('opacity-40')
   }, [])
 
   const handleDragEnter = useCallback((e, index, listType, superId) => {
@@ -309,8 +343,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
   }, [dragContext])
 
   const handleDragEnd = useCallback((e) => {
-    e.target.closest('.cat-item')?.classList.remove('cat-dragging')
-    document.querySelectorAll('.cat-drag-over').forEach(el => el.classList.remove('cat-drag-over'))
+    e.target.closest('.cat-item')?.classList.remove('opacity-40')
   }, [])
 
   const saveCategoryOrder = useCallback(async (endpoint, items) => {
@@ -333,8 +366,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
 
   const handleDrop = useCallback((e, listType, superId) => {
     e.preventDefault()
-    document.querySelectorAll('.cat-dragging').forEach(el => el.classList.remove('cat-dragging'))
-    document.querySelectorAll('.cat-drag-over').forEach(el => el.classList.remove('cat-drag-over'))
+    document.querySelectorAll('.opacity-40').forEach(el => el.classList.remove('opacity-40'))
     if (!dragContext || dragContext.listType !== listType || dragContext.superId !== superId) return
     const from = dragItemRef.current
     const to = dragOverItemRef.current
@@ -400,7 +432,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
         customer: 'Admin',
         message,
         type: 'order',
-        icon: '\u2699\uFE0F',
+        icon: 'settings',
         time: 'just now'
       }, ...prev]
       if (newLog.length > 100) newLog.pop()
@@ -419,12 +451,12 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
         body: JSON.stringify({ name: newSuperCatName.trim() })
       })
       const data = await res.json()
-      if (!res.ok) { showToast('\u274C ' + (data.error || 'Failed to add')); return }
+      if (!res.ok) { showToast((data.error || 'Failed to add')); return }
       setSuperCategoriesList(prev => [...prev, data.superCategory])
       setCategoriesBySuper(prev => ({ ...prev, [data.superCategory.id]: [] }))
       setNewSuperCatName('')
-      showToast('\u2705 Super category added')
-    } catch (e) { showToast('\u274C Failed to add super category') }
+      showToast('Super category added')
+    } catch (e) { showToast('Failed to add super category') }
   }, [newSuperCatName, showToast])
 
   const renameSuperCategory = useCallback(async (id) => {
@@ -437,12 +469,12 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
         body: JSON.stringify({ id, name: editingSuperCatName.trim() })
       })
       const data = await res.json()
-      if (!res.ok) { showToast('\u274C ' + (data.error || 'Failed to rename')); return }
+      if (!res.ok) { showToast((data.error || 'Failed to rename')); return }
       setSuperCategoriesList(prev => prev.map(sc => sc.id === id ? { ...sc, name: data.superCategory.name } : sc))
       setEditingSuperCatId(null)
       setEditingSuperCatName('')
-      showToast('\u2705 Renamed')
-    } catch (e) { showToast('\u274C Failed to rename') }
+      showToast('Renamed')
+    } catch (e) { showToast('Failed to rename') }
   }, [editingSuperCatName, showToast])
 
   const deleteSuperCategory = useCallback(async (id, name) => {
@@ -455,11 +487,11 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
         body: JSON.stringify({ id })
       })
       const data = await res.json()
-      if (!res.ok) { showToast('\u274C ' + (data.error || 'Failed to delete')); return }
+      if (!res.ok) { showToast((data.error || 'Failed to delete')); return }
       setSuperCategoriesList(prev => prev.filter(sc => sc.id !== id))
       setCategoriesBySuper(prev => { const next = { ...prev }; delete next[id]; return next })
-      showToast('\u2705 Deleted')
-    } catch (e) { showToast('\u274C Failed to delete') }
+      showToast('Deleted')
+    } catch (e) { showToast('Failed to delete') }
   }, [showToast])
 
   // ==================== SUBCATEGORY CRUD ====================
@@ -474,11 +506,11 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
         body: JSON.stringify({ name, super_category_id: superId })
       })
       const data = await res.json()
-      if (!res.ok) { showToast('\u274C ' + (data.error || 'Failed to add')); return }
+      if (!res.ok) { showToast((data.error || 'Failed to add')); return }
       setCategoriesBySuper(prev => ({ ...prev, [superId]: [...(prev[superId] || []), data.category] }))
       setNewSubCatName(prev => ({ ...prev, [superId]: '' }))
-      showToast('\u2705 Subcategory added')
-    } catch (e) { showToast('\u274C Failed to add subcategory') }
+      showToast('Subcategory added')
+    } catch (e) { showToast('Failed to add subcategory') }
   }, [newSubCatName, showToast])
 
   const renameSubCategory = useCallback(async (id, superId) => {
@@ -491,12 +523,12 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
         body: JSON.stringify({ id, name: editingSubCatName.trim() })
       })
       const data = await res.json()
-      if (!res.ok) { showToast('\u274C ' + (data.error || 'Failed to rename')); return }
+      if (!res.ok) { showToast((data.error || 'Failed to rename')); return }
       setCategoriesBySuper(prev => ({ ...prev, [superId]: (prev[superId] || []).map(c => c.id === id ? { ...c, name: data.category.name } : c) }))
       setEditingSubCatId(null)
       setEditingSubCatName('')
-      showToast('\u2705 Renamed')
-    } catch (e) { showToast('\u274C Failed to rename') }
+      showToast('Renamed')
+    } catch (e) { showToast('Failed to rename') }
   }, [editingSubCatName, showToast])
 
   const deleteSubCategory = useCallback(async (id, superId, name) => {
@@ -509,10 +541,10 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
         body: JSON.stringify({ id })
       })
       const data = await res.json()
-      if (!res.ok) { showToast('\u274C ' + (data.error || 'Failed to delete')); return }
+      if (!res.ok) { showToast((data.error || 'Failed to delete')); return }
       setCategoriesBySuper(prev => ({ ...prev, [superId]: (prev[superId] || []).filter(c => c.id !== id) }))
-      showToast('\u2705 Deleted')
-    } catch (e) { showToast('\u274C Failed to delete') }
+      showToast('Deleted')
+    } catch (e) { showToast('Failed to delete') }
   }, [showToast])
 
   // ==================== DATA LOADING ====================
@@ -557,7 +589,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       const token = localStorage.getItem('token')
       const params = new URLSearchParams()
       params.set('page', page !== null ? page : paginationPage)
-      params.set('limit', 0) // Load all products (limit=0 means unlimited per API)
+      params.set('limit', 0)
       if (searchQuery) params.set('search', searchQuery)
       if (superCatFilter) params.set('super_category', superCatFilter)
       if (visibilityFilter !== 'all') params.set('visibility', visibilityFilter)
@@ -609,7 +641,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       })))
     } catch (e) {
       console.error('Failed to load customers:', e)
-      showToast('\u274C Failed to load customers')
+      showToast('Failed to load customers')
     }
   }, [showToast])
 
@@ -635,11 +667,11 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
         body: JSON.stringify({ id, action })
       })
       const data = await res.json()
-      if (!res.ok) { showToast('\u274C ' + (data.error || 'Failed')); return }
-      showToast(`\u2705 ${companyName} ${action === 'approve' ? 'approved' : 'rejected'}`)
+      if (!res.ok) { showToast((data.error || 'Failed')); return }
+      showToast(`${companyName} ${action === 'approve' ? 'approved' : 'rejected'}`)
       loadPendingRegistrations()
       loadCustomers()
-    } catch (e) { showToast('\u274C Failed to process registration') }
+    } catch (e) { showToast('Failed to process registration') }
   }, [showToast, loadPendingRegistrations, loadCustomers])
 
   const loadOrders = useCallback(async () => {
@@ -654,7 +686,8 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
         ...o,
         customer_name: o.customer_name || o.company_name || 'Unknown',
         cases: o.cases || o.total_cases || 0,
-        skus: o.skus || o.items?.length || 0
+        skus: o.skus || o.items?.length || 0,
+        amount: o.items ? o.items.reduce((sum, i) => sum + (parseFloat(i.price || 0) * (i.qty || 0)), 0).toFixed(2) : '0.00'
       })))
     } catch (e) {
       console.error('Failed to load orders:', e)
@@ -669,6 +702,14 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
         if (data.settings) {
           const val = data.settings.allow_registration ?? data.settings.registration_enabled
           setRegistrationEnabled(val === undefined ? true : (val === 'true' || val === true))
+          const priceVal = data.settings.show_prices
+          setPriceVisibility(priceVal === undefined ? true : (priceVal === 'true' || priceVal === true))
+          if (data.settings.promo_banner) {
+            try {
+              const parsed = JSON.parse(data.settings.promo_banner)
+              setPromoBanner(prev => ({ ...prev, ...parsed, type: parsed.type || 'text' }))
+            } catch(e) { console.error('Banner parse error:', e) }
+          }
         }
       }
     } catch (e) {
@@ -741,6 +782,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
   const showPage = useCallback((page) => {
     setActivePage(page)
     setSidebarOpen(false)
+    try { localStorage.setItem('admin_active_page', page) } catch(e) {}
   }, [])
 
   const toggleSidebar = useCallback(() => {
@@ -891,7 +933,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Bulk delete failed')
-        showToast(`\u2705 ${data.deleted} products deleted`)
+        showToast(`${data.deleted} products deleted`)
       } else {
         const is_hidden = action === 'hide'
         const res = await fetch('/api/admin/bulk/visibility', {
@@ -901,7 +943,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Bulk visibility update failed')
-        showToast(`\u2705 ${data.updated} products ${is_hidden ? 'hidden' : 'shown'}`)
+        showToast(`${data.updated} products ${is_hidden ? 'hidden' : 'shown'}`)
       }
       clearSelection()
       await loadProductsWithScrollPreserve()
@@ -936,7 +978,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
     }
     if (Object.keys(errors).length > 0) {
       setEditProductErrors(errors)
-      showToast('\u274C Please fix validation errors')
+      showToast('Please fix validation errors')
       return
     }
 
@@ -961,21 +1003,21 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       const data = await response.json().catch(() => ({}))
 
       if (response.status === 401 || response.status === 403) {
-        showToast('\u274C Not authorized \u2014 please log in again')
+        showToast('Not authorized - please log in again')
       } else if (response.status === 404) {
-        showToast('\u274C Product not found')
+        showToast('Product not found')
       } else if (response.ok) {
         await loadProductsWithScrollPreserve()
         setActiveModal(null)
         setEditProductErrors({})
-        showToast('\u2705 Product updated')
+        showToast('Product updated')
         logActivity(`Updated product: ${editingProduct.name}`)
       } else {
-        showToast('\u274C ' + (data.error || 'Failed to update product'))
+        showToast((data.error || 'Failed to update product'))
       }
     } catch (e) {
       console.error('Save error:', e)
-      showToast('\u274C Network error \u2014 check connection')
+      showToast('Network error - check connection')
     } finally {
       setIsSavingEditProduct(false)
     }
@@ -983,7 +1025,6 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
 
   const deleteProduct = useCallback(async (productId) => {
     if (!window.confirm('Are you sure you want to delete this product? This cannot be undone.')) return
-
     setIsDeletingProduct(productId)
     try {
       const token = localStorage.getItem('token')
@@ -995,20 +1036,20 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       const data = await response.json().catch(() => ({}))
 
       if (response.status === 401 || response.status === 403) {
-        showToast('\u274C Not authorized \u2014 please log in again')
+        showToast('Not authorized - please log in again')
       } else if (response.status === 404) {
-        showToast('\u274C Product not found')
+        showToast('Product not found')
         await loadProductsWithScrollPreserve()
       } else if (response.ok) {
         await loadProductsWithScrollPreserve()
-        showToast('\u2705 Product deleted')
+        showToast('Product deleted')
         logActivity('Deleted a product')
       } else {
-        showToast('\u274C ' + (data.error || 'Failed to delete product'))
+        showToast((data.error || 'Failed to delete product'))
       }
     } catch (e) {
       console.error('Delete error:', e)
-      showToast('\u274C Network error \u2014 check connection')
+      showToast('Network error - check connection')
     } finally {
       setIsDeletingProduct(null)
     }
@@ -1029,7 +1070,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
 
       if (response.ok) {
         await loadProductsWithScrollPreserve()
-        showToast('\u2705 Product visibility toggled')
+        showToast('Product visibility toggled')
         logActivity(`${newHiddenStatus ? 'Hidden' : 'Unhidden'}: ${product.name}`)
       } else {
         const errorData = await response.json().catch(() => ({}))
@@ -1046,7 +1087,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
     try {
       const metadata = categoryMetadata[categoryName]
       if (!metadata || !metadata.id) {
-        showToast('\u274C Category ID not found')
+        showToast('Category ID not found')
         return
       }
 
@@ -1066,16 +1107,16 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
           ...prev,
           [categoryName]: { ...prev[categoryName], is_hidden: newHiddenStatus }
         }))
-        showToast(newHiddenStatus ? '\u{1F6AB} Category Hidden' : '\u{1F441} Category Visible')
+        showToast(newHiddenStatus ? 'Category Hidden' : 'Category Visible')
         logActivity(`${newHiddenStatus ? 'Hidden' : 'Unhidden'} category: ${categoryName}`)
       } else {
         const errorData = await response.json().catch(() => ({}))
         console.error('Category visibility toggle failed:', response.status, errorData)
-        showToast(`\u274C Failed to update (${response.status})`)
+        showToast(`Failed to update (${response.status})`)
       }
     } catch (e) {
       console.error('Category visibility toggle error:', e)
-      showToast('\u274C Failed to update')
+      showToast('Failed to update')
     }
   }, [categoryMetadata, showToast, logActivity])
 
@@ -1089,7 +1130,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed')
-      showToast(`\u2705 ${data.updated} products in "${catName}" ${isHide ? 'hidden' : 'shown'}`)
+      showToast(`${data.updated} products in "${catName}" ${isHide ? 'hidden' : 'shown'}`)
       await loadProducts()
     } catch (err) {
       showErrorToast(`Failed to update "${catName}": ${err.message}`, () => toggleCategoryAllProductsVisibility(catId, catName, isHide))
@@ -1111,16 +1152,16 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
 
       if (response.ok) {
         await loadProductsWithScrollPreserve()
-        showToast(newOosStatus ? '\u26A0\uFE0F Out of Stock' : '\u2713 In Stock')
-        logActivity(`Stock status updated: ${product.name} \u2192 ${newOosStatus ? 'OOS' : 'In Stock'}`)
+        showToast(newOosStatus ? 'Out of Stock' : 'In Stock')
+        logActivity(`Stock status updated: ${product.name} -> ${newOosStatus ? 'OOS' : 'In Stock'}`)
       } else {
         const errorData = await response.json().catch(() => ({}))
         console.error('OOS toggle failed:', response.status, errorData)
-        showToast(`\u274C Failed to update (${response.status})`)
+        showToast(`Failed to update (${response.status})`)
       }
     } catch (e) {
       console.error('OOS toggle error:', e)
-      showToast('\u274C Failed to update stock status')
+      showToast('Failed to update stock status')
     }
   }, [loadProductsWithScrollPreserve, showToast, logActivity])
 
@@ -1128,11 +1169,11 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
 
   const processImageFile = useCallback((file) => {
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      showToast('\u274C Only JPG, PNG, or WebP images are allowed')
+      showToast('Only JPG, PNG, or WebP images are allowed')
       return
     }
     if (file.size > 5 * 1024 * 1024) {
-      showToast('\u274C Image must be smaller than 5MB')
+      showToast('Image must be smaller than 5MB')
       return
     }
     setNewProductForm(prev => ({ ...prev, imageFile: file, image_url: '' }))
@@ -1208,7 +1249,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
     }
     if (Object.keys(errors).length > 0) {
       setProductFormErrors(errors)
-      showToast('\u274C Please fix validation errors')
+      showToast('Please fix validation errors')
       return
     }
 
@@ -1275,31 +1316,31 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       const data = await response.json().catch(() => ({}))
 
       if (response.status === 401 || response.status === 403) {
-        showToast('\u274C Not authorized \u2014 please log in again')
+        showToast('Not authorized - please log in again')
       } else if (response.status === 409) {
         setProductFormErrors(prev => ({ ...prev, sku: data.error || 'SKU already exists' }))
-        showToast('\u274C ' + (data.error || 'Duplicate entry'))
+        showToast((data.error || 'Duplicate entry'))
       } else if (response.status === 422) {
         if (data.errors) {
           setProductFormErrors(prev => ({ ...prev, ...data.errors }))
           const errorFields = Object.keys(data.errors).join(', ')
-          showToast('\u274C Please fix: ' + errorFields)
+          showToast('Please fix: ' + errorFields)
         } else {
-          showToast('\u274C ' + (data.error || 'Validation failed'))
+          showToast((data.error || 'Validation failed'))
         }
       } else if (response.ok) {
         await loadProducts()
         setActiveModal(null)
         setNewProductForm({ name: '', sku: '', weight: '', bags_per_case: '', cases_per_pallet: '', price: '', category_id: '', image_url: '', imageFile: null, showPrice: true })
         setProductFormErrors({})
-        showToast('\u2705 Product added')
+        showToast('Product added')
         logActivity(`Added new product: ${payload.name}`)
       } else {
-        showToast('\u274C ' + (data.error || 'Failed to add product'))
+        showToast((data.error || 'Failed to add product'))
       }
     } catch (e) {
       console.error('Add error:', e)
-      showToast('\u274C ' + (e.message || 'Network error \u2014 check connection'))
+      showToast((e.message || 'Network error - check connection'))
     } finally {
       setIsSavingProduct(false)
     }
@@ -1307,7 +1348,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
 
   // ==================== CUSTOMER MANAGEMENT ====================
 
-  const selectCustomer = useCallback((cust) => {
+  const selectCustomer = useCallback(async (cust) => {
     const initialized = {
       ...cust,
       catHidden: cust.catHidden ? [...cust.catHidden] : [],
@@ -1317,6 +1358,25 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
     setSelectedCustomer(initialized)
     setExpandedViewCats({})
     setCustomerViewMode('custom')
+    // Load view overrides from API
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch(`/api/admin/customers/${cust.id}/view`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success) {
+          setSelectedCustomer(prev => ({
+            ...prev,
+            catHidden: data.catHidden || [],
+            customHidden: data.customHidden || [],
+            customOos: data.customOos || [],
+            showPrices: data.showPrices !== false
+          }))
+        }
+      }
+    } catch (e) { console.error('Failed to load customer view:', e) }
   }, [])
 
   const addCustomer = useCallback(async () => {
@@ -1346,7 +1406,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
     }
     if (Object.keys(errors).length > 0) {
       setCustomerFormErrors(errors)
-      showToast('\u274C Please fix validation errors')
+      showToast('Please fix validation errors')
       return
     }
 
@@ -1371,23 +1431,23 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       const data = await response.json().catch(() => ({}))
 
       if (response.status === 401 || response.status === 403) {
-        showToast('\u274C Not authorized \u2014 please log in again')
+        showToast('Not authorized - please log in again')
       } else if (response.status === 409) {
         setCustomerFormErrors(prev => ({ ...prev, email: data.error || 'Email already exists' }))
-        showToast('\u274C ' + (data.error || 'Email already registered'))
+        showToast((data.error || 'Email already registered'))
       } else if (response.ok) {
         await loadCustomers()
         setActiveModal(null)
         setNewCustomerForm({ company_name: '', contact_name: '', email: '', phone: '', preset: 'full' })
         setCustomerFormErrors({})
-        showToast('\u2705 Customer added')
+        showToast('Customer added')
         logActivity(`Added customer: ${companyName}`)
       } else {
-        showToast(`\u274C ${data.error || 'Failed to add customer'}`)
+        showToast(`${data.error || 'Failed to add customer'}`)
       }
     } catch (e) {
       console.error('Add customer error:', e)
-      showToast('\u274C Network error \u2014 check connection')
+      showToast('Network error - check connection')
     } finally {
       setIsSavingCustomer(false)
     }
@@ -1397,6 +1457,10 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
     if (!selectedCustomer) return
     try {
       const token = localStorage.getItem('token')
+      const catHiddenIds = (selectedCustomer.catHidden || []).map(name => {
+        const sc = superCategoriesList.find(s => s.name === name)
+        return sc ? sc.id : name
+      }).filter(Boolean)
       const response = await fetch(`/api/admin/customers/${selectedCustomer.id}/view`, {
         method: 'PUT',
         headers: {
@@ -1404,23 +1468,24 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
-          catHidden: selectedCustomer.catHidden || [],
+          catHidden: catHiddenIds,
           customHidden: selectedCustomer.customHidden || [],
-          customOos: selectedCustomer.customOos || []
+          customOos: selectedCustomer.customOos || [],
+          showPrices: selectedCustomer.showPrices !== false
         })
       })
       if (response.ok) {
-        showToast('\u2705 View saved')
+        showToast('View saved')
         logActivity(`Updated view for: ${selectedCustomer.company_name}`)
       } else {
         const errData = await response.json().catch(() => ({}))
-        showToast(`\u26A0\uFE0F ${errData.error || 'Failed to save view'}`)
+        showToast(`${errData.error || 'Failed to save view'}`)
       }
     } catch (e) {
-      showToast('\u26A0\uFE0F Saved locally (no connection)')
+      showToast('Saved locally (no connection)')
       logActivity(`Updated view for: ${selectedCustomer.company_name}`)
     }
-  }, [selectedCustomer, showToast, logActivity])
+  }, [selectedCustomer, superCategoriesList, showToast, logActivity])
 
   const applyViewPreset = useCallback((preset) => {
     if (!selectedCustomer) return
@@ -1438,21 +1503,21 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
 
     if (preset === 'full') {
       setSelectedCustomer(prev => ({ ...prev, catHidden: [], customHidden: [] }))
-      showToast('\u{1F4E6} Full catalog restored')
+      showToast('Full catalog restored')
     } else if (preset === 'chips') {
       setSelectedCustomer(prev => ({ ...prev, catHidden: ALL.filter(c => c !== 'Chips & Savory Snacks') }))
-      showToast('\u{1F954} Chips preset applied')
+      showToast('Chips preset applied')
     } else if (preset === 'noodles') {
       setSelectedCustomer(prev => ({ ...prev, catHidden: ALL.filter(c => c !== 'Noodles & Rice') }))
-      showToast('\u{1F35C} Noodles preset applied')
+      showToast('Noodles preset applied')
     } else if (preset === 'korean') {
       setSelectedCustomer(prev => ({ ...prev, catHidden: ALL.filter(c => c !== 'Korean Snacks') }))
-      showToast('\u{1F371} Korean preset applied')
+      showToast('Korean preset applied')
     } else if (preset === 'icecream') {
       setSelectedCustomer(prev => ({ ...prev, catHidden: ALL.filter(c => c !== 'Ice Cream') }))
-      showToast('\u{1F366} Ice Cream preset applied')
+      showToast('Ice Cream preset applied')
     } else if (preset === 'custom') {
-      showToast('\u270F\uFE0F Custom mode \u2014 adjust manually')
+      showToast('Custom mode - adjust manually')
     }
   }, [selectedCustomer, showToast])
 
@@ -1479,14 +1544,14 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
     if (!selectedCustomer) return
     setSelectedCustomer(prev => ({ ...prev, catHidden: [...superCatNames] }))
     setCustomerViewMode('custom')
-    showToast('\u{1F6AB} All categories hidden for this customer')
+    showToast('All categories hidden for this customer')
   }, [selectedCustomer, superCatNames, showToast])
 
   const showAllForCust = useCallback(() => {
     if (!selectedCustomer) return
     setSelectedCustomer(prev => ({ ...prev, catHidden: [], customHidden: [] }))
     setCustomerViewMode('full')
-    showToast('\u{1F441} Full catalog restored')
+    showToast('Full catalog restored')
   }, [selectedCustomer, showToast])
 
   const showOnlyForCust = useCallback((superCat) => {
@@ -1497,7 +1562,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       customHidden: []
     }))
     setCustomerViewMode('custom')
-    showToast(`\u{1F441} Only showing: ${superCat}`)
+    showToast(`Only showing: ${superCat}`)
   }, [selectedCustomer, superCatNames, showToast])
 
   const resetCustomerView = useCallback(() => {
@@ -1505,7 +1570,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
     if (!window.confirm(`Reset all visibility settings for ${selectedCustomer.company_name}?`)) return
     setSelectedCustomer(prev => ({ ...prev, catHidden: [], customHidden: [], customOos: [] }))
     setCustomerViewMode('full')
-    showToast('\u2705 View reset \u2014 full catalog')
+    showToast('View reset - full catalog')
   }, [selectedCustomer, showToast])
 
   const isProductVisibleForCustomer = useCallback((productId) => {
@@ -1557,14 +1622,14 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
 
       if (response.ok) {
         setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o))
-        showToast('\u2705 Order status updated')
+        showToast('Order status updated')
         logActivity(`Updated order ${orderId} to ${newStatus}`)
       } else {
-        showToast('\u274C Failed to update order status')
+        showToast('Failed to update order status')
       }
     } catch (e) {
       console.error('Update order error:', e)
-      showToast('\u274C Error updating order')
+      showToast('Error updating order')
     }
   }, [showToast, logActivity])
 
@@ -1583,16 +1648,128 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
         },
         body: JSON.stringify({ value: newVal ? 'true' : 'false' })
       })
-      showToast(newVal ? '\u2705 Registration enabled' : '\u2705 Registration disabled')
+      showToast(newVal ? 'Registration enabled' : 'Registration disabled')
     } catch (e) {
-      showToast(newVal ? '\u2705 Registration enabled (local)' : '\u2705 Registration disabled (local)')
+      showToast(newVal ? 'Registration enabled (local)' : 'Registration disabled (local)')
     }
   }, [registrationEnabled, showToast])
+
+  const togglePriceVisibility = useCallback(async () => {
+    const newVal = !priceVisibility
+    setPriceVisibility(newVal)
+    try {
+      const token = localStorage.getItem('token')
+      await fetch('/api/settings/show_prices', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ value: newVal ? 'true' : 'false' })
+      })
+      showToast(newVal ? 'Prices visible to customers' : 'Prices hidden from customers')
+    } catch (e) { showToast('Failed to update setting') }
+  }, [priceVisibility, showToast])
+
+  const savePromoBanner = useCallback(async (banner) => {
+    setPromoBanner(banner)
+    const jsonValue = JSON.stringify(banner)
+    try {
+      const token = localStorage.getItem('token')
+      if (!token) throw new Error('Not logged in')
+      const res = await fetch('/api/settings/promo_banner', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ value: jsonValue })
+      })
+      if (!res.ok) {
+        const errData = await res.text()
+        throw new Error(`HTTP ${res.status}: ${errData}`)
+      }
+      showToast(`${banner.type === 'image' ? 'Image' : 'Text'} banner ${banner.enabled ? 'saved & enabled' : 'disabled'}`)
+    } catch (e) {
+      console.error('Banner save error:', e)
+      showToast('Save failed: ' + e.message, 'error')
+    }
+  }, [showToast])
+
+  const uploadBannerImage = useCallback(async (file) => {
+    try {
+      const token = localStorage.getItem('token')
+      const fd = new FormData(); fd.append('image', file);
+      const res = await fetch('/api/admin/banner', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: fd });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Upload failed') }
+      const data = await res.json();
+      return data.url;
+    } catch (err) { showToast('Failed to upload: ' + err.message, 'error'); return null }
+  }, [showToast])
+
+  const removeBannerImage = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token')
+      await fetch('/api/admin/banner', { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      setPromoBanner(p => ({ ...p, imageUrl: '' }));
+      showToast('Banner image removed');
+    } catch (err) { showToast('Failed to remove image', 'error') }
+  }, [showToast])
+
+  const downloadExcel = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch('/api/admin/products/excel', { headers: { 'Authorization': `Bearer ${token}` } })
+      if (!res.ok) throw new Error('Download failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a'); a.href = url; a.download = `products-${new Date().toISOString().split('T')[0]}.xlsx`; a.click()
+      URL.revokeObjectURL(url)
+      showToast('Excel downloaded')
+    } catch (e) { showToast('Download failed: ' + e.message, 'error') }
+  }, [showToast])
+
+  const runImport = useCallback(async () => {
+    if (!importExcelFile) { showToast('Please select an Excel file', 'error'); return }
+    setExcelUploading(true); setExcelResult(null); setImportProgress('Uploading images...')
+    try {
+      const token = localStorage.getItem('token')
+      // Step 1: Upload all image files and build a filename→URL map
+      const imageMap = {}
+      if (importImageFiles.length > 0) {
+        for (let i = 0; i < importImageFiles.length; i++) {
+          const img = importImageFiles[i]
+          setImportProgress(`Uploading image ${i + 1}/${importImageFiles.length}: ${img.name}`)
+          const fd = new FormData(); fd.append('image', img)
+          const res = await fetch('/api/upload', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: fd })
+          if (res.ok) {
+            const data = await res.json()
+            // Map by full name and name without extension
+            imageMap[img.name.toLowerCase()] = data.url
+            const nameNoExt = img.name.replace(/\.[^.]+$/, '').toLowerCase()
+            imageMap[nameNoExt] = data.url
+          }
+        }
+      }
+
+      // Step 2: Upload Excel with the image URL map
+      setImportProgress('Processing Excel...')
+      const fd = new FormData()
+      fd.append('file', importExcelFile)
+      fd.append('imageMap', JSON.stringify(imageMap))
+      const res = await fetch('/api/admin/products/excel', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: fd })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Import failed')
+      setExcelResult(data)
+      showToast(`Imported: ${data.created} created, ${data.updated} updated`)
+      setImportModalOpen(false); setImportExcelFile(null); setImportImageFiles([])
+      loadProducts(1)
+    } catch (e) { showToast('Import failed: ' + e.message, 'error') }
+    finally { setExcelUploading(false); setImportProgress('') }
+  }, [importExcelFile, importImageFiles, showToast])
+
+  useEffect(() => {
+    try { localStorage.setItem('admin_views_zoom', String(viewsZoom)); } catch(e) {}
+  }, [viewsZoom])
 
   const clearActivityLog = useCallback(() => {
     if (window.confirm('Clear all activity logs?')) {
       setActivityLog([])
-      showToast('\u2705 Log cleared')
+      showToast('Log cleared')
     }
   }, [showToast])
 
@@ -1621,6 +1798,15 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
 
   // ==================== RENDER HELPERS ====================
 
+  const renderActivityIcon = (log) => {
+    const iconMap = {
+      key: <Key className="w-4 h-4" />,
+      heart: <Heart className="w-4 h-4" />,
+      settings: <Settings className="w-4 h-4" />,
+    }
+    return iconMap[log.icon] || <Settings className="w-4 h-4" />
+  }
+
   const renderPaginationButtons = () => {
     const buttons = []
     for (let p = 1; p <= paginationPages; p++) {
@@ -1628,12 +1814,12 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
         buttons.push(
           <button
             key={p}
-            className={`pg-btn ${p === paginationPage ? 'active' : ''}`}
+            className={`min-w-[32px] px-2.5 py-1.5 rounded-lg border text-sm cursor-pointer transition-all ${p === paginationPage ? 'bg-indigo-500 border-indigo-500 text-white font-semibold' : 'border-slate-200 bg-white text-slate-500 hover:border-indigo-300 hover:text-slate-800'}`}
             onClick={() => changePage(p)}
           >{p}</button>
         )
       } else if (p === paginationPage - 3 || p === paginationPage + 3) {
-        buttons.push(<span key={`e${p}`} className="pg-ellipsis">{'\u2026'}</span>)
+        buttons.push(<span key={`e${p}`} className="px-1 text-slate-400"><MoreHorizontal className="w-4 h-4 inline" /></span>)
       }
     }
     return buttons
@@ -1641,138 +1827,254 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
 
   // ==================== RENDER ====================
 
+  const pendingCount = pendingRegistrations.filter(r => r.status === 'pending').length
+  const pendingOrderCount = orders.filter(o => (o.status || '').toLowerCase() === 'pending').length
+
   return (
-    <div className="admin-wrapper">
+    <div className="flex flex-col h-screen overflow-hidden bg-slate-50 font-sans text-slate-800">
       {/* NAV */}
-      <nav className="topnav">
-        <div className="nav-left">
-          <button className={`burger ${sidebarOpen ? 'open' : ''}`} onClick={toggleSidebar}>
-            <span></span><span></span><span></span>
+      <nav className="bg-white border-b border-slate-200 px-5 h-14 max-sm:h-12 grid grid-cols-[auto_1fr_auto] max-sm:grid-cols-[auto_1fr] items-center gap-3 max-sm:gap-1.5 sticky top-0 z-[300] max-sm:fixed max-sm:left-0 max-sm:right-0 max-sm:z-[1000] max-sm:px-2.5 shadow-sm">
+        <div className="flex items-center gap-2.5 max-sm:gap-1.5">
+          <button className={`w-[34px] h-[34px] border-none bg-transparent cursor-pointer flex flex-col gap-1 items-center justify-center rounded-lg transition-colors hover:bg-slate-100`} onClick={toggleSidebar}>
+            <span className={`block w-[18px] h-0.5 bg-slate-500 rounded-sm transition-all ${sidebarOpen ? 'translate-y-[6px] rotate-45 !bg-indigo-500' : ''}`}></span>
+            <span className={`block w-[18px] h-0.5 bg-slate-500 rounded-sm transition-all ${sidebarOpen ? 'opacity-0' : ''}`}></span>
+            <span className={`block w-[18px] h-0.5 bg-slate-500 rounded-sm transition-all ${sidebarOpen ? '-translate-y-[6px] -rotate-45 !bg-indigo-500' : ''}`}></span>
           </button>
-          <div className="brand">
-            <div className="brand-logo">{'\u{1F525}'}</div>
-            <span className="brand-name"><span>DR</span> Prepper</span>
+          <div className="flex items-center gap-2 max-sm:gap-1">
+            <div className="w-[30px] h-[30px] max-sm:w-7 max-sm:h-7 bg-indigo-500 rounded-lg flex items-center justify-center">
+              <Flame className="w-4 h-4 text-white" />
+            </div>
+            <span className="font-semibold text-base max-sm:text-sm text-slate-800"><span className="text-indigo-500">DR</span> Prepper</span>
           </div>
-          <span className="admin-pill">Admin</span>
+          <span className="bg-indigo-50 border border-indigo-200 text-indigo-500 text-[10px] max-sm:text-[8px] font-semibold tracking-wider uppercase px-2.5 max-sm:px-1.5 py-0.5 rounded-full">Admin</span>
         </div>
-        <div className="nav-right">
-          <div className="nav-tabs">
-            <button className={`nav-tab ${activePage === 'catalog' ? 'active' : ''}`} onClick={() => showPage('catalog')}>{'\u{1F4E6}'} Catalog</button>
-            <button className={`nav-tab ${activePage === 'bulk-edit' ? 'active' : ''}`} onClick={() => showPage('bulk-edit')}>{'\u26A1'} Bulk Edit</button>
-            <button className={`nav-tab ${activePage === 'views' ? 'active' : ''}`} onClick={() => showPage('views')}>{'\u{1F465}'} Customer Views</button>
-            <button className={`nav-tab ${activePage === 'orders' ? 'active' : ''}`} onClick={() => showPage('orders')}>{'\u{1F4CB}'} Orders</button>
-            <button className={`nav-tab ${activePage === 'categories' ? 'active' : ''}`} onClick={() => showPage('categories')}>{'\u{1F4C2}'} Categories</button>
-            <button className={`nav-tab ${activePage === 'settings' ? 'active' : ''}`} onClick={() => showPage('settings')}>{'\u2699'} Settings</button>
+        <div className="flex items-center justify-center max-sm:!hidden">
+          <div className="flex gap-0.5 bg-slate-100 rounded-lg p-[3px] border border-slate-200">
+            <button className={`px-3.5 py-1.5 rounded-md border-none text-[13px] font-medium cursor-pointer transition-all whitespace-nowrap ${activePage === 'catalog' ? 'bg-white text-slate-800 shadow-sm' : 'bg-transparent text-slate-500 hover:bg-slate-200 hover:text-slate-800'}`} onClick={() => showPage('catalog')}><Package className="w-3.5 h-3.5 inline mr-1 -mt-0.5" /> Catalog</button>
+            <button className={`px-3.5 py-1.5 rounded-md border-none text-[13px] font-medium cursor-pointer transition-all whitespace-nowrap ${activePage === 'bulk-edit' ? 'bg-white text-slate-800 shadow-sm' : 'bg-transparent text-slate-500 hover:bg-slate-200 hover:text-slate-800'}`} onClick={() => showPage('bulk-edit')}><Zap className="w-3.5 h-3.5 inline mr-1 -mt-0.5" /> Bulk Edit</button>
+            <button className={`px-3.5 py-1.5 rounded-md border-none text-[13px] font-medium cursor-pointer transition-all whitespace-nowrap ${activePage === 'views' ? 'bg-white text-slate-800 shadow-sm' : 'bg-transparent text-slate-500 hover:bg-slate-200 hover:text-slate-800'}`} onClick={() => showPage('views')}><Users className="w-3.5 h-3.5 inline mr-1 -mt-0.5" /> Customer Views</button>
+            <button className={`px-3.5 py-1.5 rounded-md border-none text-[13px] font-medium cursor-pointer transition-all whitespace-nowrap relative ${activePage === 'orders' ? 'bg-white text-slate-800 shadow-sm' : 'bg-transparent text-slate-500 hover:bg-slate-200 hover:text-slate-800'}`} onClick={() => showPage('orders')}><ClipboardList className="w-3.5 h-3.5 inline mr-1 -mt-0.5" /> Orders{pendingOrderCount > 0 && <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-px rounded-full ml-1 min-w-[16px] text-center inline-block leading-4">{pendingOrderCount}</span>}</button>
+            <button className={`px-3.5 py-1.5 rounded-md border-none text-[13px] font-medium cursor-pointer transition-all whitespace-nowrap ${activePage === 'categories' ? 'bg-white text-slate-800 shadow-sm' : 'bg-transparent text-slate-500 hover:bg-slate-200 hover:text-slate-800'}`} onClick={() => showPage('categories')}><FolderOpen className="w-3.5 h-3.5 inline mr-1 -mt-0.5" /> Categories</button>
+            <button className={`px-3.5 py-1.5 rounded-md border-none text-[13px] font-medium cursor-pointer transition-all whitespace-nowrap relative ${activePage === 'settings' ? 'bg-white text-slate-800 shadow-sm' : 'bg-transparent text-slate-500 hover:bg-slate-200 hover:text-slate-800'}`} onClick={() => showPage('settings')}><Settings className="w-3.5 h-3.5 inline mr-1 -mt-0.5" /> Settings{pendingCount > 0 && <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-px rounded-full ml-1 min-w-[16px] text-center inline-block leading-4">{pendingCount}</span>}</button>
           </div>
-          {onSwitchToCustomer && <button className="btn-customer-view" onClick={onSwitchToCustomer}>{'\u{1F465}'} Customer View</button>}
-          <button className="btn-logout" onClick={logout}>Sign out</button>
+        </div>
+        <div className="flex items-center gap-2 justify-end">
+          <div className="relative">
+            <div className="flex items-center gap-2 cursor-pointer p-1 px-2 rounded-lg transition-colors hover:bg-slate-100" onClick={() => setAdminMenuOpen(!adminMenuOpen)}>
+              <div className="w-8 h-8 rounded-full bg-indigo-500 text-white flex items-center justify-center font-bold text-[13px] flex-shrink-0">{(currentUser?.email || 'A').charAt(0).toUpperCase()}</div>
+              <span className="text-[13px] font-medium text-slate-800 max-sm:hidden">{currentUser?.companyName || currentUser?.email || 'Admin'}</span>
+              <ChevronDown className="w-3 h-3 text-slate-400 max-sm:hidden" />
+            </div>
+            {adminMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-[999]" onClick={() => setAdminMenuOpen(false)}></div>
+                <div className="absolute top-11 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-[1000] min-w-[200px] overflow-hidden animate-[popIn_0.15s_ease]">
+                  <div className="px-4 py-3 border-b border-slate-200">
+                    <div className="text-sm font-semibold text-slate-800">{currentUser?.companyName || 'DR Prepper'}</div>
+                    <div className="text-xs text-slate-400 mt-0.5">{currentUser?.email || 'admin'}</div>
+                  </div>
+                  {onSwitchToCustomer && <button className="flex items-center gap-2 w-full px-4 py-2.5 border-none bg-transparent text-[13px] text-slate-800 cursor-pointer transition-colors hover:bg-slate-50" onClick={() => { onSwitchToCustomer(); setAdminMenuOpen(false); }}><Users className="w-4 h-4" /> Customer View</button>}
+                  <button className="items-center gap-2 w-full px-4 py-2.5 border-none bg-transparent text-[13px] text-slate-800 cursor-pointer transition-colors hover:bg-slate-50 hidden max-sm:!flex" onClick={() => { showPage('settings'); setAdminMenuOpen(false); }}><Settings className="w-4 h-4" /> Settings{pendingCount > 0 && <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-px rounded-full ml-1">{pendingCount}</span>}</button>
+                  <div className="h-px bg-slate-200"></div>
+                  <div className="flex items-center justify-between px-4 py-2 text-[13px] text-slate-800" onClick={e => e.stopPropagation()}>
+                    <span className="flex items-center gap-1.5"><Search className="w-3.5 h-3.5" /> Zoom</span>
+                    <div className="flex items-center gap-0.5 bg-slate-100 border border-slate-200 rounded-md p-0.5">
+                      <button className="w-6 h-6 border-none bg-transparent cursor-pointer text-sm font-semibold text-slate-500 rounded flex items-center justify-center transition-all hover:bg-white hover:text-indigo-500" onClick={() => setViewsZoom(prev => Math.max(70, prev - 10))}>-</button>
+                      <span className="text-[10px] text-slate-400 min-w-[32px] text-center font-medium">{viewsZoom}%</span>
+                      <button className="w-6 h-6 border-none bg-transparent cursor-pointer text-sm font-semibold text-slate-500 rounded flex items-center justify-center transition-all hover:bg-white hover:text-indigo-500" onClick={() => setViewsZoom(prev => Math.min(150, prev + 10))}>+</button>
+                    </div>
+                  </div>
+                  <div className="h-px bg-slate-200"></div>
+                  <button className="flex items-center gap-2 w-full px-4 py-2.5 border-none bg-transparent text-[13px] text-red-500 cursor-pointer transition-colors hover:bg-slate-50" onClick={logout}><LogOut className="w-4 h-4" /> Sign out</button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </nav>
 
       {/* ========== CATALOG PAGE ========== */}
-      <div className={`page ${activePage === 'catalog' ? 'active' : ''}`}>
-        <div className="catalog-wrap">
-          <div className={`sidebar-overlay ${sidebarOpen ? 'open' : ''}`} onClick={closeSidebar}></div>
-          <aside className={`sidebar ${!sidebarOpen ? 'collapsed' : ''} ${sidebarOpen ? 'open-mobile' : ''}`}>
-            <div className="sb-top"><div className="sb-label">Categories</div></div>
-            <div className="sb-search">
-              <input type="text" placeholder="Search..." value={sidebarFilter} onChange={e => setSidebarFilter(e.target.value)} />
+      <div className={`${activePage === 'catalog' ? 'flex flex-col' : 'hidden'} flex-1 min-h-0 overflow-hidden max-sm:mt-12 max-sm:pb-[60px] max-sm:overflow-y-auto`} style={{ zoom: viewsZoom / 100 }}>
+        <div className="flex flex-1 min-h-0 overflow-hidden max-sm:flex-col max-sm:overflow-x-hidden">
+          {/* Sidebar overlay */}
+          <div className={`fixed inset-0 bg-black/20 z-[150] top-14 max-sm:top-12 ${sidebarOpen ? 'max-sm:block' : ''} hidden`} onClick={closeSidebar}></div>
+          {/* Sidebar */}
+          <aside className={`w-[236px] min-w-[236px] bg-white border-r border-slate-200 overflow-y-auto h-[calc(100vh-56px)] sticky top-14 transition-all duration-300 z-[160] flex-shrink-0 max-sm:fixed max-sm:left-0 max-sm:top-12 max-sm:bottom-[60px] max-sm:h-auto max-sm:w-[240px] max-sm:min-w-0 max-sm:z-[160] max-sm:overflow-y-auto max-sm:overscroll-contain ${!sidebarOpen ? '-ml-[236px] max-sm:!ml-0 max-sm:-translate-x-[242px]' : 'max-sm:translate-x-0 max-sm:shadow-xl'}`}>
+            <div className="px-3.5 pt-3.5 pb-1.5">
+              <div className="text-[10px] font-semibold tracking-widest uppercase text-slate-400 mb-2">Categories</div>
             </div>
-            <div className={`sb-all ${currentFilter === 'all' ? 'active' : ''}`} onClick={() => { setFilter('all'); loadProducts(1); }}>
-              <span style={{ fontSize: '14px' }}>{'\u{1F4E6}'}</span> All Products
-              <span className="a-count">{products.length}</span>
+            <div className="px-2.5 pb-2.5">
+              <input type="text" placeholder="Search..." value={sidebarFilter} onChange={e => setSidebarFilter(e.target.value)} className="w-full py-[7px] px-[11px] bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] outline-none focus:border-indigo-400 placeholder:text-slate-400 box-border" />
             </div>
-            <div className="sb-divider"></div>
+            <div className={`flex items-center gap-2.5 px-3.5 py-3.5 cursor-pointer text-sm font-medium transition-all border-b border-slate-200 ${currentFilter === 'all' ? 'text-indigo-500 bg-indigo-50' : 'text-slate-500 bg-slate-50 hover:bg-slate-100 hover:text-slate-800'}`} onClick={() => { setFilter('all'); loadProducts(1); }}>
+              <Package className="w-3.5 h-3.5" /> All Products
+              <span className="ml-auto text-[11px] text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-200">{products.length}</span>
+            </div>
+            <div className="h-px bg-slate-200"></div>
 
-            {categoryTree.filter(sc => !sidebarFilter || sc.name.toLowerCase().includes(sidebarFilter.toLowerCase()) || sc.subcats.some(c => c.toLowerCase().includes(sidebarFilter.toLowerCase()))).map(superCat => (
-              <React.Fragment key={superCat.name}>
+            {superCategoriesList.filter(sc => !sidebarFilter || sc.name.toLowerCase().includes(sidebarFilter.toLowerCase()) || (categoriesBySuper[sc.id] || []).some(c => c.name.toLowerCase().includes(sidebarFilter.toLowerCase()))).map(superCat => (
+              <React.Fragment key={superCat.id}>
                 <button
-                  className={`sb-super-btn ${currentFilter === `super:${superCat.name}` ? 'active' : ''} ${expandedSuperCats[superCat.name] ? 'open' : ''}`}
+                  className={`w-full flex items-center gap-2.5 px-3.5 py-3.5 border-none cursor-pointer text-sm font-medium text-left transition-all border-b border-slate-200 ${currentFilter === `super:${superCat.name}` ? 'text-indigo-500 bg-indigo-50' : 'text-slate-500 bg-slate-50 hover:bg-slate-100 hover:text-slate-800'}`}
                   onClick={() => toggleSuperCat(superCat.name)}
                 >
-                  <span className="s-emoji">{superCat.emoji}</span>
-                  <span className="s-label">{superCat.name}</span>
-                  <span className="s-cnt">{superCat.count}</span>
-                  <span className="s-arr">{'\u203A'}</span>
+                  <span className="text-base w-5 text-center flex-shrink-0">{getSuperCategoryEmoji(superCat.name)}</span>
+                  <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{superCat.name}</span>
+                  <span className="text-[11px] text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-200">{products.filter(p => p.super_category_id === superCat.id).length}</span>
+                  <ChevronRight className={`w-2.5 h-2.5 text-slate-300 transition-transform flex-shrink-0 ${expandedSuperCats[superCat.name] ? 'rotate-90' : ''}`} />
                 </button>
-                <div className={`sb-cats ${expandedSuperCats[superCat.name] ? 'open' : ''}`}>
-                  {superCat.subcats.filter(c => !sidebarFilter || c.toLowerCase().includes(sidebarFilter.toLowerCase())).map(cat => (
+                <div className={`overflow-hidden transition-all duration-300 ${expandedSuperCats[superCat.name] ? 'max-h-[700px]' : 'max-h-0'}`}>
+                  {(categoriesBySuper[superCat.id] || []).filter(c => !sidebarFilter || c.name.toLowerCase().includes(sidebarFilter.toLowerCase())).map(cat => (
                     <div
-                      key={cat}
-                      className={`sb-cat ${currentFilter === `cat:${cat}` ? 'active' : ''}`}
-                      onClick={() => { setFilter('cat', cat); loadProducts(1); }}
+                      key={cat.id}
+                      className={`flex items-center justify-between px-3.5 py-2.5 pl-11 cursor-pointer text-[13px] transition-all border-b border-slate-100 ${currentFilter === `cat:${cat.name}` ? 'text-indigo-500 bg-indigo-50 font-medium' : 'text-slate-500 bg-white hover:bg-slate-50 hover:text-slate-800'}`}
+                      onClick={() => { setFilter('cat', cat.name); loadProducts(1); }}
                     >
-                      <span>{cat}</span>
-                      <span className="c-cnt">{getCategoryCount(cat)}</span>
+                      <span>{cat.name}</span>
+                      <span className="text-[11px] text-slate-400">{products.filter(p => p.category_id === cat.id).length}</span>
                     </div>
                   ))}
                 </div>
               </React.Fragment>
             ))}
 
-            <div className="sb-divider"></div>
-            <div className={`sb-special ${currentFilter === 'hidden' ? 'active' : ''}`} onClick={() => { setFilter('hidden'); loadProducts(1); }}>
-              {'\u{1F6AB}'} Hidden <span style={{ marginLeft: 'auto', fontSize: '10px', background: 'var(--bg)', padding: '1px 6px', borderRadius: '20px', border: '1px solid var(--border)' }}>{hiddenCount}</span>
+            <div className="h-px bg-slate-200"></div>
+            <div className={`flex items-center justify-between px-3.5 py-2 cursor-pointer text-xs transition-all ${currentFilter === 'hidden' ? 'text-indigo-500 bg-indigo-50' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`} onClick={() => { setFilter('hidden'); loadProducts(1); }}>
+              <span className="flex items-center gap-1.5"><Ban className="w-3.5 h-3.5" /> Hidden</span>
+              <span className="text-[10px] bg-slate-50 px-1.5 py-px rounded-full border border-slate-200">{hiddenCount}</span>
             </div>
-            <div className={`sb-special ${currentFilter === 'oos' ? 'active' : ''}`} onClick={() => { setFilter('oos'); loadProducts(1); }}>
-              {'\u26A0\uFE0F'} Out of Stock <span style={{ marginLeft: 'auto', fontSize: '10px', background: 'var(--bg)', padding: '1px 6px', borderRadius: '20px', border: '1px solid var(--border)' }}>{oosCount}</span>
+            <div className={`flex items-center justify-between px-3.5 py-2 cursor-pointer text-xs transition-all ${currentFilter === 'oos' ? 'text-indigo-500 bg-indigo-50' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`} onClick={() => { setFilter('oos'); loadProducts(1); }}>
+              <span className="flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5" /> Out of Stock</span>
+              <span className="text-[10px] bg-slate-50 px-1.5 py-px rounded-full border border-slate-200">{oosCount}</span>
             </div>
           </aside>
 
-          <div className="catalog-main">
-            <div className="cat-bar">
-              <span className="cat-bar-title">{filterTitle}</span>
-              <div className="search-box">
-                <span style={{ color: 'var(--faint)', fontSize: '13px' }}>{'\u{1F50D}'}</span>
-                <input type="text" placeholder="Search products, SKUs, ID\u2026" value={searchQuery} onChange={onSearchInput} />
+          <div className="flex-1 p-5 px-6 max-sm:p-3 overflow-y-auto min-w-0 max-sm:w-full max-sm:max-w-[100vw] max-sm:overflow-x-hidden max-sm:box-border" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
+
+            {/* Excel Import Result */}
+            {excelResult && (
+              <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-4 flex items-start gap-3">
+                <FileSpreadsheet className="w-5 h-5 text-indigo-500 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-slate-800 mb-1">Excel Import Complete</div>
+                  <div className="text-xs text-slate-600 flex flex-wrap gap-3">
+                    <span><span className="font-semibold text-emerald-600">{excelResult.created}</span> created</span>
+                    <span><span className="font-semibold text-indigo-600">{excelResult.updated}</span> updated</span>
+                    {excelResult.skipped > 0 && <span><span className="font-semibold text-amber-600">{excelResult.skipped}</span> skipped</span>}
+                  </div>
+                  {excelResult.errors?.length > 0 && (
+                    <div className="mt-2 text-[11px] text-red-500 max-h-[60px] overflow-y-auto">
+                      {excelResult.errors.map((e, i) => <div key={i}>{e}</div>)}
+                    </div>
+                  )}
+                </div>
+                <button onClick={() => setExcelResult(null)} className="text-slate-400 hover:text-slate-600 bg-transparent border-none cursor-pointer p-1"><X className="w-3.5 h-3.5" /></button>
               </div>
-              <button className="btn-add-prod" onClick={() => openModal('addProdModal')}>+ Add Product</button>
+            )}
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-4 max-sm:grid-cols-2 gap-3 mb-5 max-sm:mb-3">
+              <div className="bg-white border border-slate-200 rounded-xl p-4 max-sm:p-3 shadow-sm">
+                <div className="w-9 h-9 max-sm:w-7 max-sm:h-7 rounded-lg bg-indigo-50 flex items-center justify-center mb-3 max-sm:mb-2">
+                  <Boxes className="w-4 h-4 max-sm:w-3.5 max-sm:h-3.5 text-indigo-500" />
+                </div>
+                <div className="text-2xl max-sm:text-xl font-bold text-slate-800">{products.length}</div>
+                <div className="text-xs text-slate-400 mt-0.5">Total Products</div>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-4 max-sm:p-3 shadow-sm">
+                <div className="w-9 h-9 max-sm:w-7 max-sm:h-7 rounded-lg bg-amber-50 flex items-center justify-center mb-3 max-sm:mb-2">
+                  <ClipboardList className="w-4 h-4 max-sm:w-3.5 max-sm:h-3.5 text-amber-500" />
+                </div>
+                <div className="text-2xl max-sm:text-xl font-bold text-slate-800 flex items-center gap-2">
+                  {pendingOrderCount}
+                  {pendingOrderCount > 0 && <span className="text-xs font-semibold text-emerald-500 flex items-center gap-0.5"><ArrowUpRight className="w-3 h-3" />{pendingOrderCount} new</span>}
+                </div>
+                <div className="text-xs text-slate-400 mt-0.5">Pending Orders</div>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-4 max-sm:p-3 shadow-sm">
+                <div className="w-9 h-9 max-sm:w-7 max-sm:h-7 rounded-lg bg-emerald-50 flex items-center justify-center mb-3 max-sm:mb-2">
+                  <CheckCircle2 className="w-4 h-4 max-sm:w-3.5 max-sm:h-3.5 text-emerald-500" />
+                </div>
+                <div className="text-2xl max-sm:text-xl font-bold text-slate-800">{inStockCount}</div>
+                <div className="text-xs text-slate-400 mt-0.5">In Stock</div>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-4 max-sm:p-3 shadow-sm">
+                <div className="w-9 h-9 max-sm:w-7 max-sm:h-7 rounded-lg bg-rose-50 flex items-center justify-center mb-3 max-sm:mb-2">
+                  <Star className="w-4 h-4 max-sm:w-3.5 max-sm:h-3.5 text-rose-400" />
+                </div>
+                <div className="text-2xl max-sm:text-xl font-bold text-slate-800">{newThisWeekCount}</div>
+                <div className="text-xs text-slate-400 mt-0.5">New This Week</div>
+              </div>
+            </div>
+
+            {/* Title + Search + Add */}
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap max-sm:flex-col max-sm:items-stretch max-sm:gap-2 max-sm:mb-3">
+              <div>
+                <h2 className="text-xl max-sm:text-lg font-bold text-slate-800 m-0">{filterTitle}</h2>
+                <p className="text-xs text-slate-400 mt-0.5 m-0">Showing {products.length} items across all categories</p>
+              </div>
+              <div className="flex items-center gap-2 max-sm:flex-col max-sm:gap-2 flex-wrap">
+                <div className="flex items-center gap-2 px-3 bg-white border border-slate-200 rounded-lg shadow-sm h-9 max-sm:w-full">
+                  <Search className="w-3.5 h-3.5 text-slate-300" />
+                  <input type="text" placeholder="Search products, SKUs, ID..." value={searchQuery} onChange={onSearchInput} className="border-none bg-transparent outline-none text-[13px] text-slate-800 w-[170px] max-sm:w-full placeholder:text-slate-300" />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-600 font-semibold text-[12px] cursor-pointer transition-all hover:border-indigo-300 hover:text-indigo-500 whitespace-nowrap h-9 flex items-center gap-1.5" onClick={downloadExcel} title="Download all products as Excel">
+                    <Download className="w-3.5 h-3.5" /> <span className="max-sm:hidden">Export</span>
+                  </button>
+                  <button className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-600 font-semibold text-[12px] cursor-pointer transition-all hover:border-indigo-300 hover:text-indigo-500 whitespace-nowrap h-9 flex items-center gap-1.5"
+                    onClick={() => setImportModalOpen(true)} title="Import products from Excel">
+                    <Upload className="w-3.5 h-3.5" /> <span className="max-sm:hidden">Import</span>
+                  </button>
+                </div>
+                <button className="px-4 py-2 bg-indigo-500 border-none rounded-lg text-white font-semibold text-[13px] cursor-pointer transition-all hover:bg-indigo-600 whitespace-nowrap h-9 max-sm:w-full max-sm:py-3" onClick={() => openModal('addProdModal')}><Plus className="w-3.5 h-3.5 inline mr-1 -mt-0.5" /> Add Product</button>
+              </div>
             </div>
 
             {/* Filter Pills */}
-            <div className="filter-pills-bar">
-              <span className="filter-pills-label">Visibility:</span>
-              <button className={`filter-pill ${visibilityFilter === 'all' ? 'active' : ''}`} onClick={() => handleVisibilityFilter('all')}>All</button>
-              <button className={`filter-pill ${visibilityFilter === 'visible' ? 'active' : ''}`} onClick={() => handleVisibilityFilter('visible')}>Visible</button>
-              <button className={`filter-pill ${visibilityFilter === 'hidden' ? 'active' : ''}`} onClick={() => handleVisibilityFilter('hidden')}>Hidden</button>
-              <span className="filter-pills-sep">|</span>
-              <span className="filter-pills-label">Stock:</span>
-              <button className={`filter-pill ${stockFilter === 'all' ? 'active' : ''}`} onClick={() => handleStockFilter('all')}>All</button>
-              <button className={`filter-pill ${stockFilter === 'in-stock' ? 'active' : ''}`} onClick={() => handleStockFilter('in-stock')}>In Stock</button>
-              <button className={`filter-pill ${stockFilter === 'oos' ? 'active' : ''}`} onClick={() => handleStockFilter('oos')}>OOS</button>
-              {superCatNames.length > 0 && <span className="filter-pills-sep">|</span>}
+            <div className="flex items-center gap-1.5 flex-wrap p-2.5 px-4 bg-white border-b border-slate-200 mb-4 rounded-lg">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide whitespace-nowrap">Visibility:</span>
+              <button className={`px-3 py-1 rounded-full border text-xs font-medium cursor-pointer transition-all whitespace-nowrap ${visibilityFilter === 'all' ? 'bg-indigo-500 border-indigo-500 text-white font-semibold' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-indigo-300 hover:text-slate-800'}`} onClick={() => handleVisibilityFilter('all')}>All</button>
+              <button className={`px-3 py-1 rounded-full border text-xs font-medium cursor-pointer transition-all whitespace-nowrap ${visibilityFilter === 'visible' ? 'bg-indigo-500 border-indigo-500 text-white font-semibold' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-indigo-300 hover:text-slate-800'}`} onClick={() => handleVisibilityFilter('visible')}>Visible</button>
+              <button className={`px-3 py-1 rounded-full border text-xs font-medium cursor-pointer transition-all whitespace-nowrap ${visibilityFilter === 'hidden' ? 'bg-indigo-500 border-indigo-500 text-white font-semibold' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-indigo-300 hover:text-slate-800'}`} onClick={() => handleVisibilityFilter('hidden')}>Hidden</button>
+              <span className="text-slate-200 text-sm mx-0.5">|</span>
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide whitespace-nowrap">Stock:</span>
+              <button className={`px-3 py-1 rounded-full border text-xs font-medium cursor-pointer transition-all whitespace-nowrap ${stockFilter === 'all' ? 'bg-indigo-500 border-indigo-500 text-white font-semibold' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-indigo-300 hover:text-slate-800'}`} onClick={() => handleStockFilter('all')}>All</button>
+              <button className={`px-3 py-1 rounded-full border text-xs font-medium cursor-pointer transition-all whitespace-nowrap ${stockFilter === 'in-stock' ? 'bg-indigo-500 border-indigo-500 text-white font-semibold' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-indigo-300 hover:text-slate-800'}`} onClick={() => handleStockFilter('in-stock')}>In Stock</button>
+              <button className={`px-3 py-1 rounded-full border text-xs font-medium cursor-pointer transition-all whitespace-nowrap ${stockFilter === 'oos' ? 'bg-indigo-500 border-indigo-500 text-white font-semibold' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-indigo-300 hover:text-slate-800'}`} onClick={() => handleStockFilter('oos')}>OOS</button>
+              {superCatNames.length > 0 && <span className="text-slate-200 text-sm mx-0.5">|</span>}
               {superCatNames.map(sc => (
-                <button key={sc} className={`filter-pill sc-pill ${superCatFilter === sc ? 'active' : ''}`} onClick={() => handleSuperCatFilter(superCatFilter === sc ? '' : sc)}>{sc}</button>
+                <button key={sc} className={`px-3 py-1 rounded-full border text-xs font-medium cursor-pointer transition-all whitespace-nowrap capitalize ${superCatFilter === sc ? 'bg-emerald-500 border-emerald-500 text-white font-semibold' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-indigo-300 hover:text-slate-800'}`} onClick={() => handleSuperCatFilter(superCatFilter === sc ? '' : sc)}>{sc}</button>
               ))}
             </div>
 
             {/* Bulk Action Bar */}
             {selectedProductCount > 0 && (
-              <div className="bulk-action-bar">
-                <span className="bulk-count">{selectedProductCount} selected</span>
-                <button className="bulk-btn bulk-show" onClick={() => startBulkAction('show')}>{'\u{1F441}'} Show all</button>
-                <button className="bulk-btn bulk-hide" onClick={() => startBulkAction('hide')}>{'\u{1F6AB}'} Hide all</button>
-                <button className="bulk-btn bulk-delete" onClick={() => startBulkAction('delete')}>{'\u{1F5D1}'} Delete all</button>
-                <button className="bulk-btn bulk-clear" onClick={clearSelection}>{'\u2715'} Clear</button>
+              <div className="flex items-center gap-2 p-2.5 px-4 bg-amber-50 border-b-2 border-amber-300 sticky top-0 z-[100] mb-4 rounded-lg">
+                <span className="text-[13px] font-semibold text-amber-600 mr-1">{selectedProductCount} selected</span>
+                <button className="px-3.5 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 text-xs font-semibold cursor-pointer transition-all hover:bg-emerald-100" onClick={() => startBulkAction('show')}><Eye className="w-3 h-3 inline mr-1 -mt-px" /> Show all</button>
+                <button className="px-3.5 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-500 text-xs font-semibold cursor-pointer transition-all hover:bg-red-100" onClick={() => startBulkAction('hide')}><Ban className="w-3 h-3 inline mr-1 -mt-px" /> Hide all</button>
+                <button className="px-3.5 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-500 text-xs font-semibold cursor-pointer transition-all hover:bg-red-100" onClick={() => startBulkAction('delete')}><Trash2 className="w-3 h-3 inline mr-1 -mt-px" /> Delete all</button>
+                <button className="px-3.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-400 text-xs font-semibold cursor-pointer transition-all hover:text-slate-800 ml-auto" onClick={clearSelection}><X className="w-3 h-3 inline mr-1 -mt-px" /> Clear</button>
               </div>
             )}
 
             {/* Loading Spinner */}
             {isLoading && (
-              <div className="catalog-loading">
-                <div className="loading-spinner"></div>
-                <span>Loading products{'\u2026'}</span>
+              <div className="flex flex-col items-center justify-center gap-3.5 py-20 text-slate-400 text-sm">
+                <div className="w-9 h-9 border-[3px] border-slate-200 border-t-indigo-500 rounded-full animate-spin"></div>
+                <span>Loading products...</span>
               </div>
             )}
 
-            <div className="admin-catalog-content" style={{ display: isLoading ? 'none' : 'flex' }}>
+            <div className="flex flex-col gap-6" style={{ display: isLoading ? 'none' : 'flex' }}>
               {/* No results state */}
               {!isLoading && products.length === 0 && (
-                <div className="no-results">
-                  <div className="no-results-icon">{'\u{1F50D}'}</div>
-                  <div className="no-results-title">No products found</div>
-                  <div className="no-results-sub">Try adjusting your search or filters</div>
-                  <button className="btn-clear-filters" onClick={() => {
+                <div className="flex flex-col items-center justify-center gap-2 py-20 text-center">
+                  <Search className="w-10 h-10 text-slate-300 mb-1" />
+                  <div className="text-lg font-bold text-slate-800">No products found</div>
+                  <div className="text-sm text-slate-400">Try adjusting your search or filters</div>
+                  <button className="mt-3 px-5 py-2 bg-indigo-500 text-white border-none rounded-lg text-[13px] font-semibold cursor-pointer hover:bg-indigo-600" onClick={() => {
                     setSearchQuery('')
                     setVisibilityFilter('all')
                     setStockFilter('all')
@@ -1784,16 +2086,16 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
 
               {/* Super Category Loop */}
               {Object.entries(groupedProducts).map(([superCat, superCatData]) => (
-                <div key={superCat} className="super-cat-section">
-                  <div className="super-cat-hdr">
-                    <span className="super-cat-name">{superCat}</span>
-                    <span className="super-cat-count">{superCatData.total}</span>
+                <div key={superCat} className="mb-10 border-b-2 border-slate-200 pb-8">
+                  <div className="text-base font-semibold text-slate-800 mb-6 flex items-center gap-3">
+                    <span className="uppercase tracking-wide">{superCat}</span>
+                    <span className="inline-block bg-indigo-500 text-white font-semibold px-2.5 py-1 rounded-xl text-xs ml-auto">{superCatData.total}</span>
                   </div>
 
                   {Object.entries(superCatData.categories).map(([catName, catProds]) => (
-                    <div key={catName} className="cat-section">
-                      <div className="cat-section-hdr">
-                        <label className="cat-select-all" title={isCategoryAllSelected(catProds) ? 'Deselect all' : 'Select all'}>
+                    <div key={catName} className="mb-7">
+                      <div className="text-xs font-semibold tracking-wider uppercase text-slate-400 mb-3 flex items-center gap-2 after:content-[''] after:flex-1 after:h-px after:bg-slate-200">
+                        <label className="inline-flex items-center cursor-pointer mr-1" title={isCategoryAllSelected(catProds) ? 'Deselect all' : 'Select all'}>
                           <input
                             type="checkbox"
                             checked={isCategoryAllSelected(catProds)}
@@ -1801,51 +2103,52 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                               if (el) el.indeterminate = isCategoryPartialSelected(catProds)
                             }}
                             onChange={() => toggleAllInCategory(catProds)}
+                            className="cursor-pointer accent-indigo-500 w-3.5 h-3.5"
                           />
                         </label>
                         {catName}
-                        <span className="cat-count-badge">{catProds.length}</span>
+                        <span className="bg-slate-50 border border-slate-200 text-slate-400 text-[10px] px-[7px] py-px rounded-full font-medium tracking-normal">{catProds.length}</span>
                         {categoryMetadata[catName] && (
                           <button
-                            className="cat-visibility-toggle"
+                            className="bg-transparent border-none cursor-pointer text-xs p-1 px-1.5 rounded transition-all text-slate-400 hover:bg-slate-200 hover:text-slate-800 ml-auto"
                             onClick={() => toggleCategoryVisibility(catName)}
                             title={categoryMetadata[catName].is_hidden ? 'Show category' : 'Hide category'}
                           >
-                            {categoryMetadata[catName].is_hidden ? '\u{1F6AB}' : '\u{1F441}'}
+                            {categoryMetadata[catName].is_hidden ? <Ban className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                           </button>
                         )}
                         {categoryMetadata[catName] && (
                           <>
-                            <button className="cat-bulk-btn" onClick={() => toggleCategoryAllProductsVisibility(categoryMetadata[catName].id, catName, true)} title="Hide all products in this category">Hide all</button>
-                            <button className="cat-bulk-btn" onClick={() => toggleCategoryAllProductsVisibility(categoryMetadata[catName].id, catName, false)} title="Show all products in this category">Show all</button>
+                            <button className="ml-1.5 px-2.5 py-0.5 rounded-md border border-slate-200 bg-slate-50 text-slate-500 text-[11px] font-medium cursor-pointer transition-all hover:border-indigo-300 hover:text-slate-800" onClick={() => toggleCategoryAllProductsVisibility(categoryMetadata[catName].id, catName, true)} title="Hide all products in this category">Hide all</button>
+                            <button className="px-2.5 py-0.5 rounded-md border border-slate-200 bg-slate-50 text-slate-500 text-[11px] font-medium cursor-pointer transition-all hover:border-indigo-300 hover:text-slate-800" onClick={() => toggleCategoryAllProductsVisibility(categoryMetadata[catName].id, catName, false)} title="Show all products in this category">Show all</button>
                           </>
                         )}
                       </div>
-                      <div className="admin-grid">
+                      <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] max-sm:grid-cols-2 gap-2.5 max-sm:gap-2">
                         {catProds.map(prod => (
-                          <div key={prod.id} className={`admin-card ${prod.is_hidden ? 'hidden-prod' : ''} ${prod.is_oos ? 'oos-prod' : ''} ${selectedProducts[prod.id] ? 'selected-prod' : ''}`}>
-                            <div className="card-top-row">
-                              <label className="card-select-check">
-                                <input type="checkbox" checked={!!selectedProducts[prod.id]} onChange={() => toggleProductSelect(prod.id)} />
+                          <div key={prod.id} className={`bg-white border-[1.5px] rounded-xl p-3 max-sm:p-2 relative transition-all shadow-sm hover:border-indigo-300 hover:shadow-md ${prod.is_hidden ? 'opacity-50 border-dashed border-slate-300 bg-slate-50' : 'border-slate-200'} ${prod.is_oos ? '!border-amber-300' : ''} ${selectedProducts[prod.id] ? 'outline-2 outline-indigo-500 outline-offset-[-2px] !bg-indigo-50' : ''}`}>
+                            <div className="flex items-center gap-2 mb-2 max-sm:gap-1 max-sm:mb-1">
+                              <label className="flex items-center cursor-pointer flex-shrink-0 m-0 p-0 leading-none">
+                                <input type="checkbox" checked={!!selectedProducts[prod.id]} onChange={() => toggleProductSelect(prod.id)} className="w-4 h-4 cursor-pointer accent-indigo-500 m-0" />
                               </label>
-                              <div className="card-badges">
-                                {prod.is_hidden && <div className="badge b-hidden">Hidden</div>}
-                                {prod.is_oos && <div className="badge b-oos">OOS</div>}
-                                {!prod.is_hidden && <div className="badge b-visible">Visible</div>}
+                              <div className="flex gap-1 flex-wrap items-center">
+                                {prod.is_hidden && <div className="px-[7px] py-0.5 rounded-full text-[9px] font-semibold tracking-wide uppercase bg-slate-50 text-slate-400 border border-slate-200">Hidden</div>}
+                                {prod.is_oos && <div className="px-[7px] py-0.5 rounded-full text-[9px] font-semibold tracking-wide uppercase bg-amber-100 text-amber-600 border border-amber-200">OOS</div>}
+                                {!prod.is_hidden && <div className="px-[7px] py-0.5 rounded-full text-[9px] font-semibold tracking-wide uppercase bg-emerald-100 text-emerald-600 border border-emerald-200">Visible</div>}
                               </div>
                             </div>
-                            <img src={prod.image_url} className="card-img" alt={prod.name} />
-                            <div className="card-info">
-                              <div className="card-name">{prod.name}</div>
-                              <div className="card-meta">{prod.category}</div>
-                              <div className="card-sku">{prod.sku || 'N/A'}</div>
-                              <div className="card-actions">
-                                <button className="ca-btn" onClick={() => editProduct(prod)} disabled={isDeletingProduct === prod.id}>Edit</button>
-                                <button className="ca-btn" onClick={() => deleteProduct(prod.id)} disabled={isDeletingProduct === prod.id}>
-                                  {isDeletingProduct === prod.id ? '\u23F3' : 'Delete'}
+                            <img src={prod.image_url} className="w-20 h-20 max-sm:h-[100px] object-contain rounded-lg bg-white block mx-auto mb-2.5 border border-slate-100" alt={prod.name} />
+                            <div className="flex-1 flex flex-col gap-1.5">
+                              <div className="text-[11px] max-sm:text-xs text-slate-800 font-medium leading-snug h-[30px] overflow-hidden mb-0.5">{prod.name}</div>
+                              <div className="text-[10px] max-sm:text-[9px] text-slate-400 mb-0.5">{prod.category}</div>
+                              <div className="text-[10px] max-sm:text-[9px] text-slate-300 font-mono mb-2.5">{prod.sku || 'N/A'}</div>
+                              <div className="flex gap-[5px] max-sm:gap-[3px] flex-wrap">
+                                <button className="flex-1 min-w-[46px] py-[5px] px-[3px] rounded-md border border-slate-200 bg-transparent text-slate-500 text-[10px] max-sm:text-[9px] font-medium cursor-pointer transition-all text-center whitespace-nowrap hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50" onClick={() => editProduct(prod)} disabled={isDeletingProduct === prod.id}><Pencil className="w-2.5 h-2.5 inline -mt-px" /></button>
+                                <button className="flex-1 min-w-[46px] py-[5px] px-[3px] rounded-md border border-slate-200 bg-transparent text-slate-500 text-[10px] max-sm:text-[9px] font-medium cursor-pointer transition-all text-center whitespace-nowrap hover:border-red-300 hover:text-red-500 hover:bg-red-50" onClick={() => deleteProduct(prod.id)} disabled={isDeletingProduct === prod.id}>
+                                  {isDeletingProduct === prod.id ? <MoreHorizontal className="w-3 h-3 inline animate-pulse" /> : <Trash2 className="w-2.5 h-2.5 inline -mt-px" />}
                                 </button>
-                                <button className="ca-btn" onClick={() => toggleVisibility(prod)} title="Toggle visibility" disabled={isDeletingProduct === prod.id}>{prod.is_hidden ? '\u{1F441}' : '\u{1F6AB}'}</button>
-                                <button className={`ca-btn ${prod.is_oos ? 'oos' : ''}`} onClick={() => toggleOosStatus(prod)} title="Toggle out of stock" disabled={isDeletingProduct === prod.id}>{prod.is_oos ? '\u26A0\uFE0F' : '\u2713'}</button>
+                                <button className="flex-1 min-w-[46px] py-[5px] px-[3px] rounded-md border border-slate-200 bg-transparent text-slate-500 text-[10px] max-sm:text-[9px] font-medium cursor-pointer transition-all text-center whitespace-nowrap hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50" onClick={() => toggleVisibility(prod)} title="Toggle visibility" disabled={isDeletingProduct === prod.id}>{prod.is_hidden ? <Eye className="w-2.5 h-2.5 inline -mt-px" /> : <Ban className="w-2.5 h-2.5 inline -mt-px" />}</button>
+                                <button className={`flex-1 min-w-[46px] py-[5px] px-[3px] rounded-md border text-[10px] max-sm:text-[9px] font-medium cursor-pointer transition-all text-center whitespace-nowrap ${prod.is_oos ? 'border-amber-200 text-amber-600 bg-amber-50' : 'border-slate-200 bg-transparent text-slate-500 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50'}`} onClick={() => toggleOosStatus(prod)} title="Toggle out of stock" disabled={isDeletingProduct === prod.id}>{prod.is_oos ? <AlertTriangle className="w-2.5 h-2.5 inline -mt-px" /> : <Check className="w-2.5 h-2.5 inline -mt-px" />}</button>
                               </div>
                             </div>
                           </div>
@@ -1858,18 +2161,18 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
 
               {/* Pagination Controls */}
               {paginationLimit > 0 && paginationTotal > paginationLimit && (
-                <div className="pagination-bar">
-                  <span className="pagination-info">{paginationInfo}</span>
-                  <div className="pagination-controls">
-                    <button className="pg-btn" disabled={paginationPage <= 1} onClick={() => changePage(paginationPage - 1)}>{'\u2039'} Prev</button>
+                <div className="flex items-center justify-between gap-3 p-4 px-5 border-t border-slate-200 flex-wrap">
+                  <span className="text-[13px] text-slate-500">{paginationInfo}</span>
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <button className="min-w-[32px] px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 text-[13px] cursor-pointer transition-all hover:border-indigo-300 hover:text-slate-800 disabled:opacity-40 disabled:cursor-not-allowed" disabled={paginationPage <= 1} onClick={() => changePage(paginationPage - 1)}><ChevronLeft className="w-3 h-3 inline" /> Prev</button>
                     {renderPaginationButtons()}
-                    <button className="pg-btn" disabled={paginationPage >= paginationPages} onClick={() => changePage(paginationPage + 1)}>Next {'\u203A'}</button>
+                    <button className="min-w-[32px] px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 text-[13px] cursor-pointer transition-all hover:border-indigo-300 hover:text-slate-800 disabled:opacity-40 disabled:cursor-not-allowed" disabled={paginationPage >= paginationPages} onClick={() => changePage(paginationPage + 1)}>Next <ChevronRight className="w-3 h-3 inline" /></button>
                     <input
-                      className="pg-jump"
+                      className="w-[70px] py-1.5 px-2 border border-slate-200 rounded-lg text-xs text-slate-800 bg-slate-50 ml-1"
                       type="number"
                       min={1}
                       max={paginationPages}
-                      placeholder="Go to\u2026"
+                      placeholder="Go to..."
                       onKeyUp={(e) => {
                         if (e.key === 'Enter') {
                           changePage(parseInt(e.target.value))
@@ -1886,7 +2189,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       </div>
 
       {/* ========== BULK EDIT PAGE ========== */}
-      <div className={`page ${activePage === 'bulk-edit' ? 'active' : ''}`}>
+      <div className={`${activePage === 'bulk-edit' ? 'flex flex-col' : 'hidden'} flex-1 min-h-0 max-sm:mt-12 max-sm:pb-[60px]`} style={{ zoom: viewsZoom / 100 }}>
         <BulkEditView
           initialCustomers={customers}
           initialProducts={products}
@@ -1897,25 +2200,25 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       </div>
 
       {/* ========== CUSTOMER VIEWS PAGE ========== */}
-      <div className={`page ${activePage === 'views' ? 'active' : ''}`}>
-        <div className="views-layout">
-          <div className="customer-list">
-            <div className="clist-head">
-              <span className="clist-title">Customers</span>
-              <button className="btn-add-cust" onClick={() => openModal('addCustModal')}>+ Add</button>
+      <div className={`${activePage === 'views' ? 'flex flex-col' : 'hidden'} flex-1 min-h-0 max-sm:mt-12 max-sm:pb-[60px]`} style={{ zoom: viewsZoom / 100 }}>
+        <div className="flex flex-1 min-h-0 max-sm:flex-col max-sm:h-[calc(100vh-48px-60px)] max-sm:overflow-hidden">
+          <div className="w-[268px] min-w-[268px] max-sm:w-full max-sm:min-w-0 bg-white border-r border-slate-200 max-sm:border-r-0 max-sm:border-b flex flex-col h-[calc(100vh-56px)] sticky top-14 max-sm:static max-sm:max-h-[45vh] max-sm:overflow-y-auto max-sm:flex-shrink-0 max-sm:overscroll-contain">
+            <div className="px-4 py-3.5 max-sm:px-3 max-sm:py-2.5 border-b border-slate-200 flex items-center justify-between gap-2">
+              <span className="text-base max-sm:text-[15px] font-semibold text-slate-800">Customers</span>
+              <button className="px-3 py-1.5 bg-indigo-500 border-none rounded-lg text-white text-xs font-semibold cursor-pointer transition-all hover:bg-indigo-600" onClick={() => openModal('addCustModal')}><Plus className="w-3 h-3 inline mr-0.5 -mt-px" /> Add</button>
             </div>
-            <div className="clist-search">
-              <input type="text" placeholder="{'\u{1F50D}'} Search\u2026" value={custSearchQuery} onChange={e => setCustSearchQuery(e.target.value)} />
+            <div className="px-3.5 py-2.5 max-sm:px-3 max-sm:py-1.5 border-b border-slate-200">
+              <input type="text" placeholder="Search..." value={custSearchQuery} onChange={e => setCustSearchQuery(e.target.value)} className="w-full py-[7px] px-[11px] bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-base outline-none focus:border-indigo-400 box-border" />
             </div>
-            <div className="customer-rows">
+            <div className="flex-1 overflow-y-auto">
               {filteredCustomers.map(cust => (
-                <div key={cust.id} className={`cust-row ${selectedCustomer?.id === cust.id ? 'active' : ''}`} onClick={() => selectCustomer(cust)}>
-                  <div className="c-avatar" style={{ background: getAvatarColor(cust.company_name) }}>{cust.company_name.charAt(0).toUpperCase()}</div>
+                <div key={cust.id} className={`px-3.5 py-[11px] max-sm:px-3 max-sm:py-2.5 cursor-pointer border-b border-slate-100 transition-all flex items-center gap-2.5 ${selectedCustomer?.id === cust.id ? 'bg-indigo-50 border-r-2 border-r-indigo-500 max-sm:border-r-0 max-sm:border-l-[3px] max-sm:border-l-indigo-500' : 'hover:bg-slate-50'}`} onClick={() => selectCustomer(cust)}>
+                  <div className="w-[34px] h-[34px] max-sm:w-9 max-sm:h-9 rounded-full flex items-center justify-center font-bold text-[13px] max-sm:text-sm text-white flex-shrink-0" style={{ background: getAvatarColor(cust.company_name) }}>{cust.company_name.charAt(0).toUpperCase()}</div>
                   <div>
-                    <div className="c-name">{cust.company_name}</div>
-                    <div className="c-email">{cust.email}</div>
-                    <div className="c-pills">
-                      <span className={`c-pill ${cust.is_active ? 'active' : ''}`} style={{ background: cust.is_active ? 'var(--green-bg)' : 'var(--bg)', color: cust.is_active ? 'var(--green)' : 'var(--muted)' }}>{cust.is_active ? 'Active' : 'Inactive'}</span>
+                    <div className="text-[13px] max-sm:text-sm text-slate-800 font-medium max-sm:font-semibold">{cust.company_name}</div>
+                    <div className="text-[11px] text-slate-400">{cust.email}</div>
+                    <div className="flex gap-[5px] mt-0.5">
+                      <span className={`text-[9px] px-[7px] py-px rounded-full font-medium ${cust.is_active ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-50 text-slate-400'}`}>{cust.is_active ? 'Active' : 'Inactive'}</span>
                     </div>
                   </div>
                 </div>
@@ -1923,75 +2226,86 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
             </div>
           </div>
           {selectedCustomer ? (
-            <div className="view-editor">
-              <div className="ve-head">
+            <div className="flex-1 overflow-y-auto p-[22px] max-sm:p-3 max-sm:min-h-0 max-sm:overscroll-contain">
+              <div className="flex items-start justify-between mb-4 max-sm:mb-3 pb-4 max-sm:pb-2.5 border-b border-slate-200 max-sm:flex-col max-sm:gap-2">
                 <div>
-                  <div className="ve-name">{selectedCustomer.company_name}</div>
-                  <div className="ve-email">{selectedCustomer.email}</div>
+                  <div className="text-[22px] max-sm:text-lg font-semibold text-slate-800 tracking-tight">{selectedCustomer.company_name}</div>
+                  <div className="text-[13px] text-slate-400 mt-0.5">{selectedCustomer.email}</div>
                 </div>
-                <div className="ve-actions">
-                  <button className="btn-reset-all" onClick={resetCustomerView}>Reset All</button>
-                  <button className="btn-save" onClick={saveCustomerView}>Save View</button>
-                  <button className="btn-close-ve" onClick={() => setSelectedCustomer(null)}>{'\u2715'}</button>
+                <div className="flex gap-[7px] flex-shrink-0 max-sm:w-full max-sm:justify-end max-sm:gap-1.5">
+                  <button className="px-3.5 py-[7px] max-sm:px-2.5 max-sm:py-1.5 bg-white border border-amber-300 rounded-lg text-amber-600 text-xs max-sm:text-[11px] font-medium cursor-pointer transition-all hover:border-red-500 hover:text-red-500 hover:bg-red-50" onClick={resetCustomerView}>Reset All</button>
+                  <button className="px-4 py-[7px] max-sm:px-3.5 max-sm:py-1.5 bg-indigo-500 border-none rounded-lg text-white text-[13px] max-sm:text-xs font-semibold cursor-pointer hover:bg-indigo-600" onClick={saveCustomerView}>Save View</button>
+                  <button className="w-7 h-7 max-sm:w-6 max-sm:h-6 rounded-lg border border-slate-200 bg-slate-50 text-slate-400 cursor-pointer flex items-center justify-center transition-all hover:bg-indigo-500 hover:border-indigo-500 hover:text-white flex-shrink-0" onClick={() => setSelectedCustomer(null)}><X className="w-3.5 h-3.5" /></button>
                 </div>
               </div>
-              <div className="ve-presets">
-                <span className="ve-preset-label">Presets:</span>
-                <button className={`preset-btn ${customerViewMode === 'full' ? 'active' : ''}`} onClick={() => applyViewPreset('full')}>Full Catalog</button>
-                <button className={`preset-btn ${customerViewMode === 'chips' ? 'active' : ''}`} onClick={() => applyViewPreset('chips')}>Chips Only</button>
-                <button className={`preset-btn ${customerViewMode === 'noodles' ? 'active' : ''}`} onClick={() => applyViewPreset('noodles')}>Noodles Only</button>
-                <button className={`preset-btn ${customerViewMode === 'korean' ? 'active' : ''}`} onClick={() => applyViewPreset('korean')}>Korean Only</button>
-                <button className={`preset-btn ${customerViewMode === 'icecream' ? 'active' : ''}`} onClick={() => applyViewPreset('icecream')}>Ice Cream Only</button>
-                <button className={`preset-btn ${customerViewMode === 'custom' ? 'active' : ''}`} onClick={() => applyViewPreset('custom')}>Custom</button>
-              </div>
-              <div className="ve-quick-actions">
-                <button className="qa-btn danger" onClick={hideAllForCust}>{'\u{1F6AB}'} Hide All</button>
-                <button className="qa-btn success" onClick={showAllForCust}>{'\u{1F441}'} Show All</button>
-                <span className="ve-preset-label" style={{ marginLeft: '8px' }}>Only:</span>
-                {superCatNames.map(sc => (
-                  <button key={sc} className="qa-btn" onClick={() => showOnlyForCust(sc)}>{sc}</button>
+              <div className="flex gap-[5px] max-sm:gap-1 items-center mb-4 max-sm:mb-2.5 flex-wrap">
+                <span className="text-[11px] text-slate-400 uppercase font-semibold tracking-wide">Presets:</span>
+                {['full', 'chips', 'noodles', 'korean', 'icecream', 'custom'].map(p => (
+                  <button key={p} className={`px-3.5 max-sm:px-2.5 py-[5px] max-sm:py-1 rounded-full border text-xs max-sm:text-[11px] font-medium cursor-pointer transition-all ${customerViewMode === p ? 'border-indigo-500 text-indigo-500 bg-indigo-50' : 'border-slate-200 bg-white text-slate-500 hover:border-indigo-300 hover:text-slate-800'}`} onClick={() => applyViewPreset(p)}>{p === 'full' ? 'Full Catalog' : p === 'chips' ? 'Chips Only' : p === 'noodles' ? 'Noodles Only' : p === 'korean' ? 'Korean Only' : p === 'icecream' ? 'Ice Cream Only' : 'Custom'}</button>
                 ))}
               </div>
-              <div className="ve-hint">Toggle visibility per category or product. Changes only affect this customer.</div>
+              <div className="flex gap-[5px] max-sm:gap-1 items-center flex-wrap mb-3 max-sm:mb-2 p-2 px-3 max-sm:p-1.5 max-sm:px-2.5 bg-slate-50 rounded-lg border border-slate-200">
+                <button className="px-2.5 py-1 rounded-md border border-amber-300 bg-amber-50 text-amber-600 text-[11px] max-sm:text-[10px] font-medium cursor-pointer transition-all hover:border-red-500 hover:text-red-500 hover:bg-red-50 whitespace-nowrap" onClick={hideAllForCust}><Ban className="w-3 h-3 inline mr-0.5 -mt-px" /> Hide All</button>
+                <button className="px-2.5 py-1 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-600 text-[11px] max-sm:text-[10px] font-medium cursor-pointer transition-all hover:border-emerald-400 whitespace-nowrap" onClick={showAllForCust}><Eye className="w-3 h-3 inline mr-0.5 -mt-px" /> Show All</button>
+                <span className="text-[11px] text-slate-400 uppercase font-semibold tracking-wide ml-2">Only:</span>
+                {superCatNames.map(sc => (
+                  <button key={sc} className="px-2.5 py-1 rounded-md border border-slate-200 bg-white text-slate-500 text-[11px] max-sm:text-[10px] font-medium cursor-pointer transition-all hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50 whitespace-nowrap" onClick={() => showOnlyForCust(sc)}>{sc}</button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2.5 p-2.5 px-3.5 bg-slate-50 border border-slate-200 rounded-lg mb-3">
+                <span className="text-[13px] font-semibold text-slate-800"><DollarSign className="w-3.5 h-3.5 inline mr-1 -mt-px" /> Show Prices</span>
+                <button
+                  className={`w-9 h-5 rounded-full border-none cursor-pointer relative transition-colors flex-shrink-0 ${selectedCustomer.showPrices !== false ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                  onClick={() => setSelectedCustomer(prev => ({ ...prev, showPrices: prev.showPrices === false ? true : false }))}
+                >
+                  <span className={`absolute top-[3px] w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-[left] ${selectedCustomer.showPrices !== false ? 'left-[19px]' : 'left-[3px]'}`}></span>
+                </button>
+                <span className="text-xs text-slate-400">{selectedCustomer.showPrices !== false ? 'Prices visible' : 'Prices hidden'}</span>
+              </div>
+              <div className="text-xs text-slate-500 p-2.5 px-3 bg-slate-50 rounded-lg border-l-[3px] border-l-indigo-500 mb-4 max-sm:mb-2 max-sm:text-[11px]">Toggle visibility per category or product. Changes only affect this customer.</div>
 
-              <div className="ve-summary-bar">
-                <span className="vs-num green">{customerVisibleCount} visible</span>
-                <span className="vs-sep">{'\u00B7'}</span>
-                <span className="vs-num muted">{customerHiddenCount} hidden</span>
-                <span className="vs-sep">{'\u00B7'}</span>
-                <span className="vs-num">{products.length} total</span>
+              <div className="flex gap-1.5 items-center mb-3.5 p-2 px-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                <span className="font-semibold text-emerald-600">{customerVisibleCount} visible</span>
+                <span className="text-slate-300">&middot;</span>
+                <span className="font-semibold text-slate-400">{customerHiddenCount} hidden</span>
+                <span className="text-slate-300">&middot;</span>
+                <span className="font-semibold text-slate-800">{products.length} total</span>
               </div>
 
               {categoryTree.map(superCat => (
-                <div key={superCat.name} className={`ve-cat-block ${isCatHiddenForCust(superCat.name) ? 'cat-hidden-block' : ''}`}>
-                  <div className="ve-cat-head" onClick={() => toggleCatExpand(superCat.name)}>
-                    <span className="ve-emoji">{superCat.emoji}</span>
-                    <span className="ve-cat-label">{superCat.name}</span>
-                    <span className="ve-cnt">{superCat.count}</span>
-                    {isCatHiddenForCust(superCat.name) && <span className="cat-hidden-badge">Hidden</span>}
+                <div key={superCat.name} className={`bg-white border border-slate-200 rounded-xl mb-2.5 overflow-hidden shadow-sm ${isCatHiddenForCust(superCat.name) ? '[&>div:first-child]:opacity-65 [&>div:first-child]:bg-slate-50' : ''}`}>
+                  <div className="px-4 max-sm:px-3 py-[11px] max-sm:py-2 flex items-center gap-2.5 cursor-pointer border-b border-slate-200 bg-slate-50/70" onClick={() => toggleCatExpand(superCat.name)}>
+                    <span className="text-[15px]">{superCat.emoji}</span>
+                    <span className="flex-1 text-sm max-sm:text-[13px] font-semibold text-slate-800">{superCat.name}</span>
+                    <span className="text-[11px] text-slate-400">{superCat.count}</span>
+                    {isCatHiddenForCust(superCat.name) && <span className="text-[9px] font-semibold px-[7px] py-0.5 rounded-full bg-slate-50 text-slate-400 border border-slate-200 uppercase tracking-wide">Hidden</span>}
                     <button
-                      className={`mini-toggle cat-vis-toggle ${!isCatHiddenForCust(superCat.name) ? 'on' : 'off'}`}
+                      className={`w-[30px] h-4 rounded-lg border-none cursor-pointer relative transition-colors flex-shrink-0 mr-1 ${!isCatHiddenForCust(superCat.name) ? 'bg-emerald-500' : 'bg-slate-300'}`}
                       onClick={(e) => { e.stopPropagation(); toggleCatVisForCust(superCat.name); }}
                       title="Toggle category visibility for this customer"
-                    ></button>
-                    <button className={`arr-btn ${expandedViewCats[superCat.name] ? 'open' : ''}`}>{'\u203A'}</button>
+                    >
+                      <span className={`absolute top-[2px] w-3 h-3 rounded-full bg-white shadow-sm transition-[left] ${!isCatHiddenForCust(superCat.name) ? 'left-[16px]' : 'left-[2px]'}`}></span>
+                    </button>
+                    <ChevronRight className={`w-3 h-3 text-slate-300 cursor-pointer transition-transform ${expandedViewCats[superCat.name] ? 'rotate-90' : ''}`} />
                   </div>
-                  <div className={`ve-cat-items ${!expandedViewCats[superCat.name] ? 'collapsed' : ''}`}>
+                  <div className={`p-2.5 px-3 grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-[7px] ${!expandedViewCats[superCat.name] ? 'hidden' : ''}`}>
                     {getProductsInCategory(superCat.name).map(prod => (
-                      <div key={prod.id} className={`mini-card ${(!isProductVisibleForCustomer(prod.id) || prod.is_hidden) ? 'prod-hidden' : ''} ${(isProductOosForCustomer(prod.id) || prod.is_oos) ? 'prod-oos' : ''}`}>
-                        <img src={prod.image_url} className="mini-img" alt="" />
-                        <div className="mini-info">
-                          <div className="mini-name">{prod.name}</div>
-                          <div className="mini-sku">{prod.sku || 'N/A'}</div>
+                      <div key={prod.id} className={`bg-slate-50 border-[1.5px] border-slate-200 rounded-lg p-2 flex items-center gap-2 transition-all hover:border-indigo-300 ${(!isProductVisibleForCustomer(prod.id) || prod.is_hidden) ? 'opacity-45 border-dashed' : ''} ${(isProductOosForCustomer(prod.id) || prod.is_oos) ? '!border-amber-300' : ''}`}>
+                        <img src={prod.image_url} className="w-9 h-9 object-contain rounded-[5px] bg-white flex-shrink-0 border border-slate-200" alt="" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[11px] text-slate-800 font-medium whitespace-nowrap overflow-hidden text-ellipsis">{prod.name}</div>
+                          <div className="text-[9px] text-slate-400 font-mono">{prod.sku || 'N/A'}</div>
                         </div>
-                        <div className="mini-controls">
+                        <div className="flex flex-col gap-0.5 flex-shrink-0">
                           <button
-                            className={`mini-toggle ${isProductVisibleForCustomer(prod.id) ? 'on' : 'off'}`}
+                            className={`w-[30px] h-4 rounded-lg border-none cursor-pointer relative transition-colors ${isProductVisibleForCustomer(prod.id) ? 'bg-emerald-500' : 'bg-slate-300'}`}
                             onClick={() => toggleProductForCustomer(prod.id)}
                             title="Toggle visibility"
-                          ></button>
+                          >
+                            <span className={`absolute top-[2px] w-3 h-3 rounded-full bg-white shadow-sm transition-[left] ${isProductVisibleForCustomer(prod.id) ? 'left-[16px]' : 'left-[2px]'}`}></span>
+                          </button>
                           <button
-                            className={`mini-oos-btn ${isProductOosForCustomer(prod.id) ? 'active' : ''}`}
+                            className={`w-[30px] h-4 rounded border text-[8px] font-bold text-center leading-[14px] p-0 cursor-pointer transition-all ${isProductOosForCustomer(prod.id) ? 'bg-amber-100 border-amber-200 text-amber-600' : 'bg-white border-slate-200 text-slate-400 hover:border-red-200 hover:text-red-500'}`}
                             onClick={() => toggleOosForCustomer(prod.id)}
                             title="Toggle OOS for this customer"
                           >
@@ -2005,9 +2319,9 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
               ))}
             </div>
           ) : (
-            <div className="view-editor">
-              <div className="ve-empty">
-                <div style={{ fontSize: '40px', opacity: 0.2 }}>{'\u{1F465}'}</div>
+            <div className="flex-1 overflow-y-auto p-[22px]">
+              <div className="flex flex-col items-center justify-center h-full text-slate-400 text-sm gap-2.5 min-h-[300px]">
+                <Users className="w-10 h-10 opacity-20" />
                 <div>Select a customer to configure their view</div>
               </div>
             </div>
@@ -2016,52 +2330,95 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       </div>
 
       {/* ========== ORDERS PAGE ========== */}
-      <div className={`page ${activePage === 'orders' ? 'active' : ''}`}>
-        <div className="orders-main">
-          <div className="page-header">
-            <div className="page-title">All Orders</div>
-            <div className="filter-row">
-              <button className={`filter-btn ${orderFilter === 'all' ? 'active' : ''}`} onClick={() => setOrderFilterCb('all')}>All</button>
-              <button className={`filter-btn ${orderFilter === 'pending' ? 'active' : ''}`} onClick={() => setOrderFilterCb('pending')}>Pending</button>
-              <button className={`filter-btn ${orderFilter === 'processing' ? 'active' : ''}`} onClick={() => setOrderFilterCb('processing')}>Processing</button>
-              <button className={`filter-btn ${orderFilter === 'received' ? 'active' : ''}`} onClick={() => setOrderFilterCb('received')}>Received</button>
+      <div className={`${activePage === 'orders' ? 'flex flex-col' : 'hidden'} flex-1 min-h-0 max-sm:mt-12 max-sm:pb-[60px]`} style={{ zoom: viewsZoom / 100 }}>
+        <div className="flex-1 p-[22px] max-sm:p-3 overflow-y-auto">
+          <div className="flex justify-between items-center mb-5">
+            <div className="text-[22px] font-semibold text-slate-800 tracking-tight">All Orders</div>
+            <div className="flex gap-[5px]">
+              {['all', 'pending', 'processing', 'received'].map(f => (
+                <button key={f} className={`px-3.5 py-[5px] rounded-lg border text-xs font-medium cursor-pointer transition-all max-sm:text-[10px] max-sm:px-2 max-sm:py-1 capitalize ${orderFilter === f ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-slate-200 bg-white text-slate-500 hover:border-indigo-300 hover:text-indigo-500'}`} onClick={() => setOrderFilterCb(f)}>{f}</button>
+              ))}
             </div>
           </div>
-          <div className="stats-row">
-            <div className="stat-card red"><div className="stat-label">Total Orders</div><div className="stat-val">{orders.length}</div></div>
-            <div className="stat-card yellow"><div className="stat-label">Pending</div><div className="stat-val">{orderStats.pending}</div></div>
-            <div className="stat-card"><div className="stat-label">Processing</div><div className="stat-val">{orderStats.processing}</div></div>
-            <div className="stat-card green"><div className="stat-label">Received</div><div className="stat-val">{orderStats.received}</div></div>
+          <div className="grid grid-cols-4 max-sm:grid-cols-2 gap-3 max-sm:gap-2 mb-5">
+            <div className="bg-white border border-slate-200 rounded-xl p-4 max-sm:p-3 shadow-sm"><div className="text-[10px] font-semibold tracking-wide uppercase text-slate-400 mb-[7px]">Total Orders</div><div className="text-[28px] max-sm:text-[22px] font-semibold text-indigo-500">{orders.length}</div></div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 max-sm:p-3 shadow-sm"><div className="text-[10px] font-semibold tracking-wide uppercase text-slate-400 mb-[7px]">Pending</div><div className="text-[28px] max-sm:text-[22px] font-semibold text-amber-500">{orderStats.pending}</div></div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 max-sm:p-3 shadow-sm"><div className="text-[10px] font-semibold tracking-wide uppercase text-slate-400 mb-[7px]">Processing</div><div className="text-[28px] max-sm:text-[22px] font-semibold text-blue-500">{orderStats.processing}</div></div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 max-sm:p-3 shadow-sm"><div className="text-[10px] font-semibold tracking-wide uppercase text-slate-400 mb-[7px]">Received</div><div className="text-[28px] max-sm:text-[22px] font-semibold text-emerald-500">{orderStats.received}</div></div>
           </div>
-          <div className="orders-table">
-            <div className="ot-head">
-              <div className="ot-th">Order #</div><div className="ot-th">Customer</div><div className="ot-th">Date</div>
-              <div className="ot-th">Cases</div><div className="ot-th">SKUs</div><div className="ot-th">Status</div><div className="ot-th">Update</div>
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm max-sm:overflow-x-auto max-sm:rounded-xl">
+            <div className="grid grid-cols-[90px_1fr_90px_60px_50px_80px_90px_110px] max-sm:grid-cols-[80px_120px_80px_50px_40px_70px_80px_90px] max-sm:min-w-[610px] bg-slate-50 border-b border-slate-200">
+              <div className="px-3.5 max-sm:px-1.5 py-2.5 max-sm:py-2 text-[10px] max-sm:text-[9px] font-semibold tracking-wide uppercase text-slate-400">Order #</div>
+              <div className="px-3.5 max-sm:px-1.5 py-2.5 max-sm:py-2 text-[10px] max-sm:text-[9px] font-semibold tracking-wide uppercase text-slate-400">Customer</div>
+              <div className="px-3.5 max-sm:px-1.5 py-2.5 max-sm:py-2 text-[10px] max-sm:text-[9px] font-semibold tracking-wide uppercase text-slate-400">Date</div>
+              <div className="px-3.5 max-sm:px-1.5 py-2.5 max-sm:py-2 text-[10px] max-sm:text-[9px] font-semibold tracking-wide uppercase text-slate-400">Cases</div>
+              <div className="px-3.5 max-sm:px-1.5 py-2.5 max-sm:py-2 text-[10px] max-sm:text-[9px] font-semibold tracking-wide uppercase text-slate-400">SKUs</div>
+              <div className="px-3.5 max-sm:px-1.5 py-2.5 max-sm:py-2 text-[10px] max-sm:text-[9px] font-semibold tracking-wide uppercase text-slate-400">Amount</div>
+              <div className="px-3.5 max-sm:px-1.5 py-2.5 max-sm:py-2 text-[10px] max-sm:text-[9px] font-semibold tracking-wide uppercase text-slate-400">Status</div>
+              <div className="px-3.5 max-sm:px-1.5 py-2.5 max-sm:py-2 text-[10px] max-sm:text-[9px] font-semibold tracking-wide uppercase text-slate-400">Update</div>
             </div>
-            {filteredOrders.map(order => (
-              <div key={order.id} className="ot-row">
-                <div className="ot-cell" data-label="Order #"><span className="ot-id">{order.id}</span></div>
-                <div className="ot-cell" data-label="Customer">{order.customer_name}</div>
-                <div className="ot-cell" data-label="Date">{formatDate(order.created_at)}</div>
-                <div className="ot-cell" data-label="Cases">{order.cases}</div>
-                <div className="ot-cell" data-label="SKUs">{order.skus}</div>
-                <div className="ot-cell" data-label="Status">
-                  <span className={`order-status s-${(order.status || '').toLowerCase()}`}>{order.status}</span>
-                </div>
-                <div className="ot-cell" data-label="Update">
-                  <select className="status-select" value={order.status} onChange={(e) => updateOrderStatus(order.id, e.target.value)}>
-                    <option>Pending</option>
-                    <option>Processing</option>
-                    <option>Received</option>
-                  </select>
-                </div>
-              </div>
-            ))}
+            <div className="max-sm:min-w-[610px]">
+              {filteredOrders.map(order => (
+                <React.Fragment key={order.id}>
+                  <div className={`grid grid-cols-[90px_1fr_90px_60px_50px_80px_90px_110px] max-sm:grid-cols-[80px_120px_80px_50px_40px_70px_80px_90px] border-b border-slate-100 transition-colors bg-white hover:bg-slate-50 cursor-pointer ${expandedOrderId === order.id ? 'bg-indigo-50 border-l-[3px] border-l-indigo-500' : ''}`} onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}>
+                    <div className="px-3.5 max-sm:px-1.5 py-[13px] max-sm:py-2.5 text-xs max-sm:text-[11px] flex items-center"><span className="font-semibold text-[13px] max-sm:text-[11px] text-indigo-500">#{(order.id || '').substring(0, 8).toUpperCase()}</span></div>
+                    <div className="px-3.5 max-sm:px-1.5 py-[13px] max-sm:py-2.5 text-xs max-sm:text-[11px] flex items-center">{order.customer_name}</div>
+                    <div className="px-3.5 max-sm:px-1.5 py-[13px] max-sm:py-2.5 text-xs max-sm:text-[11px] flex items-center">{formatDate(order.created_at)}</div>
+                    <div className="px-3.5 max-sm:px-1.5 py-[13px] max-sm:py-2.5 text-xs max-sm:text-[11px] flex items-center">{order.cases}</div>
+                    <div className="px-3.5 max-sm:px-1.5 py-[13px] max-sm:py-2.5 text-xs max-sm:text-[11px] flex items-center">{order.skus}</div>
+                    <div className="px-3.5 max-sm:px-1.5 py-[13px] max-sm:py-2.5 text-xs max-sm:text-[11px] flex items-center">${order.amount || '0.00'}</div>
+                    <div className="px-3.5 max-sm:px-1.5 py-[13px] max-sm:py-2.5 text-xs max-sm:text-[11px] flex items-center">
+                      <span className={`px-2.5 max-sm:px-1.5 py-[3px] rounded-full text-[10px] max-sm:text-[9px] font-semibold tracking-wide ${(order.status || '').toLowerCase() === 'received' ? 'bg-emerald-100 text-emerald-600 border border-emerald-200' : (order.status || '').toLowerCase() === 'processing' ? 'bg-blue-100 text-blue-600 border border-blue-200' : 'bg-amber-100 text-amber-600 border border-amber-200'}`}>{order.status}</span>
+                    </div>
+                    <div className="px-3.5 max-sm:px-1.5 py-[13px] max-sm:py-2.5 text-xs max-sm:text-[11px] flex items-center" onClick={e => e.stopPropagation()}>
+                      <select className="bg-white border border-slate-200 rounded-lg text-slate-500 text-[11px] max-sm:text-[10px] px-2 max-sm:px-1 py-1 cursor-pointer focus:outline-none focus:border-indigo-400" value={order.status} onChange={(e) => updateOrderStatus(order.id, e.target.value)}>
+                        <option>Pending</option>
+                        <option>Processing</option>
+                        <option>Received</option>
+                      </select>
+                    </div>
+                  </div>
+                  {expandedOrderId === order.id && (
+                    <div className="p-4 max-sm:p-3 px-5 bg-slate-50 border-b border-slate-200 animate-[slideDown_0.2s_ease]">
+                      <div className="grid grid-cols-2 max-sm:!grid-cols-1 gap-5 max-sm:gap-3.5">
+                        <div className="flex flex-col gap-1.5">
+                          <div className="text-xs max-sm:text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1"><User className="w-3 h-3 inline mr-1 -mt-px" /> Customer Info</div>
+                          <div className="flex gap-2 text-[13px] max-sm:text-xs"><span className="text-slate-400 min-w-[70px] max-sm:min-w-0 flex-shrink-0">Company</span><span className="text-slate-800 font-medium">{order.company_name || '\u2014'}</span></div>
+                          <div className="flex gap-2 text-[13px] max-sm:text-xs"><span className="text-slate-400 min-w-[70px] max-sm:min-w-0 flex-shrink-0">Contact</span><span className="text-slate-800 font-medium">{order.contact_name || '\u2014'}</span></div>
+                          <div className="flex gap-2 text-[13px] max-sm:text-xs"><span className="text-slate-400 min-w-[70px] max-sm:min-w-0 flex-shrink-0">Email</span><span className="text-slate-800 font-medium">{order.email || '\u2014'}</span></div>
+                          <div className="flex gap-2 text-[13px] max-sm:text-xs"><span className="text-slate-400 min-w-[70px] max-sm:min-w-0 flex-shrink-0">Phone</span><span className="text-slate-800 font-medium">{order.phone || '\u2014'}</span></div>
+                          {order.alt_phone && <div className="flex gap-2 text-[13px] max-sm:text-xs"><span className="text-slate-400 min-w-[70px] max-sm:min-w-0 flex-shrink-0">Alt Phone</span><span className="text-slate-800 font-medium">{order.alt_phone}</span></div>}
+                          {(order.address_line1 || order.city) && (
+                            <div className="flex gap-2 text-[13px] max-sm:text-xs flex-wrap"><span className="text-slate-400 min-w-[70px] max-sm:min-w-0 flex-shrink-0">Address</span><span className="text-slate-800 font-medium">{[order.address_line1, order.address_line2, order.city, order.state, order.zip, order.country].filter(Boolean).join(', ')}</span></div>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <div className="text-xs max-sm:text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1"><Package className="w-3 h-3 inline mr-1 -mt-px" /> Order Items</div>
+                          {order.items?.map((item, idx) => (
+                            <div key={idx} className="flex items-center gap-2 text-xs max-sm:text-[11px] py-1 border-b border-slate-100 last:border-b-0 flex-wrap max-sm:gap-1">
+                              <span className="flex-1 text-slate-800 font-medium min-w-0 overflow-hidden text-ellipsis whitespace-nowrap max-sm:whitespace-normal max-sm:text-xs">{item.name}</span>
+                              <span className="text-slate-400 text-[11px]">{item.sku || ''}</span>
+                              <span className="text-slate-500 whitespace-nowrap">{item.qty} cases</span>
+                              <span className="text-slate-400 whitespace-nowrap">${parseFloat(item.price || 0).toFixed(2)}</span>
+                              <span className="text-slate-800 font-semibold whitespace-nowrap min-w-[60px] max-sm:min-w-0 text-right">${(parseFloat(item.price || 0) * (item.qty || 0)).toFixed(2)}</span>
+                            </div>
+                          ))}
+                          <div className="flex justify-between pt-2 mt-1 border-t border-slate-200 text-sm max-sm:text-[13px] font-bold text-indigo-500">
+                            <span>Total</span>
+                            <span>${order.amount || '0.00'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
             {filteredOrders.length === 0 && (
-              <div className="empty-state">
-                <div className="empty-state-icon">{'\u{1F4CB}'}</div>
-                <div className="empty-state-title">No orders yet</div>
-                <div className="empty-state-sub">Orders from customers will appear here</div>
+              <div className="flex flex-col items-center justify-center gap-2 py-[60px] text-center border-t border-dashed border-slate-200">
+                <ClipboardList className="w-9 h-9 text-slate-300 opacity-50 mb-1" />
+                <div className="text-[15px] font-semibold text-slate-800">No orders yet</div>
+                <div className="text-[13px] text-slate-400">Orders from customers will appear here</div>
               </div>
             )}
           </div>
@@ -2069,41 +2426,41 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       </div>
 
       {/* ========== CATEGORIES PAGE ========== */}
-      <div className={`page ${activePage === 'categories' ? 'active' : ''}`}>
-        <div className="categories-main">
-          <div className="cat-manage-header">
-            <h1>{'\u{1F4C2}'} Categories & Organization</h1>
-            <p className="cat-manage-desc">Manage categories and super-categories. Changes update immediately for all users.</p>
+      <div className={`${activePage === 'categories' ? 'flex flex-col' : 'hidden'} flex-1 min-h-0 max-sm:mt-12 max-sm:pb-[60px]`} style={{ zoom: viewsZoom / 100 }}>
+        <div className="flex flex-col gap-6 max-sm:gap-3.5 p-6 max-sm:p-3 max-w-[900px] mx-auto w-full overflow-y-auto">
+          <div className="text-center mb-3">
+            <h1 className="text-[28px] max-sm:text-xl font-bold mb-2 text-slate-800"><FolderOpen className="w-7 h-7 inline mr-2 -mt-1" /> Categories & Organization</h1>
+            <p className="text-[13px] max-sm:text-xs text-slate-400">Manage categories and super-categories. Changes update immediately for all users.</p>
           </div>
 
-          <div className="cat-section">
-            <div className="cat-section-title">Super Categories</div>
-            <div className="cat-add-row">
+          <div className="flex flex-col gap-3 mb-0">
+            <div className="text-sm font-semibold text-slate-800 uppercase tracking-wide pb-2 border-b border-slate-200">Super Categories</div>
+            <div className="flex gap-2 mb-1 max-sm:flex-col max-sm:gap-1.5">
               <input
                 type="text"
-                className="cat-add-input"
+                className="flex-1 py-2 px-3 border border-slate-200 rounded-lg text-[13px] max-sm:text-sm text-slate-800 bg-white outline-none focus:border-indigo-400 placeholder:text-slate-400"
                 placeholder="New super category name..."
                 value={newSuperCatName}
                 onChange={e => setNewSuperCatName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addSuperCategory()}
               />
-              <button className="cat-add-btn" onClick={addSuperCategory} disabled={!newSuperCatName.trim()}>+ Add</button>
+              <button className="px-4 py-2 bg-indigo-500 border-none rounded-lg text-white font-semibold text-[13px] cursor-pointer transition-all hover:bg-indigo-600 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed" onClick={addSuperCategory} disabled={!newSuperCatName.trim()}><Plus className="w-3.5 h-3.5 inline mr-0.5 -mt-px" /> Add</button>
             </div>
-            <div className="cat-list-wrap">
-              <div className="cat-drag-list" onDragOver={(e) => handleDragOver(e, 'super', null)} onDrop={(e) => handleDrop(e, 'super', null)}>
+            <div className="flex flex-col gap-2 rounded-xl p-3 border border-slate-200">
+              <div className="flex flex-col gap-2" onDragOver={(e) => handleDragOver(e, 'super', null)} onDrop={(e) => handleDrop(e, 'super', null)}>
                 {superCategoriesList.map((element, index) => (
-                  <div key={element.id} className={`cat-item cat-super-item${dragContext?.listType === 'super' && dragOverItemRef.current === index && dragItemRef.current !== index ? ' cat-drag-over' : ''}`}
+                  <div key={element.id} className={`cat-item flex items-center gap-3 max-sm:gap-2 p-3 max-sm:p-2.5 bg-slate-50 border-2 border-slate-200 rounded-lg transition-all hover:border-indigo-400 ${dragContext?.listType === 'super' && dragOverItemRef.current === index && dragItemRef.current !== index ? '!border-indigo-500 shadow-[0_-2px_0_0_theme(colors.indigo.500)]' : ''}`}
                     draggable={editingSuperCatId !== element.id}
                     onDragStart={(e) => handleDragStart(e, index, 'super', null)}
                     onDragEnter={(e) => handleDragEnter(e, index, 'super', null)}
                     onDragEnd={handleDragEnd}
                   >
-                    <div className="cat-drag-handle" title="Drag to reorder">{'\u22EE\u22EE'}</div>
-                    <div className="cat-item-content">
+                    <GripVertical className="w-4 h-4 text-slate-400 flex-shrink-0 cursor-grab active:cursor-grabbing" title="Drag to reorder" />
+                    <div className="flex flex-col flex-1 min-w-0">
                       {editingSuperCatId === element.id ? (
                         <input
                           type="text"
-                          className="cat-edit-input"
+                          className="py-1 px-2 border border-indigo-500 rounded-md text-sm text-slate-800 bg-white outline-none w-full"
                           value={editingSuperCatName}
                           onChange={e => setEditingSuperCatName(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter') renameSuperCategory(element.id); if (e.key === 'Escape') setEditingSuperCatId(null); }}
@@ -2111,22 +2468,22 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                         />
                       ) : (
                         <>
-                          <span className="cat-item-name">{element.name}</span>
-                          <span className="cat-item-order">Position: {index + 1}</span>
+                          <span className="text-sm max-sm:text-[13px] font-medium text-slate-800">{element.name}</span>
+                          <span className="text-[11px] text-slate-400">Position: {index + 1}</span>
                         </>
                       )}
                     </div>
-                    <span className="cat-item-prod-count">{getCategoryItemCount(element.id, 'super')} products</span>
-                    <div className="cat-item-actions">
+                    <span className="text-xs max-sm:text-[11px] text-slate-500 bg-white/50 px-2.5 max-sm:px-2 py-1 rounded-xl whitespace-nowrap flex-shrink-0">{getCategoryItemCount(element.id, 'super')} products</span>
+                    <div className="flex gap-1 max-sm:gap-0.5 flex-shrink-0">
                       {editingSuperCatId === element.id ? (
                         <>
-                          <button className="cat-action-btn cat-save" onClick={() => renameSuperCategory(element.id)} title="Save">{'\u2713'}</button>
-                          <button className="cat-action-btn cat-cancel" onClick={() => setEditingSuperCatId(null)} title="Cancel">{'\u2715'}</button>
+                          <button className="w-7 h-7 max-sm:w-[26px] max-sm:h-[26px] rounded-md border border-emerald-500 bg-white text-emerald-500 text-[13px] max-sm:text-xs cursor-pointer flex items-center justify-center transition-all hover:bg-emerald-50" onClick={() => renameSuperCategory(element.id)} title="Save"><Check className="w-3.5 h-3.5" /></button>
+                          <button className="w-7 h-7 max-sm:w-[26px] max-sm:h-[26px] rounded-md border border-slate-200 bg-white text-slate-400 text-[13px] max-sm:text-xs cursor-pointer flex items-center justify-center transition-all hover:border-red-500 hover:text-red-500" onClick={() => setEditingSuperCatId(null)} title="Cancel"><X className="w-3.5 h-3.5" /></button>
                         </>
                       ) : (
                         <>
-                          <button className="cat-action-btn cat-edit" onClick={() => { setEditingSuperCatId(element.id); setEditingSuperCatName(element.name); }} title="Rename">{'\u270E'}</button>
-                          <button className="cat-action-btn cat-delete" onClick={() => deleteSuperCategory(element.id, element.name)} title="Delete">{'\u{1F5D1}'}</button>
+                          <button className="w-7 h-7 max-sm:w-[26px] max-sm:h-[26px] rounded-md border border-slate-200 bg-white text-slate-400 text-[13px] max-sm:text-xs cursor-pointer flex items-center justify-center transition-all hover:border-indigo-500 hover:text-indigo-500" onClick={() => { setEditingSuperCatId(element.id); setEditingSuperCatName(element.name); }} title="Rename"><Pencil className="w-3.5 h-3.5" /></button>
+                          <button className="w-7 h-7 max-sm:w-[26px] max-sm:h-[26px] rounded-md border border-slate-200 bg-white text-slate-400 text-[13px] max-sm:text-xs cursor-pointer flex items-center justify-center transition-all hover:border-red-500 hover:text-red-500 hover:bg-red-50" onClick={() => deleteSuperCategory(element.id, element.name)} title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
                         </>
                       )}
                     </div>
@@ -2137,34 +2494,34 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
           </div>
 
           {superCategoriesList.map(superCat => (
-            <div key={`cats-${superCat.id}`} className="cat-section">
-              <div className="cat-section-title">{superCat.name} {'\u2014'} Subcategories</div>
-              <div className="cat-add-row">
+            <div key={`cats-${superCat.id}`} className="flex flex-col gap-3 mb-0">
+              <div className="text-sm max-sm:text-xs font-semibold text-slate-800 uppercase tracking-wide pb-2 border-b border-slate-200">{superCat.name} &mdash; Subcategories</div>
+              <div className="flex gap-2 mb-1 max-sm:flex-col max-sm:gap-1.5">
                 <input
                   type="text"
-                  className="cat-add-input"
+                  className="flex-1 py-2 px-3 border border-slate-200 rounded-lg text-[13px] max-sm:text-sm text-slate-800 bg-white outline-none focus:border-indigo-400 placeholder:text-slate-400"
                   placeholder={`New subcategory in ${superCat.name}...`}
                   value={newSubCatName[superCat.id] || ''}
                   onChange={e => setNewSubCatName(prev => ({ ...prev, [superCat.id]: e.target.value }))}
                   onKeyDown={e => e.key === 'Enter' && addSubCategory(superCat.id)}
                 />
-                <button className="cat-add-btn" onClick={() => addSubCategory(superCat.id)} disabled={!(newSubCatName[superCat.id] || '').trim()}>+ Add</button>
+                <button className="px-4 py-2 bg-indigo-500 border-none rounded-lg text-white font-semibold text-[13px] cursor-pointer transition-all hover:bg-indigo-600 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed" onClick={() => addSubCategory(superCat.id)} disabled={!(newSubCatName[superCat.id] || '').trim()}><Plus className="w-3.5 h-3.5 inline mr-0.5 -mt-px" /> Add</button>
               </div>
-              <div className="cat-list-wrap">
-                <div className="cat-drag-list" onDragOver={(e) => handleDragOver(e, 'sub', superCat.id)} onDrop={(e) => handleDrop(e, 'sub', superCat.id)}>
+              <div className="flex flex-col gap-2 rounded-xl p-3 border border-slate-200">
+                <div className="flex flex-col gap-2" onDragOver={(e) => handleDragOver(e, 'sub', superCat.id)} onDrop={(e) => handleDrop(e, 'sub', superCat.id)}>
                   {(categoriesBySuper[superCat.id] || []).map((element, index) => (
-                    <div key={element.id} className={`cat-item${dragContext?.listType === 'sub' && dragContext?.superId === superCat.id && dragOverItemRef.current === index && dragItemRef.current !== index ? ' cat-drag-over' : ''}`}
+                    <div key={element.id} className={`cat-item flex items-center gap-3 max-sm:gap-2 p-3 max-sm:p-2.5 bg-slate-50 border border-slate-200 rounded-lg transition-all hover:border-indigo-400 ${dragContext?.listType === 'sub' && dragContext?.superId === superCat.id && dragOverItemRef.current === index && dragItemRef.current !== index ? '!border-indigo-500 shadow-[0_-2px_0_0_theme(colors.indigo.500)]' : ''}`}
                       draggable={editingSubCatId !== element.id}
                       onDragStart={(e) => handleDragStart(e, index, 'sub', superCat.id)}
                       onDragEnter={(e) => handleDragEnter(e, index, 'sub', superCat.id)}
                       onDragEnd={handleDragEnd}
                     >
-                      <div className="cat-drag-handle" title="Drag to reorder">{'\u22EE\u22EE'}</div>
-                      <div className="cat-item-content">
+                      <GripVertical className="w-4 h-4 text-slate-400 flex-shrink-0 cursor-grab active:cursor-grabbing" title="Drag to reorder" />
+                      <div className="flex flex-col flex-1 min-w-0">
                         {editingSubCatId === element.id ? (
                           <input
                             type="text"
-                            className="cat-edit-input"
+                            className="py-1 px-2 border border-indigo-500 rounded-md text-sm text-slate-800 bg-white outline-none w-full"
                             value={editingSubCatName}
                             onChange={e => setEditingSubCatName(e.target.value)}
                             onKeyDown={e => { if (e.key === 'Enter') renameSubCategory(element.id, superCat.id); if (e.key === 'Escape') setEditingSubCatId(null); }}
@@ -2172,22 +2529,22 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                           />
                         ) : (
                           <>
-                            <span className="cat-item-name">{element.name}</span>
-                            <span className="cat-item-order">Position: {index + 1}</span>
+                            <span className="text-sm max-sm:text-[13px] font-medium text-slate-800">{element.name}</span>
+                            <span className="text-[11px] text-slate-400">Position: {index + 1}</span>
                           </>
                         )}
                       </div>
-                      <span className="cat-item-prod-count">{getCategoryItemCount(element.id, 'cat')} products</span>
-                      <div className="cat-item-actions">
+                      <span className="text-xs max-sm:text-[11px] text-slate-500 bg-white/50 px-2.5 max-sm:px-2 py-1 rounded-xl whitespace-nowrap flex-shrink-0">{getCategoryItemCount(element.id, 'cat')} products</span>
+                      <div className="flex gap-1 max-sm:gap-0.5 flex-shrink-0">
                         {editingSubCatId === element.id ? (
                           <>
-                            <button className="cat-action-btn cat-save" onClick={() => renameSubCategory(element.id, superCat.id)} title="Save">{'\u2713'}</button>
-                            <button className="cat-action-btn cat-cancel" onClick={() => setEditingSubCatId(null)} title="Cancel">{'\u2715'}</button>
+                            <button className="w-7 h-7 max-sm:w-[26px] max-sm:h-[26px] rounded-md border border-emerald-500 bg-white text-emerald-500 text-[13px] max-sm:text-xs cursor-pointer flex items-center justify-center transition-all hover:bg-emerald-50" onClick={() => renameSubCategory(element.id, superCat.id)} title="Save"><Check className="w-3.5 h-3.5" /></button>
+                            <button className="w-7 h-7 max-sm:w-[26px] max-sm:h-[26px] rounded-md border border-slate-200 bg-white text-slate-400 text-[13px] max-sm:text-xs cursor-pointer flex items-center justify-center transition-all hover:border-red-500 hover:text-red-500" onClick={() => setEditingSubCatId(null)} title="Cancel"><X className="w-3.5 h-3.5" /></button>
                           </>
                         ) : (
                           <>
-                            <button className="cat-action-btn cat-edit" onClick={() => { setEditingSubCatId(element.id); setEditingSubCatName(element.name); }} title="Rename">{'\u270E'}</button>
-                            <button className="cat-action-btn cat-delete" onClick={() => deleteSubCategory(element.id, superCat.id, element.name)} title="Delete">{'\u{1F5D1}'}</button>
+                            <button className="w-7 h-7 max-sm:w-[26px] max-sm:h-[26px] rounded-md border border-slate-200 bg-white text-slate-400 text-[13px] max-sm:text-xs cursor-pointer flex items-center justify-center transition-all hover:border-indigo-500 hover:text-indigo-500" onClick={() => { setEditingSubCatId(element.id); setEditingSubCatName(element.name); }} title="Rename"><Pencil className="w-3.5 h-3.5" /></button>
+                            <button className="w-7 h-7 max-sm:w-[26px] max-sm:h-[26px] rounded-md border border-slate-200 bg-white text-slate-400 text-[13px] max-sm:text-xs cursor-pointer flex items-center justify-center transition-all hover:border-red-500 hover:text-red-500 hover:bg-red-50" onClick={() => deleteSubCategory(element.id, superCat.id, element.name)} title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
                           </>
                         )}
                       </div>
@@ -2198,38 +2555,226 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
             </div>
           ))}
 
-          <div className="cat-manage-footer">
-            {catReorderStatus && <span className="cat-manage-status">{'\u2705'} {catReorderStatus}</span>}
+          <div className="flex justify-center mt-3">
+            {catReorderStatus && <span className="text-[13px] text-emerald-600 px-4 py-2 bg-emerald-50 rounded-full border border-emerald-200 animate-[fadeIn_0.3s]"><CheckCircle className="w-3.5 h-3.5 inline mr-1 -mt-px" /> {catReorderStatus}</span>}
           </div>
         </div>
       </div>
 
       {/* ========== SETTINGS PAGE ========== */}
-      <div className={`page ${activePage === 'settings' ? 'active' : ''}`}>
-        <div className="settings-main">
-          <div className="settings-section">
-            <div className="settings-section-title">{'\u{1F510}'} Customer Registration</div>
-            <div className="settings-row">
-              <div className="settings-row-info">
-                <div className="settings-row-label">Allow "Create Account" on login page</div>
-                <div className="settings-row-desc">When enabled, customers will see a "Create account" link on the login page.</div>
+      <div className={`${activePage === 'settings' ? 'flex flex-col' : 'hidden'} flex-1 min-h-0 max-sm:mt-12 max-sm:pb-[60px]`} style={{ zoom: viewsZoom / 100 }}>
+        <div className="p-7 max-sm:p-3 max-w-[780px] max-sm:max-w-full mx-auto overflow-y-auto max-sm:overscroll-contain">
+          <div className="bg-white border border-slate-200 rounded-[14px] mb-[22px] overflow-hidden">
+            <div className="text-sm max-sm:text-[13px] font-semibold text-slate-800 px-5 max-sm:px-3.5 py-4 max-sm:py-3 border-b border-slate-100 tracking-tight"><Shield className="w-4 h-4 inline mr-1.5 -mt-px" /> Customer Registration</div>
+            <div className="flex items-center max-sm:flex-col max-sm:items-start gap-5 max-sm:gap-2 px-5 max-sm:px-3.5 py-4">
+              <div className="flex-1">
+                <div className="text-sm font-medium text-slate-800 mb-0.5">Allow "Create Account" on login page</div>
+                <div className="text-xs text-slate-400 leading-relaxed">When enabled, customers will see a "Create account" link on the login page.</div>
               </div>
-              <button className={`toggle-sw ${registrationEnabled ? 'on' : 'off'}`} onClick={toggleRegistration}></button>
+              <button className={`w-9 h-5 rounded-full border-none cursor-pointer relative transition-colors flex-shrink-0 ${registrationEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`} onClick={toggleRegistration}>
+                <span className={`absolute top-[3px] w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-[left] ${registrationEnabled ? 'left-[19px]' : 'left-[3px]'}`}></span>
+              </button>
+            </div>
+            <div className="flex items-center max-sm:flex-col max-sm:items-start gap-5 max-sm:gap-2 px-5 max-sm:px-3.5 py-4">
+              <div className="flex-1">
+                <div className="text-sm font-medium text-slate-800 mb-0.5">Show prices to customers</div>
+                <div className="text-xs text-slate-400 leading-relaxed">When disabled, product prices will be hidden from all customer accounts site-wide. Admin can still see prices.</div>
+              </div>
+              <button className={`w-9 h-5 rounded-full border-none cursor-pointer relative transition-colors flex-shrink-0 ${priceVisibility ? 'bg-emerald-500' : 'bg-slate-300'}`} onClick={togglePriceVisibility}>
+                <span className={`absolute top-[3px] w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-[left] ${priceVisibility ? 'left-[19px]' : 'left-[3px]'}`}></span>
+              </button>
+            </div>
+          </div>
+
+          {/* Promo Banner Editor */}
+          <div className="bg-white border border-slate-200 rounded-[14px] mb-[22px] overflow-hidden">
+            <div className="text-sm max-sm:text-[13px] font-semibold text-slate-800 px-5 max-sm:px-3.5 py-4 max-sm:py-3 border-b border-slate-100 tracking-tight"><Megaphone className="w-4 h-4 inline mr-1.5 -mt-px" /> Promo Banner</div>
+            <div className="px-5 max-sm:px-3.5 py-4">
+              {/* Enable toggle */}
+              <div className="flex items-center gap-5 mb-4">
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-slate-800 mb-0.5">Enable promo banner</div>
+                  <div className="text-xs text-slate-400 leading-relaxed">Show a promotional banner at the top of the customer catalog page.</div>
+                </div>
+                <button className={`w-9 h-5 rounded-full border-none cursor-pointer relative transition-colors flex-shrink-0 ${promoBanner.enabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                  onClick={() => savePromoBanner({ ...promoBanner, enabled: !promoBanner.enabled })}>
+                  <span className={`absolute top-[3px] w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-[left] ${promoBanner.enabled ? 'left-[19px]' : 'left-[3px]'}`}></span>
+                </button>
+              </div>
+
+              {/* Banner type toggle */}
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Banner Type</div>
+              <div className="flex gap-1 bg-slate-100 p-1 rounded-lg mb-4">
+                <button className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 border-none rounded-md text-xs font-medium cursor-pointer transition-all ${(promoBanner.type || 'text') === 'text' ? 'bg-white text-indigo-600 shadow-sm font-semibold' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
+                  onClick={() => { const updated = { ...promoBanner, type: 'text', enabled: true }; savePromoBanner(updated); }}><Type className="w-3.5 h-3.5" /> Use Text Banner</button>
+                <button className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 border-none rounded-md text-xs font-medium cursor-pointer transition-all ${promoBanner.type === 'image' ? 'bg-white text-indigo-600 shadow-sm font-semibold' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
+                  onClick={() => { const updated = { ...promoBanner, type: 'image', enabled: true }; savePromoBanner(updated); }}><ImageIcon className="w-3.5 h-3.5" /> Use Image Banner</button>
+              </div>
+
+              {/* Preview */}
+              {(promoBanner.type || 'text') === 'text' ? (
+                <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-xl p-5 mb-4 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full -translate-y-1/2 translate-x-1/2"></div>
+                  <div className="relative flex items-center justify-between gap-6 max-sm:flex-col max-sm:items-start max-sm:gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 text-indigo-400 text-[11px] font-bold tracking-widest uppercase mb-2">
+                        <span className="w-5 h-0.5 bg-indigo-400 rounded"></span>
+                        {promoBanner.label || 'LIMITED TIME OFFER'}
+                      </div>
+                      <div className="text-white text-lg font-bold leading-tight mb-2">{promoBanner.headline || 'Your headline here'}</div>
+                      <div className="text-slate-400 text-xs leading-relaxed">{promoBanner.subtitle || 'Your subtitle text here.'}</div>
+                    </div>
+                    {promoBanner.ctaText && (
+                      <span className="inline-flex items-center gap-1.5 bg-indigo-500 text-white text-xs font-semibold px-4 py-2.5 rounded-lg shrink-0">{promoBanner.ctaText} →</span>
+                    )}
+                  </div>
+                  {!promoBanner.enabled && <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center text-slate-400 text-xs font-semibold">DISABLED</div>}
+                </div>
+              ) : (
+                <div className="rounded-xl mb-4 relative overflow-hidden border border-slate-200 bg-slate-50">
+                  {promoBanner.imageUrl ? (
+                    <img src={promoBanner.imageUrl} alt="Banner preview" className="w-full max-h-[200px] object-cover rounded-xl" />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                      <ImageIcon className="w-10 h-10 mb-2 opacity-40" />
+                      <span className="text-xs">No image uploaded yet</span>
+                    </div>
+                  )}
+                  {promoBanner.ctaLink && promoBanner.imageUrl && (
+                    <div className="absolute bottom-2 left-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded flex items-center gap-1"><Link className="w-3 h-3" /> {promoBanner.ctaLink}</div>
+                  )}
+                  {!promoBanner.enabled && <div className="absolute inset-0 bg-white/70 flex items-center justify-center text-slate-400 text-xs font-semibold">DISABLED</div>}
+                </div>
+              )}
+
+              {/* Text banner fields */}
+              {(promoBanner.type || 'text') === 'text' && (
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Label Tag</label>
+                    <input type="text" value={promoBanner.label} onChange={e => setPromoBanner(p => ({ ...p, label: e.target.value }))} placeholder="e.g. LIMITED TIME OFFER"
+                      className="px-2.5 py-2 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-slate-50 outline-none focus:border-indigo-400" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Headline</label>
+                    <input type="text" value={promoBanner.headline} onChange={e => setPromoBanner(p => ({ ...p, headline: e.target.value }))} placeholder="e.g. Free freight on orders over $2,000"
+                      className="px-2.5 py-2 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-slate-50 outline-none focus:border-indigo-400" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Subtitle / Description</label>
+                    <input type="text" value={promoBanner.subtitle} onChange={e => setPromoBanner(p => ({ ...p, subtitle: e.target.value }))} placeholder="e.g. Use code SPRINGDEAL for an extra 5% off"
+                      className="px-2.5 py-2 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-slate-50 outline-none focus:border-indigo-400" />
+                  </div>
+                  <div className="flex gap-3 max-sm:flex-col">
+                    <div className="flex-1 flex flex-col gap-1">
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Button Text</label>
+                      <input type="text" value={promoBanner.ctaText} onChange={e => setPromoBanner(p => ({ ...p, ctaText: e.target.value }))} placeholder="e.g. Shop New Arrivals"
+                        className="px-2.5 py-2 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-slate-50 outline-none focus:border-indigo-400" />
+                    </div>
+                    <div className="flex-1 flex flex-col gap-1">
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Button URL</label>
+                      <input type="text" value={promoBanner.ctaLink || ''} onChange={e => setPromoBanner(p => ({ ...p, ctaLink: e.target.value }))} placeholder="e.g. https://example.com/sale"
+                        className="px-2.5 py-2 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-slate-50 outline-none focus:border-indigo-400" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Image banner fields */}
+              {promoBanner.type === 'image' && (
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Banner Image</label>
+                    <div className="flex gap-2 items-center">
+                      <label className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 cursor-pointer transition-colors hover:bg-slate-200">
+                        <Upload className="w-3.5 h-3.5" /> Upload Image
+                        <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                          const file = e.target.files?.[0]; if (!file) return;
+                          const url = await uploadBannerImage(file);
+                          if (url) {
+                            const updated = { ...promoBanner, imageUrl: url };
+                            setPromoBanner(updated);
+                            await savePromoBanner(updated);
+                          }
+                          e.target.value = '';
+                        }} />
+                      </label>
+                      {promoBanner.imageUrl && (
+                        <button onClick={async () => {
+                          await removeBannerImage();
+                          const updated = { ...promoBanner, imageUrl: '' };
+                          setPromoBanner(updated);
+                          await savePromoBanner(updated);
+                        }}
+                          className="flex items-center gap-1 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs font-semibold text-red-500 cursor-pointer transition-colors hover:bg-red-100">
+                          <Trash2 className="w-3 h-3" /> Remove
+                        </button>
+                      )}
+                    </div>
+                    {promoBanner.imageUrl && <div className="text-[11px] text-slate-400 truncate mt-1">{promoBanner.imageUrl}</div>}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Click URL (where banner links to)</label>
+                    <input type="text" value={promoBanner.ctaLink || ''} onChange={e => setPromoBanner(p => ({ ...p, ctaLink: e.target.value }))} placeholder="e.g. https://example.com/promo"
+                      className="px-2.5 py-2 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-slate-50 outline-none focus:border-indigo-400" />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 mt-4 flex-wrap">
+                <button onClick={() => savePromoBanner({ ...promoBanner, enabled: true })}
+                  className="px-5 py-2.5 bg-indigo-500 border-none rounded-lg text-white font-semibold text-[13px] cursor-pointer transition-colors hover:bg-indigo-600">
+                  Save Changes
+                </button>
+                {promoBanner.enabled && (
+                  <button onClick={() => savePromoBanner({ ...promoBanner, enabled: false })}
+                    className="px-5 py-2.5 bg-transparent border border-slate-200 rounded-lg text-slate-500 font-semibold text-[13px] cursor-pointer transition-colors hover:border-red-300 hover:text-red-500">
+                    Disable Banner
+                  </button>
+                )}
+              </div>
+              {promoBanner.enabled && (
+                <div className="mt-3 text-xs text-emerald-500 font-medium flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5" /> Currently showing: {(promoBanner.type || 'text') === 'image' ? 'Image' : 'Text'} banner
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-[14px] mb-[22px] overflow-hidden">
+            <div className="text-sm max-sm:text-[13px] font-semibold text-slate-800 px-5 max-sm:px-3.5 py-4 max-sm:py-3 border-b border-slate-100 tracking-tight"><Shield className="w-4 h-4 inline mr-1.5 -mt-px" /> Customer Registration</div>
+            <div className="flex items-center max-sm:flex-col max-sm:items-start gap-5 max-sm:gap-2 px-5 max-sm:px-3.5 py-4">
+              <div className="flex-1">
+                <div className="text-sm font-medium text-slate-800 mb-0.5">Allow "Create Account" on login page</div>
+                <div className="text-xs text-slate-400 leading-relaxed">When enabled, customers will see a "Create account" link on the login page.</div>
+              </div>
+              <button className={`w-9 h-5 rounded-full border-none cursor-pointer relative transition-colors flex-shrink-0 ${registrationEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`} onClick={toggleRegistration}>
+                <span className={`absolute top-[3px] w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-[left] ${registrationEnabled ? 'left-[19px]' : 'left-[3px]'}`}></span>
+              </button>
+            </div>
+            <div className="flex items-center max-sm:flex-col max-sm:items-start gap-5 max-sm:gap-2 px-5 max-sm:px-3.5 py-4">
+              <div className="flex-1">
+                <div className="text-sm font-medium text-slate-800 mb-0.5">Show prices to customers</div>
+                <div className="text-xs text-slate-400 leading-relaxed">When disabled, product prices will be hidden from all customer accounts site-wide.</div>
+              </div>
+              <button className={`w-9 h-5 rounded-full border-none cursor-pointer relative transition-colors flex-shrink-0 ${priceVisibility ? 'bg-emerald-500' : 'bg-slate-300'}`} onClick={togglePriceVisibility}>
+                <span className={`absolute top-[3px] w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-[left] ${priceVisibility ? 'left-[19px]' : 'left-[3px]'}`}></span>
+              </button>
             </div>
             {pendingRegistrations.filter(r => r.status === 'pending').length > 0 && (
-              <div className="pending-section">
-                <div className="pending-title">{'\u{1F4CB}'} Pending Approvals <span className="pending-badge">{pendingRegistrations.filter(r => r.status === 'pending').length}</span></div>
-                <div className="pending-list">
+              <div className="px-5 max-sm:px-3.5 py-4 border-t border-slate-200">
+                <div className="text-[13px] max-sm:text-xs font-semibold text-slate-800 mb-3 flex items-center gap-2"><ClipboardList className="w-4 h-4 inline" /> Pending Approvals <span className="bg-red-500 text-white text-[11px] font-semibold px-2 py-px rounded-full">{pendingRegistrations.filter(r => r.status === 'pending').length}</span></div>
+                <div className="flex flex-col gap-2">
                   {pendingRegistrations.filter(r => r.status === 'pending').map(reg => (
-                    <div key={reg.id} className="pending-row">
-                      <div className="pending-info">
-                        <div className="pending-company">{reg.company_name}</div>
-                        <div className="pending-detail">{reg.contact_name} {'\u2022'} {reg.email} {reg.phone ? `\u2022 ${reg.phone}` : ''}</div>
-                        <div className="pending-date">Registered {new Date(reg.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                    <div key={reg.id} className="flex items-center max-sm:flex-col gap-4 max-sm:gap-2 p-3 px-3.5 bg-slate-50 border border-slate-200 rounded-lg">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm max-sm:text-[13px] font-semibold text-slate-800">{reg.company_name}</div>
+                        <div className="text-xs max-sm:text-[11px] text-slate-500 mt-0.5">{reg.contact_name} &bull; {reg.email} {reg.phone ? `\u2022 ${reg.phone}` : ''}</div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">Registered {new Date(reg.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
                       </div>
-                      <div className="pending-actions">
-                        <button className="pending-btn pending-approve" onClick={() => processRegistration(reg.id, 'approve', reg.company_name)}>{'\u2713'} Approve</button>
-                        <button className="pending-btn pending-reject" onClick={() => processRegistration(reg.id, 'reject', reg.company_name)}>{'\u2715'} Reject</button>
+                      <div className="flex gap-1.5 flex-shrink-0 max-sm:w-full">
+                        <button className="px-3.5 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 text-xs font-semibold cursor-pointer transition-all hover:bg-emerald-500 hover:text-white max-sm:flex-1" onClick={() => processRegistration(reg.id, 'approve', reg.company_name)}><Check className="w-3 h-3 inline mr-0.5 -mt-px" /> Approve</button>
+                        <button className="px-3.5 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-400 text-xs font-semibold cursor-pointer transition-all hover:bg-red-50 hover:text-red-500 hover:border-red-200 max-sm:flex-1" onClick={() => processRegistration(reg.id, 'reject', reg.company_name)}><X className="w-3 h-3 inline mr-0.5 -mt-px" /> Reject</button>
                       </div>
                     </div>
                   ))}
@@ -2237,69 +2782,53 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
               </div>
             )}
           </div>
-          <div className="settings-section">
-            <div className="settings-section-title">{'\u{1F4CA}'} Customer Activity Log</div>
-            <div className="settings-activity-bar">
-              <select className="settings-filter-sel" value={activityCustFilter} onChange={e => setActivityCustFilter(e.target.value)}>
+          <div className="bg-white border border-slate-200 rounded-[14px] mb-[22px] overflow-hidden">
+            <div className="text-sm max-sm:text-[13px] font-semibold text-slate-800 px-5 max-sm:px-3.5 py-4 max-sm:py-3 border-b border-slate-100 tracking-tight"><BarChart3 className="w-4 h-4 inline mr-1.5 -mt-px" /> Customer Activity Log</div>
+            <div className="flex gap-2.5 px-5 max-sm:px-3.5 py-3.5 border-b border-slate-100 flex-wrap items-center">
+              <select className="py-[7px] px-2.5 border-[1.5px] border-slate-200 rounded-lg text-[13px] bg-slate-50 text-slate-800 outline-none cursor-pointer focus:border-indigo-400" value={activityCustFilter} onChange={e => setActivityCustFilter(e.target.value)}>
                 <option value="all">All customers</option>
               </select>
-              <select className="settings-filter-sel" value={activityTypeFilter} onChange={e => setActivityTypeFilter(e.target.value)}>
+              <select className="py-[7px] px-2.5 border-[1.5px] border-slate-200 rounded-lg text-[13px] bg-slate-50 text-slate-800 outline-none cursor-pointer focus:border-indigo-400" value={activityTypeFilter} onChange={e => setActivityTypeFilter(e.target.value)}>
                 <option value="all">All activity</option>
                 <option value="login">Logins / Logouts</option>
                 <option value="favorite">Favorites</option>
                 <option value="order">Orders</option>
               </select>
-              <button className="settings-clear-btn" onClick={clearActivityLog}>{'\u{1F5D1}'} Clear log</button>
+              <button className="py-[7px] px-3.5 border-[1.5px] border-slate-200 rounded-lg bg-white text-xs text-slate-400 cursor-pointer ml-auto hover:border-red-200 hover:text-red-500" onClick={clearActivityLog}><Trash2 className="w-3 h-3 inline mr-1 -mt-px" /> Clear log</button>
             </div>
-            <div className="activity-log-wrap">
+            <div className="max-h-[420px] overflow-y-auto">
               {filteredActivityLog.map((log, idx) => (
-                <div key={idx} className="activity-row">
-                  <div className={`act-icon ${log.type}`}>{log.icon}</div>
-                  <div className="act-body">
-                    <span className="act-cust">{log.customer}</span>{' '}
-                    <span className="act-detail">{log.message}</span>
+                <div key={idx} className="flex items-center gap-3 px-5 py-[11px] border-b border-slate-100 last:border-b-0 text-[13px] transition-colors hover:bg-slate-50">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[15px] flex-shrink-0 ${log.type === 'login' ? 'bg-blue-50 text-blue-500' : log.type === 'logout' ? 'bg-amber-50 text-amber-500' : log.type === 'favorite' ? 'bg-pink-50 text-pink-500' : 'bg-emerald-50 text-emerald-500'}`}>
+                    {renderActivityIcon(log)}
                   </div>
-                  <span className="act-time">{log.time}</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="font-semibold text-slate-800">{log.customer}</span>{' '}
+                    <span className="text-slate-500 whitespace-nowrap overflow-hidden text-ellipsis">{log.message}</span>
+                  </div>
+                  <span className="text-[11px] text-slate-400 whitespace-nowrap flex-shrink-0">{log.time}</span>
                 </div>
               ))}
-              {filteredActivityLog.length === 0 && <div className="act-empty">No activity</div>}
+              {filteredActivityLog.length === 0 && <div className="py-10 text-center text-slate-400 text-[13px]">No activity</div>}
             </div>
           </div>
-          <div className="settings-section">
-            <div className="settings-section-title">{'\u{1F3C6}'} Customer Insights</div>
-            <div className="insights-grid">
-              <div className="insight-card">
-                <div className="insight-card-name">{'\u{1F4E6}'} Total Products</div>
-                <div className="insight-stat-row">
-                  <span className="insight-stat-label">All</span>
-                  <span className="insight-stat-val">{products.length}</span>
-                </div>
-                <div className="insight-stat-row">
-                  <span className="insight-stat-label">Visible</span>
-                  <span className="insight-stat-val">{products.filter(p => !p.is_hidden).length}</span>
-                </div>
+          <div className="bg-white border border-slate-200 rounded-[14px] mb-[22px] overflow-hidden">
+            <div className="text-sm font-semibold text-slate-800 px-5 py-4 border-b border-slate-100 tracking-tight"><Trophy className="w-4 h-4 inline mr-1.5 -mt-px" /> Customer Insights</div>
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3.5 p-4 px-5 pb-5">
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 px-4">
+                <div className="text-xs font-semibold text-slate-800 mb-2.5 flex items-center gap-1.5"><Package className="w-3.5 h-3.5" /> Total Products</div>
+                <div className="flex justify-between items-center py-1 text-xs border-b border-slate-100"><span className="text-slate-400">All</span><span className="font-semibold text-slate-800">{products.length}</span></div>
+                <div className="flex justify-between items-center py-1 text-xs"><span className="text-slate-400">Visible</span><span className="font-semibold text-slate-800">{products.filter(p => !p.is_hidden).length}</span></div>
               </div>
-              <div className="insight-card">
-                <div className="insight-card-name">{'\u{1F465}'} Customers</div>
-                <div className="insight-stat-row">
-                  <span className="insight-stat-label">Total</span>
-                  <span className="insight-stat-val">{customers.length}</span>
-                </div>
-                <div className="insight-stat-row">
-                  <span className="insight-stat-label">Active</span>
-                  <span className="insight-stat-val">{customers.filter(c => c.is_active).length}</span>
-                </div>
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 px-4">
+                <div className="text-xs font-semibold text-slate-800 mb-2.5 flex items-center gap-1.5"><Users className="w-3.5 h-3.5" /> Customers</div>
+                <div className="flex justify-between items-center py-1 text-xs border-b border-slate-100"><span className="text-slate-400">Total</span><span className="font-semibold text-slate-800">{customers.length}</span></div>
+                <div className="flex justify-between items-center py-1 text-xs"><span className="text-slate-400">Active</span><span className="font-semibold text-slate-800">{customers.filter(c => c.is_active).length}</span></div>
               </div>
-              <div className="insight-card">
-                <div className="insight-card-name">{'\u{1F4CB}'} Orders</div>
-                <div className="insight-stat-row">
-                  <span className="insight-stat-label">Total</span>
-                  <span className="insight-stat-val">{orders.length}</span>
-                </div>
-                <div className="insight-stat-row">
-                  <span className="insight-stat-label">This Month</span>
-                  <span className="insight-stat-val">{getMonthOrders()}</span>
-                </div>
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 px-4">
+                <div className="text-xs font-semibold text-slate-800 mb-2.5 flex items-center gap-1.5"><ClipboardList className="w-3.5 h-3.5" /> Orders</div>
+                <div className="flex justify-between items-center py-1 text-xs border-b border-slate-100"><span className="text-slate-400">Total</span><span className="font-semibold text-slate-800">{orders.length}</span></div>
+                <div className="flex justify-between items-center py-1 text-xs"><span className="text-slate-400">This Month</span><span className="font-semibold text-slate-800">{getMonthOrders()}</span></div>
               </div>
             </div>
           </div>
@@ -2307,49 +2836,49 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       </div>
 
       {/* ========== ADD PRODUCT MODAL ========== */}
-      <div className={`modal-wrap ${activeModal === 'addProdModal' ? 'open' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
-        <div className="modal">
-          <h2>Add New Product</h2>
-          <label className="form-label">Product Name <span className="req-star">*</span></label>
+      <div className={`fixed inset-0 bg-black/40 z-[2000] items-center justify-center p-5 max-sm:p-0 max-sm:items-end ${activeModal === 'addProdModal' ? 'flex' : 'hidden'}`} onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
+        <div className="bg-white border border-slate-200 rounded-[14px] max-sm:rounded-b-none p-[26px] max-sm:p-3.5 max-w-[460px] w-[90%] max-sm:max-w-full max-sm:w-full animate-[popIn_0.2s_ease] shadow-xl max-h-[90vh] max-sm:max-h-[calc(100vh-48px)] overflow-y-auto">
+          <h2 className="text-lg max-sm:text-[15px] font-semibold text-slate-800 mb-4 max-sm:mb-3 tracking-tight">Add New Product</h2>
+          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Product Name <span className="text-red-500 text-xs ml-0.5">*</span></label>
           <input
-            className={`form-input ${productFormErrors.name ? 'input-error' : ''}`}
+            className={`w-full py-[9px] px-3 bg-slate-50 border rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400 ${productFormErrors.name ? '!border-red-500 bg-red-50/50' : 'border-slate-200'}`}
             type="text"
             placeholder="e.g. Lay's Texas Grilled BBQ"
             value={newProductForm.name}
             onChange={e => { setNewProductForm(prev => ({ ...prev, name: e.target.value })); setProductFormErrors(prev => { const n = { ...prev }; delete n.name; return n; }); }}
           />
-          {productFormErrors.name && <div className="field-error">{productFormErrors.name}</div>}
+          {productFormErrors.name && <div className="text-[11px] text-red-500 mt-0.5 mb-1 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> {productFormErrors.name}</div>}
 
-          <label className="form-label">SKU / Item ID</label>
+          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">SKU / Item ID</label>
           <input
-            className={`form-input ${productFormErrors.sku ? 'input-error' : ''}`}
+            className={`w-full py-[9px] px-3 bg-slate-50 border rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400 ${productFormErrors.sku ? '!border-red-500 bg-red-50/50' : 'border-slate-200'}`}
             type="text"
             placeholder="e.g. B02214"
             value={newProductForm.sku}
             onChange={e => { setNewProductForm(prev => ({ ...prev, sku: e.target.value })); setProductFormErrors(prev => { const n = { ...prev }; delete n.sku; return n; }); }}
           />
-          {productFormErrors.sku && <div className="field-error">{productFormErrors.sku}</div>}
+          {productFormErrors.sku && <div className="text-[11px] text-red-500 mt-0.5 mb-1 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> {productFormErrors.sku}</div>}
 
-          <label className="form-label">Weight</label>
-          <input className="form-input" type="text" placeholder="e.g. 70g" value={newProductForm.weight} onChange={e => setNewProductForm(prev => ({ ...prev, weight: e.target.value }))} />
+          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Weight</label>
+          <input className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400" type="text" placeholder="e.g. 70g" value={newProductForm.weight} onChange={e => setNewProductForm(prev => ({ ...prev, weight: e.target.value }))} />
 
-          <label className="form-label">Pack Size (bags per case)</label>
-          <input className="form-input" type="text" placeholder="e.g. 22bags/cs" value={newProductForm.bags_per_case} onChange={e => setNewProductForm(prev => ({ ...prev, bags_per_case: e.target.value }))} />
+          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Pack Size (bags per case)</label>
+          <input className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400" type="text" placeholder="e.g. 22bags/cs" value={newProductForm.bags_per_case} onChange={e => setNewProductForm(prev => ({ ...prev, bags_per_case: e.target.value }))} />
 
-          <label className="form-label">Cases per Pallet</label>
+          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Cases per Pallet</label>
           <input
-            className={`form-input ${productFormErrors.cases_per_pallet ? 'input-error' : ''}`}
+            className={`w-full py-[9px] px-3 bg-slate-50 border rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400 ${productFormErrors.cases_per_pallet ? '!border-red-500 bg-red-50/50' : 'border-slate-200'}`}
             type="number"
             min="1"
             placeholder="e.g. 60"
             value={newProductForm.cases_per_pallet}
             onChange={e => { setNewProductForm(prev => ({ ...prev, cases_per_pallet: e.target.value })); setProductFormErrors(prev => { const n = { ...prev }; delete n.cases_per_pallet; return n; }); }}
           />
-          {productFormErrors.cases_per_pallet && <div className="field-error">{productFormErrors.cases_per_pallet}</div>}
+          {productFormErrors.cases_per_pallet && <div className="text-[11px] text-red-500 mt-0.5 mb-1 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> {productFormErrors.cases_per_pallet}</div>}
 
-          <label className="form-label">Price</label>
+          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Price</label>
           <input
-            className={`form-input ${productFormErrors.price ? 'input-error' : ''}`}
+            className={`w-full py-[9px] px-3 bg-slate-50 border rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400 ${productFormErrors.price ? '!border-red-500 bg-red-50/50' : 'border-slate-200'}`}
             type="number"
             step="0.01"
             min="0.01"
@@ -2357,11 +2886,11 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
             value={newProductForm.price}
             onChange={e => { setNewProductForm(prev => ({ ...prev, price: e.target.value })); setProductFormErrors(prev => { const n = { ...prev }; delete n.price; return n; }); }}
           />
-          {productFormErrors.price && <div className="field-error">{productFormErrors.price}</div>}
+          {productFormErrors.price && <div className="text-[11px] text-red-500 mt-0.5 mb-1 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> {productFormErrors.price}</div>}
 
-          <label className="form-label">Category <span className="req-star">*</span></label>
+          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Category <span className="text-red-500 text-xs ml-0.5">*</span></label>
           <select
-            className={`form-input ${productFormErrors.category_id ? 'input-error' : ''}`}
+            className={`w-full py-[9px] px-3 bg-slate-50 border rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400 ${productFormErrors.category_id ? '!border-red-500 bg-red-50/50' : 'border-slate-200'}`}
             value={newProductForm.category_id}
             onChange={e => { setNewProductForm(prev => ({ ...prev, category_id: e.target.value ? parseInt(e.target.value) : '' })); setProductFormErrors(prev => { const n = { ...prev }; delete n.category_id; return n; }); }}
           >
@@ -2374,15 +2903,15 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
               </optgroup>
             ))}
           </select>
-          {productFormErrors.category_id && <div className="field-error">{productFormErrors.category_id}</div>}
+          {productFormErrors.category_id && <div className="text-[11px] text-red-500 mt-0.5 mb-1 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> {productFormErrors.category_id}</div>}
 
-          <div className="form-checkbox">
-            <input type="checkbox" id="showPrice" checked={newProductForm.showPrice} onChange={e => setNewProductForm(prev => ({ ...prev, showPrice: e.target.checked }))} />
-            <label htmlFor="showPrice">Show price on product cards</label>
+          <div className="flex items-center gap-2 my-3 max-sm:my-2 text-[13px] text-slate-500 cursor-pointer select-none">
+            <input type="checkbox" id="showPrice" checked={newProductForm.showPrice} onChange={e => setNewProductForm(prev => ({ ...prev, showPrice: e.target.checked }))} className="w-[18px] h-[18px] min-w-[18px] cursor-pointer accent-indigo-500 m-0 flex-shrink-0" />
+            <label htmlFor="showPrice" className="text-[13px] text-slate-500 cursor-pointer select-none">Show price on product cards</label>
           </div>
 
-          <label className="form-label">Product Picture</label>
-          <div className="img-upload-wrapper">
+          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Product Picture</label>
+          <div className="flex flex-col gap-2">
             <input
               type="file"
               ref={imageFileInputRef}
@@ -2391,70 +2920,70 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
               style={{ display: 'none' }}
             />
             <div
-              className={`img-drag-drop ${isDraggingImage ? 'active' : ''} ${newProductForm.imageFile ? 'uploaded' : ''}`}
+              className={`border-2 border-dashed rounded-lg p-6 cursor-pointer transition-all min-h-[140px] flex items-center justify-center ${isDraggingImage ? 'border-indigo-500 bg-indigo-50' : newProductForm.imageFile ? 'border-slate-200 bg-slate-50' : 'border-slate-200 bg-slate-50 hover:border-indigo-500 hover:bg-indigo-50/50'}`}
               onDragOver={(e) => { e.preventDefault(); setIsDraggingImage(true); }}
               onDragLeave={(e) => { e.preventDefault(); setIsDraggingImage(false); }}
               onDrop={handleImageDrop}
               onClick={() => imageFileInputRef.current?.click()}
             >
               {!newProductForm.imageFile && !newProductForm.image_url ? (
-                <div className="drag-content">
-                  <div className="drag-icon">{'\u{1F4F8}'}</div>
-                  <div className="drag-text">
-                    <strong>Drag & drop image here</strong>
-                    <span>or click to select</span>
+                <div className="text-center flex flex-col items-center gap-2">
+                  <Camera className="w-9 h-9 text-slate-300" />
+                  <div className="flex flex-col gap-0.5">
+                    <strong className="text-slate-800 text-sm">Drag & drop image here</strong>
+                    <span className="text-slate-400 text-xs">or click to select</span>
                   </div>
                 </div>
               ) : (
-                <div className="upload-preview">
+                <div className="flex items-center gap-3 w-full">
                   <img
                     src={newProductForm.imageFile ? getImagePreview() : newProductForm.image_url}
                     alt="Preview"
-                    className="preview-img"
+                    className="w-20 h-20 object-cover rounded-md"
                   />
-                  <div className="preview-actions">
-                    <button type="button" className="btn-change" onClick={(e) => { e.stopPropagation(); imageFileInputRef.current?.click(); }}>{'\u{1F4C1}'} Change</button>
-                    <button type="button" className="btn-remove" onClick={(e) => { e.stopPropagation(); clearImage(); }}>{'\u2715'} Remove</button>
+                  <div className="flex gap-2 flex-col">
+                    <button type="button" className="px-3 py-1.5 rounded-md text-xs font-semibold border-none cursor-pointer transition-all bg-slate-200 text-slate-800 hover:bg-slate-300" onClick={(e) => { e.stopPropagation(); imageFileInputRef.current?.click(); }}><FolderOpen className="w-3 h-3 inline mr-1 -mt-px" /> Change</button>
+                    <button type="button" className="px-3 py-1.5 rounded-md text-xs font-semibold border-none cursor-pointer transition-all bg-red-100 text-red-500 hover:bg-red-200" onClick={(e) => { e.stopPropagation(); clearImage(); }}><X className="w-3 h-3 inline mr-0.5 -mt-px" /> Remove</button>
                   </div>
                 </div>
               )}
             </div>
-            <div className="img-hint">JPG, PNG, or WebP. Max 5MB. Recommended: 400x400px</div>
+            <div className="text-[11px] text-slate-400 leading-snug">JPG, PNG, or WebP. Max 5MB. Recommended: 400x400px</div>
           </div>
 
-          <div className="modal-btns">
-            <button className="btn-mx" onClick={closeModal} disabled={isSavingProduct}>Cancel</button>
-            <button className="btn-mc" onClick={saveNewProduct} disabled={isSavingProduct || !isProductFormValid}>
-              {isSavingProduct ? '\u23F3 Saving\u2026' : 'Add Product'}
+          <div className="flex gap-2 mt-4 max-sm:mt-3">
+            <button className="flex-1 py-2.5 max-sm:py-2.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-500 text-sm font-semibold cursor-pointer transition-all hover:border-indigo-300 hover:text-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed" onClick={closeModal} disabled={isSavingProduct}>Cancel</button>
+            <button className="flex-1 py-2.5 max-sm:py-2.5 rounded-lg bg-indigo-500 border-none text-white text-sm font-semibold cursor-pointer transition-all hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed" onClick={saveNewProduct} disabled={isSavingProduct || !isProductFormValid}>
+              {isSavingProduct ? <><MoreHorizontal className="w-4 h-4 inline animate-pulse mr-1" /> Saving...</> : 'Add Product'}
             </button>
           </div>
         </div>
       </div>
 
       {/* ========== EDIT PRODUCT MODAL ========== */}
-      <div className={`edit-modal-wrap ${activeModal === 'editProdModal' ? 'open' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
-        <div className="edit-modal">
-          <h2>Edit Product</h2>
+      <div className={`fixed inset-0 bg-black/40 z-[2000] items-center justify-center max-sm:items-end ${activeModal === 'editProdModal' ? 'flex' : 'hidden'}`} onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
+        <div className="bg-white rounded-2xl max-sm:rounded-b-none p-7 max-sm:p-3.5 w-[min(480px,94vw)] max-sm:max-w-full max-sm:w-full max-h-[90vh] max-sm:max-h-[calc(100vh-48px)] overflow-y-auto shadow-xl">
+          <h2 className="text-[17px] max-sm:text-[15px] font-bold mb-4 max-sm:mb-3 text-slate-800">Edit Product</h2>
           {editingProduct && (
-            <div className="edit-field-grid">
-              <div className="edit-field">
-                <label>Product Name</label>
-                <input type="text" value={editingProduct.name || ''} onChange={e => setEditingProduct(prev => ({ ...prev, name: e.target.value }))} />
+            <div className="grid grid-cols-2 max-sm:!grid-cols-1 gap-3 max-sm:gap-2">
+              <div>
+                <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">Product Name</label>
+                <input type="text" value={editingProduct.name || ''} onChange={e => setEditingProduct(prev => ({ ...prev, name: e.target.value }))} className="w-full py-[9px] px-3 border-[1.5px] border-slate-200 rounded-[9px] text-[13px] max-sm:!text-sm bg-slate-50 text-slate-800 outline-none transition-colors box-border focus:border-indigo-400" />
               </div>
-              <div className="edit-field">
-                <label>Price</label>
-                <input type="number" step="0.01" value={editingProduct.price || ''} onChange={e => setEditingProduct(prev => ({ ...prev, price: e.target.value }))} />
+              <div>
+                <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">Price</label>
+                <input type="number" step="0.01" value={editingProduct.price || ''} onChange={e => setEditingProduct(prev => ({ ...prev, price: e.target.value }))} className="w-full py-[9px] px-3 border-[1.5px] border-slate-200 rounded-[9px] text-[13px] max-sm:!text-sm bg-slate-50 text-slate-800 outline-none transition-colors box-border focus:border-indigo-400" />
               </div>
-              <div className="edit-field">
-                <label>SKU</label>
-                <input type="text" value={editingProduct.sku || ''} onChange={e => setEditingProduct(prev => ({ ...prev, sku: e.target.value }))} />
+              <div>
+                <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">SKU</label>
+                <input type="text" value={editingProduct.sku || ''} onChange={e => setEditingProduct(prev => ({ ...prev, sku: e.target.value }))} className="w-full py-[9px] px-3 border-[1.5px] border-slate-200 rounded-[9px] text-[13px] max-sm:!text-sm bg-slate-50 text-slate-800 outline-none transition-colors box-border focus:border-indigo-400" />
               </div>
-              <div className="edit-field">
-                <label>Weight</label>
-                <input type="text" value={editingProduct.weight || ''} onChange={e => setEditingProduct(prev => ({ ...prev, weight: e.target.value }))} />
+              <div>
+                <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">Weight</label>
+                <input type="text" value={editingProduct.weight || ''} onChange={e => setEditingProduct(prev => ({ ...prev, weight: e.target.value }))} className="w-full py-[9px] px-3 border-[1.5px] border-slate-200 rounded-[9px] text-[13px] max-sm:!text-sm bg-slate-50 text-slate-800 outline-none transition-colors box-border focus:border-indigo-400" />
               </div>
-              <div className="edit-field">
-                <label>Category</label>
+              <div>
+                <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">Category</label>
                 <select value={editingProduct.category_id || ''} onChange={e => {
                   const val = e.target.value
                   if (!val) { setEditingProduct(prev => ({ ...prev, category_id: '', category: '' })); return }
@@ -2469,7 +2998,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                     super_category_id: cat?.super_category_id || prev.super_category_id,
                     super_category: superCat?.name || prev.super_category
                   }))
-                }}>
+                }} className="w-full py-[9px] px-3 border-[1.5px] border-slate-200 rounded-[9px] text-[13px] max-sm:!text-sm bg-slate-50 text-slate-800 outline-none transition-colors box-border focus:border-indigo-400">
                   <option value="">Select a category</option>
                   {superCategoriesList.map(sc => (
                     <optgroup key={sc.id} label={sc.name}>
@@ -2480,32 +3009,32 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                   ))}
                 </select>
               </div>
-              <div className="edit-field">
-                <label>Stock Status</label>
-                <select value={editingProduct.is_oos ? 1 : 0} onChange={e => setEditingProduct(prev => ({ ...prev, is_oos: parseInt(e.target.value) }))}>
+              <div>
+                <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">Stock Status</label>
+                <select value={editingProduct.is_oos ? 1 : 0} onChange={e => setEditingProduct(prev => ({ ...prev, is_oos: parseInt(e.target.value) }))} className="w-full py-[9px] px-3 border-[1.5px] border-slate-200 rounded-[9px] text-[13px] max-sm:!text-sm bg-slate-50 text-slate-800 outline-none transition-colors box-border focus:border-indigo-400">
                   <option value={0}>In Stock</option>
                   <option value={1}>Out of Stock</option>
                 </select>
               </div>
-              <div className="edit-field">
-                <div className="form-checkbox">
-                  <input type="checkbox" id="editShowPrice" checked={!!editingProduct.show_price} onChange={e => setEditingProduct(prev => ({ ...prev, show_price: e.target.checked }))} />
-                  <label htmlFor="editShowPrice">Show price on cards</label>
+              <div>
+                <div className="flex items-center gap-2 my-3 max-sm:my-2 text-[13px] text-slate-500 cursor-pointer select-none">
+                  <input type="checkbox" id="editShowPrice" checked={!!editingProduct.show_price} onChange={e => setEditingProduct(prev => ({ ...prev, show_price: e.target.checked }))} className="w-[18px] h-[18px] min-w-[18px] cursor-pointer accent-indigo-500 m-0 flex-shrink-0" />
+                  <label htmlFor="editShowPrice" className="text-[13px] text-slate-500 cursor-pointer select-none">Show price on cards</label>
                 </div>
               </div>
-              <div className="edit-field full">
-                <label>Image URL</label>
-                <div className="edit-img-row">
-                  <div className="edit-img-preview">
+              <div className="col-span-full max-sm:col-span-1">
+                <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">Image URL</label>
+                <div className="flex gap-3 max-sm:flex-col max-sm:gap-2 items-start mb-1">
+                  <div className="w-[72px] h-[72px] max-sm:w-[60px] max-sm:h-[60px] rounded-xl border-[1.5px] border-slate-200 bg-slate-50 flex items-center justify-center text-[22px] overflow-hidden flex-shrink-0">
                     {editingProduct.image_url ? (
-                      <img src={editingProduct.image_url} alt="Preview" />
+                      <img src={editingProduct.image_url} alt="Preview" className="w-full h-full object-cover rounded-[10px]" />
                     ) : (
-                      <span>{'\u{1F4F7}'}</span>
+                      <Camera className="w-6 h-6 text-slate-300" />
                     )}
                   </div>
-                  <div className="edit-img-controls">
+                  <div className="flex-1 flex flex-col gap-1.5">
                     <input
-                      className="edit-img-url"
+                      className="w-full py-2 px-[11px] border-[1.5px] border-slate-200 rounded-lg text-[13px] bg-slate-50 text-slate-800 outline-none box-border focus:border-indigo-400"
                       type="text"
                       placeholder="Image URL"
                       value={editingProduct.image_url || ''}
@@ -2516,55 +3045,55 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
               </div>
             </div>
           )}
-          <div className="edit-modal-btns">
-            <button className="btn-cancel" onClick={closeModal} disabled={isSavingEditProduct}>Cancel</button>
-            <button className="btn-save-edit" onClick={saveEditProduct} disabled={isSavingEditProduct}>
-              {isSavingEditProduct ? '\u23F3 Saving\u2026' : 'Save Changes'}
+          <div className="flex gap-2.5 mt-5 max-sm:mt-3 justify-end max-sm:flex-row">
+            <button className="px-5 max-sm:flex-1 py-[9px] max-sm:py-2.5 border-[1.5px] border-slate-200 rounded-[9px] bg-white text-slate-500 text-[13px] cursor-pointer" onClick={closeModal} disabled={isSavingEditProduct}>Cancel</button>
+            <button className="px-[22px] max-sm:flex-1 py-[9px] max-sm:py-2.5 border-none rounded-[9px] bg-indigo-500 text-white text-[13px] font-semibold cursor-pointer hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed" onClick={saveEditProduct} disabled={isSavingEditProduct}>
+              {isSavingEditProduct ? <><MoreHorizontal className="w-4 h-4 inline animate-pulse mr-1" /> Saving...</> : 'Save Changes'}
             </button>
           </div>
         </div>
       </div>
 
       {/* ========== ADD CUSTOMER MODAL ========== */}
-      <div className={`modal-wrap ${activeModal === 'addCustModal' ? 'open' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
-        <div className="modal">
-          <h2>Add Customer</h2>
-          <label className="form-label">Company Name <span className="req-star">*</span></label>
+      <div className={`fixed inset-0 bg-black/40 z-[2000] items-center justify-center p-5 max-sm:p-0 max-sm:items-end ${activeModal === 'addCustModal' ? 'flex' : 'hidden'}`} onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
+        <div className="bg-white border border-slate-200 rounded-[14px] max-sm:rounded-b-none p-[26px] max-sm:p-3.5 max-w-[460px] w-[90%] max-sm:max-w-full max-sm:w-full animate-[popIn_0.2s_ease] shadow-xl max-h-[90vh] max-sm:max-h-[calc(100vh-48px)] overflow-y-auto">
+          <h2 className="text-lg max-sm:text-[15px] font-semibold text-slate-800 mb-4 max-sm:mb-3 tracking-tight">Add Customer</h2>
+          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Company Name <span className="text-red-500 text-xs ml-0.5">*</span></label>
           <input
-            className={`form-input ${customerFormErrors.company_name ? 'input-error' : ''}`}
+            className={`w-full py-[9px] px-3 bg-slate-50 border rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400 ${customerFormErrors.company_name ? '!border-red-500 bg-red-50/50' : 'border-slate-200'}`}
             type="text"
             placeholder="e.g. Happy Snacks Co."
             value={newCustomerForm.company_name}
             onChange={e => { setNewCustomerForm(prev => ({ ...prev, company_name: e.target.value })); setCustomerFormErrors(prev => { const n = { ...prev }; delete n.company_name; return n; }); }}
           />
-          {customerFormErrors.company_name && <div className="field-error">{customerFormErrors.company_name}</div>}
+          {customerFormErrors.company_name && <div className="text-[11px] text-red-500 mt-0.5 mb-1 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> {customerFormErrors.company_name}</div>}
 
-          <label className="form-label">Contact Name</label>
-          <input className="form-input" type="text" placeholder="e.g. John Smith" value={newCustomerForm.contact_name} onChange={e => setNewCustomerForm(prev => ({ ...prev, contact_name: e.target.value }))} />
+          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Contact Name</label>
+          <input className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400" type="text" placeholder="e.g. John Smith" value={newCustomerForm.contact_name} onChange={e => setNewCustomerForm(prev => ({ ...prev, contact_name: e.target.value }))} />
 
-          <label className="form-label">Email <span className="req-star">*</span></label>
+          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Email <span className="text-red-500 text-xs ml-0.5">*</span></label>
           <input
-            className={`form-input ${customerFormErrors.email ? 'input-error' : ''}`}
+            className={`w-full py-[9px] px-3 bg-slate-50 border rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400 ${customerFormErrors.email ? '!border-red-500 bg-red-50/50' : 'border-slate-200'}`}
             type="email"
             placeholder="buyer@company.com"
             value={newCustomerForm.email}
             onChange={e => { setNewCustomerForm(prev => ({ ...prev, email: e.target.value })); setCustomerFormErrors(prev => { const n = { ...prev }; delete n.email; return n; }); }}
           />
-          {customerFormErrors.email && <div className="field-error">{customerFormErrors.email}</div>}
+          {customerFormErrors.email && <div className="text-[11px] text-red-500 mt-0.5 mb-1 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> {customerFormErrors.email}</div>}
 
-          <label className="form-label">Phone <span className="opt-label">(optional)</span></label>
+          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Phone <span className="text-slate-300 text-[11px] font-normal ml-1">(optional)</span></label>
           <input
-            className={`form-input ${customerFormErrors.phone ? 'input-error' : ''}`}
+            className={`w-full py-[9px] px-3 bg-slate-50 border rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400 ${customerFormErrors.phone ? '!border-red-500 bg-red-50/50' : 'border-slate-200'}`}
             type="tel"
             placeholder="e.g. 213-555-0100"
             value={newCustomerForm.phone}
             onChange={e => { setNewCustomerForm(prev => ({ ...prev, phone: e.target.value })); setCustomerFormErrors(prev => { const n = { ...prev }; delete n.phone; return n; }); }}
           />
-          {customerFormErrors.phone && <div className="field-error">{customerFormErrors.phone}</div>}
+          {customerFormErrors.phone && <div className="text-[11px] text-red-500 mt-0.5 mb-1 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> {customerFormErrors.phone}</div>}
 
-          <label className="form-label">View Preset <span className="req-star">*</span></label>
+          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">View Preset <span className="text-red-500 text-xs ml-0.5">*</span></label>
           <select
-            className={`form-input ${customerFormErrors.preset ? 'input-error' : ''}`}
+            className={`w-full py-[9px] px-3 bg-slate-50 border rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400 ${customerFormErrors.preset ? '!border-red-500 bg-red-50/50' : 'border-slate-200'}`}
             value={newCustomerForm.preset}
             onChange={e => { setNewCustomerForm(prev => ({ ...prev, preset: e.target.value })); setCustomerFormErrors(prev => { const n = { ...prev }; delete n.preset; return n; }); }}
           >
@@ -2573,12 +3102,12 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
             <option value="korean">Korean Snacks Only</option>
             <option value="custom">Custom</option>
           </select>
-          {customerFormErrors.preset && <div className="field-error">{customerFormErrors.preset}</div>}
+          {customerFormErrors.preset && <div className="text-[11px] text-red-500 mt-0.5 mb-1 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> {customerFormErrors.preset}</div>}
 
-          <div className="modal-btns">
-            <button className="btn-mx" onClick={closeModal} disabled={isSavingCustomer}>Cancel</button>
-            <button className="btn-mc" onClick={addCustomer} disabled={isSavingCustomer || !isCustomerFormValid}>
-              {isSavingCustomer ? '\u23F3 Saving\u2026' : 'Add Customer'}
+          <div className="flex gap-2 mt-4 max-sm:mt-3">
+            <button className="flex-1 py-2.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-500 text-sm font-semibold cursor-pointer transition-all hover:border-indigo-300 hover:text-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed" onClick={closeModal} disabled={isSavingCustomer}>Cancel</button>
+            <button className="flex-1 py-2.5 rounded-lg bg-indigo-500 border-none text-white text-sm font-semibold cursor-pointer transition-all hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed" onClick={addCustomer} disabled={isSavingCustomer || !isCustomerFormValid}>
+              {isSavingCustomer ? <><MoreHorizontal className="w-4 h-4 inline animate-pulse mr-1" /> Saving...</> : 'Add Customer'}
             </button>
           </div>
         </div>
@@ -2586,14 +3115,14 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
 
       {/* ========== BULK CONFIRM MODAL ========== */}
       {bulkConfirmVisible && (
-        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) cancelBulkAction(); }}>
-          <div className="modal-box bulk-confirm-box">
-            <div className="modal-title">
-              {bulkConfirmAction === 'delete' && <span>{'\u{1F5D1}'} Delete {bulkConfirmCount} products?</span>}
-              {bulkConfirmAction === 'hide' && <span>{'\u{1F6AB}'} Hide {bulkConfirmCount} products?</span>}
-              {bulkConfirmAction === 'show' && <span>{'\u{1F441}'} Show {bulkConfirmCount} products?</span>}
+        <div className="fixed inset-0 bg-black/40 z-[2000] flex items-center justify-center" onClick={(e) => { if (e.target === e.currentTarget) cancelBulkAction(); }}>
+          <div className="bg-white rounded-2xl p-7 px-8 shadow-xl max-w-[420px] border border-slate-200">
+            <div className="text-lg font-bold text-slate-800">
+              {bulkConfirmAction === 'delete' && <span><Trash2 className="w-5 h-5 inline mr-1.5 -mt-0.5 text-red-500" /> Delete {bulkConfirmCount} products?</span>}
+              {bulkConfirmAction === 'hide' && <span><Ban className="w-5 h-5 inline mr-1.5 -mt-0.5 text-amber-500" /> Hide {bulkConfirmCount} products?</span>}
+              {bulkConfirmAction === 'show' && <span><Eye className="w-5 h-5 inline mr-1.5 -mt-0.5 text-emerald-500" /> Show {bulkConfirmCount} products?</span>}
             </div>
-            <p className="bulk-confirm-desc">
+            <p className="text-sm text-slate-500 leading-relaxed my-3 mb-6">
               {bulkConfirmAction === 'delete' && (
                 <>This will permanently delete <strong>{bulkConfirmCount} product{bulkConfirmCount !== 1 ? 's' : ''}</strong>. This cannot be undone.</>
               )}
@@ -2604,10 +3133,10 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                 <>This will make <strong>{bulkConfirmCount} product{bulkConfirmCount !== 1 ? 's' : ''}</strong> visible to customers.</>
               )}
             </p>
-            <div className="modal-actions">
-              <button className="btn-cancel" onClick={cancelBulkAction}>Cancel</button>
+            <div className="flex gap-2.5 justify-end">
+              <button className="px-5 py-[9px] border-[1.5px] border-slate-200 rounded-[9px] bg-white text-slate-500 text-[13px] cursor-pointer" onClick={cancelBulkAction}>Cancel</button>
               <button
-                className={`btn-confirm ${bulkConfirmAction === 'delete' ? 'btn-danger' : 'btn-primary'}`}
+                className={`px-6 py-2.5 border-none rounded-lg text-sm font-semibold cursor-pointer transition-all ${bulkConfirmAction === 'delete' ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-indigo-500 hover:bg-indigo-600 text-white'}`}
                 onClick={executeBulkAction}
               >
                 {bulkConfirmAction === 'delete' && <span>Delete {bulkConfirmCount}</span>}
@@ -2621,561 +3150,102 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
 
       {/* ========== ERROR TOAST ========== */}
       {errorToastVisible && (
-        <div className="error-toast">
-          <span className="error-toast-msg">{'\u274C'} {errorToastMessage}</span>
-          <div className="error-toast-actions">
-            {errorToastRetry && <button className="error-retry-btn" onClick={retryErrorAction}>Retry</button>}
-            <button className="error-dismiss-btn" onClick={hideErrorToast}>{'\u2715'}</button>
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-red-500 text-white rounded-xl py-3 px-4 flex items-center gap-3 z-[3000] shadow-xl max-w-[480px] min-w-[280px]">
+          <span className="flex-1 text-[13px] font-medium"><XCircle className="w-4 h-4 inline mr-1 -mt-px" /> {errorToastMessage}</span>
+          <div className="flex gap-2 items-center">
+            {errorToastRetry && <button className="px-3 py-1 bg-white/20 border-none rounded-md text-white text-xs font-semibold cursor-pointer hover:bg-white/30" onClick={retryErrorAction}>Retry</button>}
+            <button className="bg-transparent border-none text-white/60 cursor-pointer text-sm p-0.5 hover:text-white" onClick={hideErrorToast}><X className="w-4 h-4" /></button>
+          </div>
+        </div>
+      )}
+
+      {/* ========== IMPORT MODAL ========== */}
+      {importModalOpen && (
+        <div className="fixed inset-0 bg-black/40 z-[2000] flex items-center justify-center p-5 max-sm:p-3" onClick={() => { if (!excelUploading) setImportModalOpen(false) }}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-[480px] w-full overflow-hidden max-sm:max-w-full" style={{ animation: 'popIn 0.2s ease' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+              <h3 className="text-base font-semibold text-slate-800 m-0 flex items-center gap-2"><FileSpreadsheet className="w-4 h-4 text-indigo-500" /> Import Products</h3>
+              <button onClick={() => { if (!excelUploading) { setImportModalOpen(false); setImportExcelFile(null); setImportImageFiles([]); } }}
+                className="w-7 h-7 rounded-lg border border-slate-200 bg-slate-50 text-slate-400 flex items-center justify-center cursor-pointer transition-colors hover:bg-indigo-500 hover:border-indigo-500 hover:text-white">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div className="p-5 flex flex-col gap-4">
+              {/* Step 1: Excel */}
+              <div>
+                <div className="text-xs font-semibold text-slate-800 mb-2 flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-indigo-500 text-white text-[10px] font-bold flex items-center justify-center">1</span>
+                  Select Excel File
+                </div>
+                <label className={`flex items-center gap-3 p-3.5 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${importExcelFile ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-slate-50 hover:border-indigo-300'}`}>
+                  <FileSpreadsheet className={`w-7 h-7 shrink-0 ${importExcelFile ? 'text-indigo-500' : 'text-slate-300'}`} />
+                  <div className="flex-1 min-w-0">
+                    {importExcelFile ? (
+                      <><div className="text-sm font-medium text-slate-800 truncate">{importExcelFile.name}</div><div className="text-[11px] text-slate-400">{(importExcelFile.size / 1024).toFixed(0)} KB</div></>
+                    ) : (
+                      <><div className="text-sm text-slate-500">Click to select .xlsx or .csv</div><div className="text-[11px] text-slate-400">Use Export to get the template first</div></>
+                    )}
+                  </div>
+                  {importExcelFile && <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />}
+                  <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={e => { setImportExcelFile(e.target.files?.[0] || null); e.target.value = ''; }} />
+                </label>
+              </div>
+
+              {/* Step 2: Images */}
+              <div>
+                <div className="text-xs font-semibold text-slate-800 mb-2 flex items-center gap-1.5">
+                  <span className="w-5 h-5 rounded-full bg-indigo-500 text-white text-[10px] font-bold flex items-center justify-center">2</span>
+                  Select Product Images
+                  <span className="text-slate-400 font-normal text-[11px]">(optional)</span>
+                </div>
+                <label className={`flex items-center gap-3 p-3.5 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${importImageFiles.length > 0 ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-slate-50 hover:border-indigo-300'}`}>
+                  <Camera className={`w-7 h-7 shrink-0 ${importImageFiles.length > 0 ? 'text-indigo-500' : 'text-slate-300'}`} />
+                  <div className="flex-1 min-w-0">
+                    {importImageFiles.length > 0 ? (
+                      <><div className="text-sm font-medium text-slate-800">{importImageFiles.length} image{importImageFiles.length > 1 ? 's' : ''} selected</div><div className="text-[11px] text-slate-400 truncate">{importImageFiles.map(f => f.name).join(', ')}</div></>
+                    ) : (
+                      <><div className="text-sm text-slate-500">Click to select images from your computer</div><div className="text-[11px] text-slate-400">Filenames must match the Image column in Excel (e.g. tea.jpg)</div></>
+                    )}
+                  </div>
+                  {importImageFiles.length > 0 && <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />}
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={e => { setImportImageFiles(Array.from(e.target.files || [])); e.target.value = ''; }} />
+                </label>
+              </div>
+
+              {/* Progress */}
+              {importProgress && (
+                <div className="flex items-center gap-2 text-sm text-indigo-500 font-medium">
+                  <div className="w-4 h-4 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin shrink-0"></div>
+                  {importProgress}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 px-5 py-4 border-t border-slate-200">
+              <button onClick={() => { setImportModalOpen(false); setImportExcelFile(null); setImportImageFiles([]); }} disabled={excelUploading}
+                className="flex-1 py-2.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-500 text-sm font-semibold cursor-pointer hover:bg-slate-200 disabled:opacity-50">
+                Cancel
+              </button>
+              <button onClick={runImport} disabled={!importExcelFile || excelUploading}
+                className="flex-1 py-2.5 rounded-lg bg-indigo-500 border-none text-white text-sm font-semibold cursor-pointer hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                {excelUploading ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Importing...</> : <><Upload className="w-4 h-4" /> Import</>}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* ========== TOAST ========== */}
-      <div className={`toast ${toastVisible ? 'show' : ''}`}>{toastMessage}</div>
+      <div className={`fixed bottom-[22px] left-1/2 -translate-x-1/2 bg-emerald-500 text-white rounded-xl py-2.5 px-4 text-[13px] z-[3000] shadow-xl whitespace-nowrap transition-all pointer-events-none ${toastVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3.5'}`}>{toastMessage}</div>
 
-      <style jsx>{`
-/* ==================== CSS CUSTOM PROPERTIES ==================== */
-.admin-wrapper {
-  --bg: #f5f4f0;
-  --surface: #fff;
-  --border: #e2ddd8;
-  --border2: #ede9e4;
-  --red: #c0392b;
-  --red-light: #f9eeec;
-  --red-mid: #e8c5c0;
-  --text: #1a1a18;
-  --sub: #5a5750;
-  --muted: #9a948c;
-  --faint: #d4cfc9;
-  --green: #2d7a4f;
-  --green-bg: #edf6f1;
-  --yellow: #a05c00;
-  --yellow-bg: #fef6e8;
-  --blue: #1a5fa8;
-  --shadow: 0 1px 3px rgba(0,0,0,0.07), 0 4px 12px rgba(0,0,0,0.04);
-  --shadow-md: 0 4px 16px rgba(0,0,0,0.1);
-  --shadow-lg: 0 12px 40px rgba(0,0,0,0.14);
-  --sidebar-w: 236px;
-  --nav-h: 56px;
-  --radius: 10px;
-
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  background: var(--bg);
-  font-family: 'DM Sans', sans-serif;
-  color: var(--text);
-}
-.page { display: none; flex: 1; min-height: 0; }
-.page.active { display: flex; flex-direction: column; }
-.admin-catalog-content { display: flex; flex-direction: column; gap: 24px; }
-
-/* ==================== TOPNAV ==================== */
-.topnav { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 20px; height: var(--nav-h); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 300; box-shadow: var(--shadow); }
-.nav-left { display: flex; align-items: center; gap: 10px; }
-.burger { width: 34px; height: 34px; border: none; background: transparent; cursor: pointer; display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: center; border-radius: 7px; transition: background 0.15s; }
-.burger:hover { background: var(--bg); }
-.burger span { display: block; width: 18px; height: 2px; background: var(--sub); border-radius: 2px; transition: all 0.25s; }
-.burger.open span:nth-child(1) { transform: translateY(6px) rotate(45deg); background: var(--red); }
-.burger.open span:nth-child(2) { opacity: 0; }
-.burger.open span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); background: var(--red); }
-.brand { display: flex; align-items: center; gap: 8px; }
-.brand-logo { width: 30px; height: 30px; background: var(--red); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
-.brand-name { font-weight: 600; font-size: 16px; color: var(--text); }
-.brand-name span { color: var(--red); }
-.admin-pill { background: var(--red-light); border: 1px solid var(--red-mid); color: var(--red); font-size: 10px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; padding: 2px 9px; border-radius: 20px; }
-.nav-right { display: flex; align-items: center; gap: 8px; }
-.nav-tabs { display: flex; gap: 2px; background: var(--bg); border-radius: 8px; padding: 3px; border: 1px solid var(--border); }
-.nav-tab { padding: 5px 14px; border-radius: 6px; border: none; background: transparent; color: var(--sub); font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
-.nav-tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
-.nav-tab:hover:not(.active) { background: var(--border2); color: var(--text); }
-.btn-logout { padding: 6px 13px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--sub); font-size: 13px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
-.btn-logout:hover { border-color: var(--red); color: var(--red); }
-.btn-customer-view { padding: 6px 13px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--sub); font-size: 13px; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
-.btn-customer-view:hover { border-color: var(--red); color: var(--red); }
-
-/* ==================== SIDEBAR ==================== */
-.catalog-wrap { display: flex; flex: 1; min-height: 0; }
-.sidebar-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.2); z-index: 150; display: none; top: var(--nav-h); }
-.sidebar-overlay.open { display: block; }
-.sidebar { width: var(--sidebar-w); min-width: var(--sidebar-w); background: var(--surface); border-right: 1px solid var(--border); overflow-y: auto; height: calc(100vh - var(--nav-h)); position: sticky; top: var(--nav-h); transition: transform 0.28s cubic-bezier(0.4,0,0.2,1); z-index: 160; flex-shrink: 0; }
-.sidebar.collapsed { transform: translateX(calc(-1 * var(--sidebar-w) - 1px)); position: fixed; left: 0; top: var(--nav-h); box-shadow: var(--shadow-lg); }
-.sidebar.open-mobile { transform: translateX(0); box-shadow: var(--shadow-lg); }
-.sb-top { padding: 14px 14px 6px; }
-.sb-label { font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
-.sb-search { padding: 0 10px 10px; }
-.sb-search input { width: 100%; padding: 7px 11px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none; box-sizing: border-box; }
-.sb-search input:focus { border-color: var(--red); }
-.sb-search input::placeholder { color: var(--muted); }
-.sb-all { display: flex; align-items: center; gap: 8px; padding: 8px 14px; cursor: pointer; font-size: 13px; color: var(--sub); font-weight: 500; transition: all 0.15s; border-left: 3px solid transparent; background: transparent; border: none; width: 100%; text-align: left; }
-.sb-all:hover { background: var(--bg); color: var(--text); }
-.sb-all.active { color: var(--red); border-left-color: var(--red); background: var(--red-light); }
-.a-count { margin-left: auto; font-size: 11px; color: var(--muted); background: var(--bg); padding: 1px 7px; border-radius: 20px; border: 1px solid var(--border); }
-.sb-divider { height: 1px; background: var(--border); margin: 6px 0; }
-.sb-super-btn { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 14px; border: none; background: transparent; color: var(--sub); cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; text-align: left; transition: background 0.15s; border-left: 3px solid transparent; }
-.sb-super-btn:hover { background: var(--bg); color: var(--text); }
-.sb-super-btn.active { color: var(--red); border-left-color: var(--red); background: var(--red-light); }
-.sb-super-btn .s-emoji { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
-.sb-super-btn .s-label { flex: 1; }
-.sb-super-btn .s-cnt { font-size: 11px; color: var(--muted); background: var(--bg); padding: 1px 6px; border-radius: 20px; border: 1px solid var(--border); }
-.sb-super-btn .s-arr { font-size: 10px; color: var(--faint); transition: transform 0.2s; }
-.sb-super-btn.open .s-arr { transform: rotate(90deg); }
-.sb-cats { overflow: hidden; max-height: 0; transition: max-height 0.25s ease; }
-.sb-cats.open { max-height: 700px; }
-.sb-cat { display: flex; align-items: center; justify-content: space-between; padding: 6px 14px 6px 40px; cursor: pointer; font-size: 12px; color: var(--sub); border-left: 3px solid transparent; transition: all 0.15s; background: transparent; border: none; width: 100%; text-align: left; }
-.sb-cat:hover { color: var(--text); background: var(--bg); }
-.sb-cat.active { color: var(--red); border-left-color: var(--red); background: var(--red-light); font-weight: 500; }
-.c-cnt { font-size: 10px; color: var(--faint); }
-.sb-special { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; cursor: pointer; font-size: 12px; color: var(--sub); transition: all 0.15s; background: transparent; border: none; width: 100%; text-align: left; }
-.sb-special:hover { background: var(--bg); color: var(--text); }
-.sb-special.active { color: var(--red); background: var(--red-light); }
-
-/* ==================== CATALOG MAIN ==================== */
-.catalog-main { flex: 1; padding: 20px 24px; overflow-y: auto; min-width: 0; }
-.cat-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
-.cat-bar-title { font-size: 18px; font-weight: 600; color: var(--text); flex: 1; letter-spacing: -0.3px; }
-.search-box { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); box-sizing: border-box; height: 36px; }
-.search-box input { border: none; background: transparent; outline: none; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text); width: 170px; }
-.search-box input::placeholder { color: var(--faint); }
-.btn-add-prod { padding: 8px 16px; background: var(--red); border: none; border-radius: 8px; color: #fff; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.15s; white-space: nowrap; box-sizing: border-box; height: 36px; }
-.btn-add-prod:hover { background: #a93226; }
-
-/* ==================== FILTER PILLS ==================== */
-.filter-pills-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border); margin-bottom: 16px; border-radius: 8px; }
-.filter-pills-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
-.filter-pills-sep { color: var(--border); font-size: 14px; margin: 0 2px; }
-.filter-pill { padding: 4px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--bg); color: var(--sub); font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; text-transform: capitalize; }
-.filter-pill:hover:not(.active) { border-color: var(--red-mid); color: var(--text); }
-.filter-pill.active { background: var(--red); border-color: var(--red); color: #fff; font-weight: 600; }
-.filter-pill.sc-pill.active { background: #2d7a4f; border-color: #2d7a4f; }
-
-/* ==================== BULK ACTION BAR ==================== */
-.bulk-action-bar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: #fff8e8; border-bottom: 2px solid #f0d49a; position: sticky; top: 0; z-index: 100; margin-bottom: 16px; border-radius: 8px; }
-.bulk-count { font-size: 13px; font-weight: 600; color: #a05c00; margin-right: 4px; }
-.bulk-btn { padding: 5px 14px; border-radius: 8px; border: none; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
-.bulk-show { background: #edf6f1; color: #2d7a4f; border: 1px solid #b7dfca; }
-.bulk-show:hover { background: #d5eee3; }
-.bulk-hide { background: var(--red-light); color: var(--red); border: 1px solid var(--red-mid); }
-.bulk-hide:hover { background: #f5d0ca; }
-.bulk-delete { background: #fdf0ef; color: #c0392b; border: 1px solid #f0c5c0; }
-.bulk-delete:hover { background: #f9dedd; }
-.bulk-clear { background: var(--bg); color: var(--muted); border: 1px solid var(--border); margin-left: auto; }
-.bulk-clear:hover { color: var(--text); }
-
-/* ==================== LOADING / NO RESULTS ==================== */
-.catalog-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 80px 20px; color: var(--muted); font-size: 14px; }
-.loading-spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--red); border-radius: 50%; animation: spin 0.8s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.no-results { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 80px 20px; text-align: center; }
-.no-results-icon { font-size: 40px; margin-bottom: 4px; }
-.no-results-title { font-size: 18px; font-weight: 700; color: var(--text); }
-.no-results-sub { font-size: 14px; color: var(--muted); }
-.btn-clear-filters { margin-top: 12px; padding: 8px 20px; background: var(--red); color: #fff; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; }
-.btn-clear-filters:hover { background: #a93226; }
-
-/* ==================== PRODUCT GRID ==================== */
-.super-cat-section { margin-bottom: 40px; border-bottom: 2px solid var(--border); padding-bottom: 32px; }
-.super-cat-hdr { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 24px; display: flex; align-items: center; gap: 12px; }
-.super-cat-name { text-transform: uppercase; letter-spacing: 0.5px; }
-.super-cat-count { display: inline-block; background: var(--red); color: white; font-weight: 600; padding: 4px 10px; border-radius: 12px; font-size: 12px; margin-left: auto; }
-.cat-section { margin-bottom: 28px; }
-.cat-section-hdr { font-size: 12px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-.cat-section-hdr::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-.cat-count-badge { background: var(--bg); border: 1px solid var(--border); color: var(--muted); font-size: 10px; padding: 1px 7px; border-radius: 20px; font-weight: 500; letter-spacing: 0; }
-.cat-visibility-toggle { background: none; border: none; cursor: pointer; font-size: 12px; padding: 2px 6px; border-radius: 4px; transition: all 0.15s; color: var(--muted); margin-left: auto; }
-.cat-visibility-toggle:hover { background: var(--border); color: var(--text); }
-.cat-bulk-btn { margin-left: 6px; padding: 2px 9px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--sub); font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500; cursor: pointer; transition: all 0.12s; }
-.cat-bulk-btn:hover { border-color: var(--red-mid); color: var(--text); }
-.cat-select-all { display: inline-flex; align-items: center; cursor: pointer; margin-right: 4px; }
-.cat-select-all input[type="checkbox"] { cursor: pointer; accent-color: var(--red); width: 14px; height: 14px; }
-.admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
-.admin-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 12px; position: relative; transition: all 0.15s; box-shadow: var(--shadow); }
-.admin-card:hover { border-color: var(--red-mid); box-shadow: var(--shadow-md); }
-.admin-card.hidden-prod { opacity: 0.5; border-style: dashed; background: var(--bg); }
-.admin-card.oos-prod { border-color: #f0d49a; }
-.admin-card.selected-prod { outline: 2px solid var(--red); outline-offset: -2px; background: var(--red-light) !important; }
-.card-top-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.card-select-check { display: flex; align-items: center; cursor: pointer; flex-shrink: 0; margin: 0; padding: 0; line-height: 1; }
-.card-select-check input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--red); margin: 0; }
-.card-badges { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
-.badge { padding: 2px 7px; border-radius: 20px; font-size: 9px; font-weight: 600; letter-spacing: 0.3px; text-transform: uppercase; }
-.b-hidden { background: var(--bg); color: var(--muted); border: 1px solid var(--border); }
-.b-oos { background: var(--yellow-bg); color: var(--yellow); border: 1px solid #f0d49a; }
-.b-visible { background: var(--green-bg); color: var(--green); border: 1px solid #b7dfca; }
-.card-img { width: 80px; height: 80px; object-fit: contain; border-radius: 7px; background: #fff; display: block; margin: 0 auto 9px; border: 1px solid var(--border2); }
-.card-info { flex: 1; display: flex; flex-direction: column; gap: 6px; }
-.card-name { font-size: 11px; color: var(--text); font-weight: 500; line-height: 1.35; height: 30px; overflow: hidden; margin-bottom: 3px; }
-.card-meta { font-size: 10px; color: var(--muted); margin-bottom: 3px; }
-.card-sku { font-size: 10px; color: var(--faint); font-family: monospace; margin-bottom: 9px; }
-.card-actions { display: flex; gap: 5px; flex-wrap: wrap; }
-.ca-btn { flex: 1; min-width: 46px; padding: 5px 3px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--sub); font-size: 10px; font-weight: 500; cursor: pointer; transition: all 0.15s; text-align: center; font-family: 'DM Sans', sans-serif; white-space: nowrap; }
-.ca-btn:hover { border-color: var(--red-mid); color: var(--red); background: var(--red-light); }
-.ca-btn.oos { border-color: #f0d49a; color: var(--yellow); background: var(--yellow-bg); }
-
-/* ==================== PAGINATION ==================== */
-.pagination-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-top: 1px solid var(--border); flex-wrap: wrap; }
-.pagination-info { font-size: 13px; color: var(--sub); }
-.pagination-controls { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.pg-btn { min-width: 32px; padding: 5px 10px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface); color: var(--sub); font-family: 'DM Sans', sans-serif; font-size: 13px; cursor: pointer; transition: all 0.12s; }
-.pg-btn:hover:not(:disabled):not(.active) { border-color: var(--red-mid); color: var(--text); }
-.pg-btn.active { background: var(--red); border-color: var(--red); color: #fff; font-weight: 600; }
-.pg-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.pg-ellipsis { padding: 0 4px; color: var(--muted); }
-.pg-jump { width: 70px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 7px; font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--text); background: var(--bg); margin-left: 4px; }
-
-/* ==================== CUSTOMER VIEWS ==================== */
-.views-layout { display: flex; flex: 1; min-height: 0; }
-.customer-list { width: 268px; min-width: 268px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; height: calc(100vh - var(--nav-h)); position: sticky; top: var(--nav-h); }
-.clist-head { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
-.clist-title { font-size: 16px; font-weight: 600; color: var(--text); }
-.btn-add-cust { padding: 5px 12px; background: var(--red); border: none; border-radius: 7px; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
-.btn-add-cust:hover { background: #a93226; }
-.clist-search { padding: 9px 14px; border-bottom: 1px solid var(--border); }
-.clist-search input { width: 100%; padding: 7px 11px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none; box-sizing: border-box; }
-.clist-search input:focus { border-color: var(--red); }
-.customer-rows { flex: 1; overflow-y: auto; }
-.cust-row { padding: 11px 14px; cursor: pointer; border-bottom: 1px solid var(--border2); transition: all 0.15s; display: flex; align-items: center; gap: 10px; }
-.cust-row:hover { background: var(--bg); }
-.cust-row.active { background: var(--red-light); border-right: 2px solid var(--red); }
-.c-avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'DM Sans', sans-serif; font-weight: 700; font-size: 13px; color: #fff; flex-shrink: 0; }
-.c-name { font-size: 13px; color: var(--text); font-weight: 500; }
-.c-email { font-size: 11px; color: var(--muted); }
-.c-pills { display: flex; gap: 5px; margin-top: 3px; }
-.c-pill { font-size: 9px; padding: 1px 7px; border-radius: 20px; font-weight: 500; }
-
-/* ==================== VIEW EDITOR ==================== */
-.view-editor { flex: 1; overflow-y: auto; padding: 22px; }
-.ve-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--muted); font-size: 14px; gap: 10px; min-height: 300px; }
-.ve-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
-.ve-name { font-size: 22px; font-weight: 600; color: var(--text); letter-spacing: -0.3px; }
-.ve-email { font-size: 13px; color: var(--muted); margin-top: 2px; }
-.ve-actions { display: flex; gap: 7px; flex-shrink: 0; }
-.btn-save { padding: 7px 18px; background: var(--red); border: none; border-radius: 8px; color: #fff; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 13px; cursor: pointer; }
-.btn-save:hover { background: #a93226; }
-.btn-reset-all { padding: 7px 13px; background: var(--surface); border: 1px solid #f0d49a; border-radius: 8px; color: var(--yellow); font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
-.btn-reset-all:hover { border-color: var(--red); color: var(--red); background: var(--red-light); }
-.btn-close-ve { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
-.btn-close-ve:hover { background: var(--red-light); border-color: var(--red-mid); color: var(--red); }
-.ve-presets { display: flex; gap: 5px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
-.ve-preset-label { font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; }
-.preset-btn { padding: 5px 13px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface); color: var(--sub); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
-.preset-btn.active { border-color: var(--red); color: var(--red); background: var(--red-light); }
-.preset-btn:hover:not(.active) { border-color: var(--red-mid); color: var(--text); }
-.ve-quick-actions { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; padding: 8px 12px; background: var(--bg); border-radius: 8px; border: 1px solid var(--border); }
-.qa-btn { padding: 4px 11px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--sub); font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
-.qa-btn:hover { border-color: var(--red-mid); color: var(--red); background: var(--red-light); }
-.qa-btn.danger { border-color: #f0d49a; color: var(--yellow); background: var(--yellow-bg); }
-.qa-btn.danger:hover { border-color: var(--red); color: var(--red); background: var(--red-light); }
-.qa-btn.success { border-color: #b7dfca; color: var(--green); background: var(--green-bg); }
-.qa-btn.success:hover { border-color: var(--green); }
-.ve-hint { font-size: 12px; color: var(--sub); padding: 9px 12px; background: var(--bg); border-radius: 8px; border-left: 3px solid var(--red); margin-bottom: 16px; }
-.ve-summary-bar { display: flex; gap: 6px; align-items: center; margin-bottom: 14px; padding: 8px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; font-size: 12px; }
-.vs-num { font-weight: 600; color: var(--text); }
-.vs-num.green { color: var(--green); }
-.vs-num.muted { color: var(--muted); }
-.vs-sep { color: var(--faint); }
-.ve-cat-block { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; box-shadow: var(--shadow); }
-.ve-cat-head { padding: 11px 16px; display: flex; align-items: center; gap: 10px; cursor: pointer; border-bottom: 1px solid var(--border); background: #faf9f7; }
-.ve-emoji { font-size: 15px; }
-.ve-cat-label { flex: 1; font-size: 14px; font-weight: 600; color: var(--text); }
-.ve-cnt { font-size: 11px; color: var(--muted); }
-.cat-vis-toggle { margin-right: 4px; flex-shrink: 0; }
-.cat-hidden-badge { font-size: 9px; font-weight: 600; padding: 2px 7px; border-radius: 20px; background: var(--bg); color: var(--muted); border: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.3px; }
-.cat-hidden-block > .ve-cat-head { opacity: 0.65; background: var(--bg); }
-.arr-btn { background: none; border: none; color: var(--faint); font-size: 11px; cursor: pointer; transition: transform 0.2s; padding: 3px; }
-.arr-btn.open { transform: rotate(90deg); }
-.ve-cat-items { padding: 10px 12px 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 7px; }
-.ve-cat-items.collapsed { display: none; }
-.mini-card { background: var(--bg); border: 1.5px solid var(--border); border-radius: 8px; padding: 8px; display: flex; align-items: center; gap: 8px; transition: all 0.15s; }
-.mini-card:hover { border-color: var(--red-mid); }
-.mini-card.prod-hidden { opacity: 0.45; border-style: dashed; }
-.mini-card.prod-oos { border-color: #f0d49a; }
-.mini-img { width: 36px; height: 36px; object-fit: contain; border-radius: 5px; background: var(--surface); flex-shrink: 0; border: 1px solid var(--border); }
-.mini-info { flex: 1; min-width: 0; }
-.mini-name { font-size: 11px; color: var(--text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mini-sku { font-size: 9px; color: var(--muted); font-family: monospace; }
-.mini-controls { display: flex; flex-direction: column; gap: 3px; flex-shrink: 0; }
-.mini-toggle { width: 30px; height: 16px; border-radius: 8px; border: none; cursor: pointer; position: relative; transition: background 0.2s; }
-.mini-toggle.on { background: var(--green); }
-.mini-toggle.off { background: var(--faint); }
-.mini-toggle::after { content: ''; position: absolute; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: left 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.15); }
-.mini-toggle.on::after { left: 16px; }
-.mini-toggle.off::after { left: 2px; }
-.mini-oos-btn { width: 30px; height: 16px; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); font-family: 'DM Sans', sans-serif; font-size: 8px; font-weight: 700; color: var(--muted); cursor: pointer; text-align: center; line-height: 14px; padding: 0; transition: all 0.15s; }
-.mini-oos-btn.active { background: var(--yellow-bg); border-color: #f0d49a; color: var(--yellow); }
-.mini-oos-btn:hover { border-color: var(--red-mid); color: var(--red); }
-
-/* ==================== ORDERS PAGE ==================== */
-.orders-main { flex: 1; padding: 22px; overflow-y: auto; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.page-title { font-size: 22px; font-weight: 600; color: var(--text); letter-spacing: -0.3px; }
-.filter-row { display: flex; gap: 5px; }
-.filter-btn { padding: 5px 13px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface); color: var(--sub); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
-.filter-btn.active { background: var(--red); border-color: var(--red); color: #fff; }
-.filter-btn:hover:not(.active) { border-color: var(--red-mid); color: var(--red); }
-.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
-.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); }
-.stat-label { font-size: 10px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 7px; }
-.stat-val { font-size: 28px; font-weight: 600; color: var(--text); }
-.stat-card.red .stat-val { color: var(--red); }
-.stat-card.green .stat-val { color: var(--green); }
-.stat-card.yellow .stat-val { color: var(--yellow); }
-.orders-table { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
-.ot-head { display: grid; grid-template-columns: 120px 1fr 130px 80px 70px 110px 110px; background: var(--bg); border-bottom: 1px solid var(--border); }
-.ot-th { padding: 10px 14px; font-size: 10px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--muted); }
-.ot-row { display: grid; grid-template-columns: 120px 1fr 130px 80px 70px 110px 110px; border-bottom: 1px solid var(--border2); transition: background 0.12s; }
-.ot-row:hover { background: var(--bg); }
-.ot-row:last-child { border-bottom: none; }
-.ot-cell { padding: 13px 14px; font-size: 12px; display: flex; align-items: center; }
-.ot-id { font-weight: 600; font-size: 13px; color: var(--red); }
-.order-status { padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: 600; letter-spacing: 0.3px; }
-.s-received { background: var(--green-bg); color: var(--green); border: 1px solid #b7dfca; }
-.s-processing { background: var(--yellow-bg); color: var(--yellow); border: 1px solid #f0d49a; }
-.s-pending { background: var(--bg); color: var(--muted); border: 1px solid var(--border); }
-.status-select { background: var(--surface); border: 1px solid var(--border); border-radius: 7px; color: var(--sub); font-family: 'DM Sans', sans-serif; font-size: 11px; padding: 4px 8px; cursor: pointer; }
-.status-select:focus { outline: none; border-color: var(--red); }
-.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 60px 20px; text-align: center; border-top: 1px dashed var(--border); }
-.empty-state-icon { font-size: 36px; margin-bottom: 4px; opacity: 0.5; }
-.empty-state-title { font-size: 15px; font-weight: 600; color: var(--text); }
-.empty-state-sub { font-size: 13px; color: var(--muted); }
-
-/* ==================== CATEGORIES PAGE ==================== */
-.categories-main { display: flex; flex-direction: column; gap: 24px; padding: 24px; max-width: 900px; margin: 0 auto; width: 100%; overflow-y: auto; }
-.cat-manage-header { text-align: center; margin-bottom: 12px; }
-.cat-manage-header h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
-.cat-manage-desc { font-size: 13px; color: var(--muted); }
-.categories-main .cat-section { display: flex; flex-direction: column; gap: 12px; margin-bottom: 0; }
-.categories-main .cat-section-title { font-size: 14px; font-weight: 600; color: var(--text); text-transform: uppercase; letter-spacing: 0.5px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
-.cat-list-wrap { display: flex; flex-direction: column; gap: 8px; background: rgba(255,255,255,0.02); border-radius: 10px; padding: 12px; border: 1px solid var(--border); }
-.cat-drag-list { display: flex; flex-direction: column; gap: 8px; }
-.cat-item { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; transition: all 0.15s; }
-.cat-item:hover { border-color: var(--text); }
-.cat-drag-handle { color: var(--muted); font-size: 14px; flex-shrink: 0; user-select: none; cursor: grab; }
-.cat-drag-handle:active { cursor: grabbing; }
-.cat-item[draggable="true"] { cursor: grab; }
-.cat-item[draggable="true"]:active { cursor: grabbing; }
-.cat-item.cat-dragging { opacity: 0.4; border-style: dashed; border-color: var(--red); }
-.cat-item.cat-drag-over { border-color: var(--red); box-shadow: 0 -2px 0 0 var(--red); }
-.cat-item-content { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.cat-item-name { font-size: 14px; font-weight: 500; color: var(--text); }
-.cat-item-order { font-size: 11px; color: var(--muted); }
-.cat-item-prod-count { font-size: 12px; color: var(--sub); background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 12px; white-space: nowrap; flex-shrink: 0; }
-.cat-super-item { background: var(--bg); border: 2px solid var(--border); }
-.cat-super-item:hover { border-color: #c0392b; }
-.cat-add-row { display: flex; gap: 8px; margin-bottom: 4px; }
-.cat-add-input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text); background: var(--surface); outline: none; }
-.cat-add-input:focus { border-color: var(--red); }
-.cat-add-input::placeholder { color: var(--muted); }
-.cat-add-btn { padding: 8px 16px; background: var(--red); border: none; border-radius: 8px; color: #fff; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
-.cat-add-btn:hover { background: #a93226; }
-.cat-add-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.cat-edit-input { padding: 4px 8px; border: 1px solid var(--red); border-radius: 6px; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text); background: var(--surface); outline: none; width: 100%; }
-.cat-item-actions { display: flex; gap: 4px; flex-shrink: 0; }
-.cat-action-btn { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
-.cat-action-btn:hover { border-color: var(--text); color: var(--text); }
-.cat-action-btn.cat-save { border-color: var(--green); color: var(--green); }
-.cat-action-btn.cat-save:hover { background: var(--green-bg); }
-.cat-action-btn.cat-cancel:hover { border-color: var(--red); color: var(--red); }
-.cat-action-btn.cat-edit:hover { border-color: var(--red); color: var(--red); }
-.cat-action-btn.cat-delete { color: var(--muted); }
-.cat-action-btn.cat-delete:hover { border-color: var(--red); color: var(--red); background: var(--red-light); }
-.cat-manage-footer { display: flex; justify-content: center; margin-top: 12px; }
-.cat-manage-status { font-size: 13px; color: #27ae60; padding: 8px 16px; background: rgba(39,174,96,0.1); border-radius: 20px; border: 1px solid rgba(39,174,96,0.3); animation: fadeIn 0.3s; }
-
-/* ==================== SETTINGS PAGE ==================== */
-.settings-main { padding: 28px; max-width: 780px; margin: 0 auto; overflow-y: auto; }
-.settings-section { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 22px; overflow: hidden; }
-.settings-section-title { font-size: 14px; font-weight: 600; color: var(--text); padding: 16px 20px; border-bottom: 1px solid #ede9e4; letter-spacing: -0.2px; }
-.settings-row { display: flex; align-items: center; gap: 20px; padding: 16px 20px; }
-.settings-row-info { flex: 1; }
-.settings-row-label { font-size: 14px; font-weight: 500; color: var(--text); margin-bottom: 3px; }
-.settings-row-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
-.toggle-sw { width: 36px; height: 20px; border-radius: 10px; border: none; cursor: pointer; position: relative; transition: background 0.2s; flex-shrink: 0; }
-.toggle-sw.on { background: var(--green); }
-.toggle-sw.off { background: var(--faint); }
-.toggle-sw::after { content: ''; position: absolute; top: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: left 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
-.toggle-sw.on::after { left: 19px; }
-.toggle-sw.off::after { left: 3px; }
-.pending-section { padding: 16px 20px; border-top: 1px solid var(--border); }
-.pending-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-.pending-badge { background: var(--red); color: #fff; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 20px; }
-.pending-list { display: flex; flex-direction: column; gap: 8px; }
-.pending-row { display: flex; align-items: center; gap: 16px; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
-.pending-info { flex: 1; min-width: 0; }
-.pending-company { font-size: 14px; font-weight: 600; color: var(--text); }
-.pending-detail { font-size: 12px; color: var(--sub); margin-top: 2px; }
-.pending-date { font-size: 11px; color: var(--muted); margin-top: 2px; }
-.pending-actions { display: flex; gap: 6px; flex-shrink: 0; }
-.pending-btn { padding: 6px 14px; border-radius: 7px; border: none; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
-.pending-approve { background: var(--green-bg); color: var(--green); border: 1px solid #b7dfca; }
-.pending-approve:hover { background: var(--green); color: #fff; }
-.pending-reject { background: var(--bg); color: var(--muted); border: 1px solid var(--border); }
-.pending-reject:hover { background: var(--red-light); color: var(--red); border-color: var(--red-mid); }
-.settings-activity-bar { display: flex; gap: 10px; padding: 14px 20px; border-bottom: 1px solid #ede9e4; flex-wrap: wrap; align-items: center; }
-.settings-filter-sel { padding: 7px 10px; border: 1.5px solid var(--border); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; background: var(--bg); color: var(--text); outline: none; cursor: pointer; }
-.settings-filter-sel:focus { border-color: var(--red); }
-.settings-clear-btn { padding: 7px 14px; border: 1.5px solid var(--border); border-radius: 8px; background: var(--surface); font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--muted); cursor: pointer; margin-left: auto; }
-.settings-clear-btn:hover { border-color: #e8b4b4; color: var(--red); }
-.activity-log-wrap { max-height: 420px; overflow-y: auto; }
-.activity-row { display: flex; align-items: center; gap: 12px; padding: 11px 20px; border-bottom: 1px solid #ede9e4; font-size: 13px; transition: background 0.1s; }
-.activity-row:last-child { border-bottom: none; }
-.activity-row:hover { background: var(--bg); }
-.act-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
-.act-icon.login { background: #e8f4fd; color: #2980b9; }
-.act-icon.logout { background: #fef6e8; color: #e67e22; }
-.act-icon.favorite { background: #fde8f0; color: #e74c8c; }
-.act-icon.order { background: var(--green-bg); color: var(--green); }
-.act-body { flex: 1; min-width: 0; }
-.act-cust { font-weight: 600; color: var(--text); }
-.act-detail { color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.act-time { font-size: 11px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
-.act-empty { padding: 40px; text-align: center; color: var(--muted); font-size: 13px; }
-.insights-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; padding: 16px 20px 20px; }
-.insight-card { background: var(--bg); border: 1px solid #ede9e4; border-radius: 11px; padding: 14px 16px; }
-.insight-card-name { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
-.insight-stat-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 12px; border-bottom: 1px solid #ede9e4; }
-.insight-stat-row:last-child { border-bottom: none; }
-.insight-stat-label { color: var(--muted); }
-.insight-stat-val { font-weight: 600; color: var(--text); }
-
-/* ==================== MODALS ==================== */
-.modal-wrap { position: fixed; inset: 0; background: rgba(26,26,24,0.4); z-index: 500; display: none; align-items: center; justify-content: center; padding: 20px; }
-.modal-wrap.open { display: flex; }
-.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 26px; max-width: 460px; width: 90%; animation: popIn 0.2s ease; box-shadow: var(--shadow-lg); max-height: 90vh; overflow-y: auto; }
-@keyframes popIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-.modal h2 { font-size: 18px; font-weight: 600; color: var(--text); margin-bottom: 16px; letter-spacing: -0.3px; }
-.form-label { display: block; font-size: 10px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; margin-top: 12px; }
-.form-input { width: 100%; padding: 9px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none; transition: border-color 0.15s; box-sizing: border-box; }
-.form-input:focus { border-color: var(--red); }
-.input-error { border-color: #e53e3e !important; background: rgba(229,62,62,0.05); }
-.field-error { font-size: 11px; color: #e53e3e; margin-top: 3px; margin-bottom: 4px; display: flex; align-items: center; gap: 4px; }
-.field-error::before { content: '\u26A0'; font-size: 10px; }
-.req-star { color: #e53e3e; font-size: 12px; margin-left: 2px; }
-.opt-label { color: var(--faint); font-size: 11px; font-weight: 400; margin-left: 4px; }
-.form-checkbox { display: flex; align-items: center; gap: 8px; margin: 12px 0; font-size: 13px; color: var(--sub); cursor: pointer; user-select: none; }
-.form-checkbox input[type="checkbox"] { width: 18px; height: 18px; min-width: 18px; cursor: pointer; accent-color: var(--red); margin: 0; flex-shrink: 0; }
-.form-checkbox label { font-size: 13px; color: var(--sub); cursor: pointer; user-select: none; }
-button:disabled { opacity: 0.55; cursor: not-allowed; }
-.modal-btns { display: flex; gap: 8px; margin-top: 18px; }
-.modal-btns button { flex: 1; padding: 10px; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
-.btn-mc { background: var(--red); color: #fff; }
-.btn-mc:hover { background: #a93226; }
-.btn-mx { background: var(--bg); border: 1px solid var(--border) !important; color: var(--sub); }
-.btn-mx:hover { border-color: var(--red) !important; color: var(--red); }
-
-/* Image upload */
-.img-upload-wrapper { display: flex; flex-direction: column; gap: 8px; }
-.img-drag-drop { border: 2px dashed var(--border); border-radius: 8px; padding: 24px; background: var(--bg); cursor: pointer; transition: all 0.2s; min-height: 140px; display: flex; align-items: center; justify-content: center; }
-.img-drag-drop:hover { border-color: var(--red); background: rgba(192,57,43,0.05); }
-.img-drag-drop.active { border-color: var(--red); background: rgba(192,57,43,0.1); }
-.drag-content { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.drag-icon { font-size: 36px; line-height: 1; }
-.drag-text { display: flex; flex-direction: column; gap: 2px; }
-.drag-text strong { color: var(--text); font-size: 14px; }
-.drag-text span { color: var(--muted); font-size: 12px; }
-.upload-preview { display: flex; align-items: center; gap: 12px; width: 100%; }
-.preview-img { width: 80px; height: 80px; object-fit: cover; border-radius: 6px; }
-.preview-actions { display: flex; gap: 8px; flex-direction: column; }
-.btn-change, .btn-remove { padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
-.btn-change { background: var(--border); color: var(--text); }
-.btn-change:hover { background: #ddd; }
-.btn-remove { background: rgba(192,57,43,0.2); color: var(--red); }
-.btn-remove:hover { background: rgba(192,57,43,0.3); }
-.img-hint { font-size: 11px; color: var(--muted); line-height: 1.4; }
-
-/* Edit modal */
-.edit-modal-wrap { display: none; position: fixed; inset: 0; background: rgba(26,26,24,0.5); z-index: 400; align-items: center; justify-content: center; }
-.edit-modal-wrap.open { display: flex; }
-.edit-modal { background: var(--surface); border-radius: 16px; padding: 28px 28px 20px; width: min(480px, 94vw); max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.18); }
-.edit-modal h2 { font-size: 17px; font-weight: 700; margin-bottom: 18px; color: var(--text); }
-.edit-field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.edit-field-grid .full { grid-column: 1 / -1; }
-.edit-field label { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
-.edit-field input, .edit-field select { width: 100%; padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 9px; font-family: 'DM Sans', sans-serif; font-size: 13px; background: var(--bg); color: var(--text); outline: none; transition: border 0.15s; box-sizing: border-box; }
-.edit-field input:focus, .edit-field select:focus { border-color: var(--red); }
-.edit-img-row { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 4px; }
-.edit-img-preview { width: 72px; height: 72px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 22px; overflow: hidden; flex-shrink: 0; }
-.edit-img-preview img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
-.edit-img-controls { flex: 1; display: flex; flex-direction: column; gap: 6px; }
-.edit-img-url { width: 100%; padding: 8px 11px; border: 1.5px solid var(--border); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; background: var(--bg); color: var(--text); outline: none; box-sizing: border-box; }
-.edit-img-url:focus { border-color: var(--red); }
-.edit-modal-btns { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
-.edit-modal-btns .btn-cancel { padding: 9px 20px; border: 1.5px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--sub); font-family: 'DM Sans', sans-serif; font-size: 13px; cursor: pointer; }
-.edit-modal-btns .btn-save-edit { padding: 9px 22px; border: none; border-radius: 9px; background: var(--red); color: #fff; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; }
-.edit-modal-btns .btn-save-edit:hover { background: #a93226; }
-
-/* Bulk confirm modal */
-.modal-overlay { position: fixed; inset: 0; background: rgba(26,26,24,0.5); z-index: 600; display: flex; align-items: center; justify-content: center; }
-.modal-box { background: var(--surface); border-radius: 16px; padding: 28px; box-shadow: var(--shadow-lg); }
-.modal-title { font-size: 18px; font-weight: 700; color: var(--text); }
-.bulk-confirm-box { max-width: 420px; padding: 28px 32px; border: 1px solid var(--border); }
-.bulk-confirm-desc { font-size: 14px; color: var(--sub); line-height: 1.6; margin: 12px 0 24px; }
-.modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
-.modal-actions .btn-cancel { padding: 9px 20px; border: 1.5px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--sub); font-family: 'DM Sans', sans-serif; font-size: 13px; cursor: pointer; }
-.btn-confirm { padding: 10px 24px; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
-.btn-primary { background: var(--red); color: #fff; }
-.btn-primary:hover { background: #a93226; }
-.btn-danger { background: #c0392b; color: #fff; }
-.btn-danger:hover { background: #a93226; }
-
-/* ==================== TOASTS ==================== */
-.toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(14px); background: var(--text); color: #fff; border-radius: 10px; padding: 10px 18px; font-size: 13px; z-index: 700; opacity: 0; transition: all 0.3s; pointer-events: none; box-shadow: var(--shadow-lg); white-space: nowrap; }
-.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-.error-toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: #2d2d2d; color: #fff; border-radius: 10px; padding: 12px 18px; display: flex; align-items: center; gap: 12px; z-index: 800; box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-width: 480px; min-width: 280px; }
-.error-toast-msg { flex: 1; font-size: 13px; font-weight: 500; }
-.error-toast-actions { display: flex; gap: 8px; align-items: center; }
-.error-retry-btn { padding: 4px 12px; background: var(--red); border: none; border-radius: 6px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; }
-.error-retry-btn:hover { background: #a93226; }
-.error-dismiss-btn { background: transparent; border: none; color: rgba(255,255,255,0.6); cursor: pointer; font-size: 14px; padding: 2px 4px; }
-.error-dismiss-btn:hover { color: #fff; }
-
-/* ==================== ANIMATIONS ==================== */
-@keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-
-/* ==================== RESPONSIVE ==================== */
-@media (max-width: 1024px) and (min-width: 641px) {
-  .admin-wrapper { --sidebar-w: 200px; }
-  .cat-bar-title { font-size: 16px; }
-  .catalog-main { padding: 16px; }
-  .admin-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
-  .search-box input { width: 130px; }
-  .nav-tab { padding: 4px 10px; font-size: 12px; }
-  .btn-add-prod { padding: 7px 14px; font-size: 12px; }
-}
-
-@media (max-width: 640px) {
-  .admin-wrapper { --nav-h: 52px; --sidebar-w: 220px; }
-  .nav-tabs { gap: 1px; padding: 2px; background: var(--bg); border-radius: 6px; flex-wrap: wrap; display: flex !important; overflow-x: auto; overflow-y: hidden; }
-  .btn-logout { display: none !important; }
-  .topnav { padding: 0 8px; gap: 6px; }
-  .nav-left { gap: 6px; flex: 1; min-width: 0; }
-  .nav-right { gap: 4px; }
-  .brand { gap: 4px; min-width: 0; }
-  .brand-logo { width: 28px; height: 28px; font-size: 14px; flex-shrink: 0; }
-  .brand-name { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .brand-name span { display: none; }
-  .admin-pill { font-size: 8px; padding: 1px 5px; flex-shrink: 0; }
-  .nav-tab { padding: 4px 10px; font-size: 11px; flex-shrink: 0; }
-  .sidebar { position: fixed !important; left: 0; top: var(--nav-h); height: calc(100vh - var(--nav-h)); width: var(--sidebar-w) !important; min-width: 0 !important; transform: translateX(calc(-1 * var(--sidebar-w) - 2px)); z-index: 160; box-shadow: none; border-right: 1px solid var(--border); }
-  .sidebar.open-mobile { transform: translateX(0); box-shadow: var(--shadow-lg); }
-  .catalog-main { padding: 12px; width: 100%; max-width: 100vw; overflow-x: hidden; box-sizing: border-box; flex: 1; }
-  .cat-bar { flex-direction: column; align-items: stretch; gap: 10px; margin-bottom: 14px; }
-  .cat-bar-title { font-size: 16px; font-weight: 600; flex: none; }
-  .search-box { width: 100%; }
-  .search-box input { width: 100%; }
-  .btn-add-prod { width: 100%; padding: 12px 14px; font-size: 13px; }
-  .admin-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-  .views-layout { flex-direction: column; }
-  .customer-list { width: 100%; min-width: 0; border-right: none; border-bottom: 1px solid var(--border); max-height: 140px; height: auto; position: static; }
-  .orders-main { padding: 12px; }
-  .ot-head { display: none; }
-  .ot-row { grid-template-columns: 1fr; gap: 8px; padding: 12px 0; border-left: 3px solid var(--border); padding-left: 12px; }
-  .ot-cell { padding: 4px 0; font-size: 11px; }
-  .settings-main { padding: 12px; max-width: 100%; }
-  .modal-wrap { padding: 12px; align-items: flex-end; }
-  .modal { max-width: 100%; width: 100%; border-radius: 16px 16px 0 0; padding: 20px; }
-}
-      `}</style>
+      {/* ADMIN MOBILE NAV */}
+      <div className="hidden max-sm:!flex fixed bottom-0 left-0 right-0 w-full h-[60px] bg-white border-t border-slate-200 z-[500] justify-around items-center shadow-[0_-4px_12px_rgba(0,0,0,0.08)] pb-[env(safe-area-inset-bottom,0)]">
+        <button className={`flex flex-col items-center gap-0.5 border-none bg-transparent cursor-pointer text-[10px] px-1.5 py-1.5 relative whitespace-nowrap ${activePage === 'catalog' ? 'text-indigo-500' : 'text-slate-400'}`} onClick={() => showPage('catalog')}><Package className="w-5 h-5" />Catalog</button>
+        <button className={`flex flex-col items-center gap-0.5 border-none bg-transparent cursor-pointer text-[10px] px-1.5 py-1.5 relative whitespace-nowrap ${activePage === 'bulk-edit' ? 'text-indigo-500' : 'text-slate-400'}`} onClick={() => showPage('bulk-edit')}><Zap className="w-5 h-5" />Bulk Edit</button>
+        <button className={`flex flex-col items-center gap-0.5 border-none bg-transparent cursor-pointer text-[10px] px-1.5 py-1.5 relative whitespace-nowrap ${activePage === 'views' ? 'text-indigo-500' : 'text-slate-400'}`} onClick={() => showPage('views')}><Users className="w-5 h-5" />Views</button>
+        <button className={`flex flex-col items-center gap-0.5 border-none bg-transparent cursor-pointer text-[10px] px-1.5 py-1.5 relative whitespace-nowrap ${activePage === 'orders' ? 'text-indigo-500' : 'text-slate-400'}`} onClick={() => showPage('orders')}><ClipboardList className="w-5 h-5" />Orders{pendingOrderCount > 0 && <span className="absolute top-0 -right-0.5 bg-red-500 text-white text-[8px] font-bold px-1 py-px rounded-lg min-w-[14px] text-center">{pendingOrderCount}</span>}</button>
+        <button className={`flex flex-col items-center gap-0.5 border-none bg-transparent cursor-pointer text-[10px] px-1.5 py-1.5 relative whitespace-nowrap ${activePage === 'categories' ? 'text-indigo-500' : 'text-slate-400'}`} onClick={() => showPage('categories')}><FolderOpen className="w-5 h-5" />Categories</button>
+      </div>
     </div>
   )
 }

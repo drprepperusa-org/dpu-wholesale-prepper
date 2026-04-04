@@ -59,7 +59,7 @@ export async function POST(request) {
 
     // Fallback: check customers table
     const custResult = await pool.query(
-      'SELECT id, email, company_name, contact_name, password_hash, active FROM customers WHERE email = $1',
+      'SELECT id, email, company_name, contact_name, password_hash, active, created_at, show_prices FROM customers WHERE email = $1',
       [email]
     );
 
@@ -107,7 +107,9 @@ export async function POST(request) {
         email: customer.email,
         name: customer.contact_name,
         companyName: customer.company_name,
-        role
+        role,
+        created_at: customer.created_at,
+        show_prices: customer.show_prices !== false
       },
       token,
       role

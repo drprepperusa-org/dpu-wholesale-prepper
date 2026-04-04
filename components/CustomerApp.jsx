@@ -6,10 +6,19 @@ import CategorySidebar from './CategorySidebar';
 import CategoryView from './CategoryView';
 import ProductGrid from './ProductGrid';
 import OrderConfirmModal from './OrderConfirmModal';
+import { Flame, ShoppingBag, Heart, Sparkles, ClipboardList, ShoppingCart, Search, FolderOpen, LayoutGrid, ChevronDown, User, Lock, Settings, LogOut, X, Minus, Plus, Package, Building, ArrowRight, CheckCircle, Menu } from 'lucide-react';
 
-function CustomerApp({ currentUser, userRole, viewMode, setViewMode, onLogout }) {
-  const [activePage, setActivePage] = useState('catalog');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode, onLogout }) {
+  const [currentUser, setCurrentUser] = useState(initialUser);
+  const [activePage, _setActivePage] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('customer_active_page')
+      if (saved && ['catalog', 'favs', 'newItems', 'history'].includes(saved)) return saved
+    }
+    return 'catalog'
+  });
+  const setActivePage = (page) => { _setActivePage(page); try { localStorage.setItem('customer_active_page', page) } catch(e) {} };
+  const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth > 640 : true);
   const [acctDropdownOpen, setAcctDropdownOpen] = useState(false);
   const [productSheetOpen, setProductSheetOpen] = useState(false);
   const [cartOverlayOpen, setCartOverlayOpen] = useState(false);
@@ -27,7 +36,10 @@ function CustomerApp({ currentUser, userRole, viewMode, setViewMode, onLogout })
   const [gridViewMode, setGridViewMode] = useState('grid');
   const [selectedUnit, setSelectedUnit] = useState('cases');
   const [sheetQty, setSheetQty] = useState(1);
-  const [acctModal, setAcctModal] = useState(null); // 'profile' | 'contact' | 'security' | null
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [acctModal, setAcctModal] = useState(null);
+  const [toastMsg, setToastMsg] = useState('');
+  const [toastType, setToastType] = useState('success');
   const [acctData, setAcctData] = useState({
     accountId: '', customerSince: '', salesRep: 'DJ',
     firstName: '', lastName: '', company: '', email: '',
@@ -41,364 +53,280 @@ function CustomerApp({ currentUser, userRole, viewMode, setViewMode, onLogout })
   const [acctPwdStrength, setAcctPwdStrength] = useState(0);
 
   const tabs = [
-    { id: 'catalog', name: 'Order', icon: '\uD83D\uDECD' },
-    { id: 'favs', name: 'Favorites', icon: '\u2661' },
-    { id: 'newItems', name: 'New Items', icon: '\u2728' },
-    { id: 'history', name: 'History', icon: '\uD83D\uDCCB' }
+    { id: 'catalog', name: 'Order', Icon: ShoppingBag },
+    { id: 'favs', name: 'Favorites', Icon: Heart },
+    { id: 'newItems', name: 'New Items', Icon: Sparkles },
+    { id: 'history', name: 'History', Icon: ClipboardList }
   ];
 
+  const [showPrices, setShowPrices] = useState(true);
+  const [promoBanner, setPromoBanner] = useState(null);
+
   useEffect(() => {
-    loadProducts();
-    loadOrders();
+    loadProducts(); loadOrders();
     if (userRole !== 'admin') loadFavorites();
+    Promise.all([
+      fetch('/api/settings').then(r => r.json()).catch(() => ({})),
+      (() => { const t = localStorage.getItem('token'); return t ? fetch('/api/customers/profile', { headers: { 'Authorization': `Bearer ${t}` } }).then(r => r.json()).catch(() => ({})) : Promise.resolve({}) })()
+    ]).then(([settingsData, profileData]) => {
+      const siteWide = settingsData.settings?.show_prices === undefined ? true : (settingsData.settings.show_prices === 'true' || settingsData.settings.show_prices === true);
+      const perCustomer = profileData.customer?.show_prices !== false;
+      setShowPrices(siteWide && perCustomer);
+      if (settingsData.settings?.promo_banner) {
+        try {
+          const b = JSON.parse(settingsData.settings.promo_banner);
+          if (b.enabled) setPromoBanner({ ...b, type: b.type || 'text' });
+        } catch(e) {}
+      }
+    });
   }, []);
 
-  // Populate acctData from currentUser
   useEffect(() => {
     if (!currentUser) return;
     const u = currentUser;
     const parts = (u.name || u.contact_name || '').split(' ');
     setAcctData(prev => ({
-      ...prev,
-      firstName: parts[0] || '',
-      lastName: parts.slice(1).join(' ') || '',
-      company: u.companyName || u.company_name || '',
-      email: u.email || '',
-      phone: u.phone || '',
-      address1: u.address_line1 || '',
-      address2: u.address_line2 || '',
-      city: u.city || '',
-      state: u.state || '',
-      zip: u.zip || '',
-      country: u.country || '',
+      ...prev, firstName: parts[0] || '', lastName: parts.slice(1).join(' ') || '',
+      company: u.companyName || u.company_name || '', email: u.email || '', phone: u.phone || '',
+      address1: u.address_line1 || '', address2: u.address_line2 || '', city: u.city || '',
+      state: u.state || '', zip: u.zip || '', country: u.country || '',
       accountId: u.id ? `HS-${String(u.id).padStart(3, '0')}` : '',
       customerSince: u.created_at ? new Date(u.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '',
-      salesRep: 'Mike Johnson',
-      lastSignIn: 'Today'
+      salesRep: 'Mike Johnson', lastSignIn: 'Today'
     }));
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch('/api/customers/profile', { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (!data?.customer) return;
+          const c = data.customer;
+          const nameParts = (c.contact_name || '').split(' ');
+          setAcctData(prev => ({
+            ...prev, firstName: nameParts[0] || prev.firstName, lastName: nameParts.slice(1).join(' ') || prev.lastName,
+            company: c.company_name || prev.company, email: c.email || prev.email, phone: c.phone || '',
+            altPhone: c.alt_phone || '', address1: c.address_line1 || '', address2: c.address_line2 || '',
+            city: c.city || '', state: c.state || '', zip: c.zip || '', country: c.country || '',
+            accountId: c.id ? `HS-${String(c.id).padStart(3, '0')}` : prev.accountId,
+            customerSince: c.created_at ? new Date(c.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : prev.customerSince,
+            lastSignIn: c.last_login ? new Date(c.last_login).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Today'
+          }));
+        }).catch(() => {});
+    }
   }, [currentUser]);
 
-  // Auto-retry if products failed to load on first render
   useEffect(() => {
-    if (products.length === 0) {
-      const timer = setTimeout(() => loadProducts(), 500);
-      return () => clearTimeout(timer);
-    }
+    if (products.length === 0) { const timer = setTimeout(() => loadProducts(), 500); return () => clearTimeout(timer); }
   }, [products.length]);
 
   const loadProducts = async () => {
     try {
-      console.log('[CustomerApp] Loading products...');
-      const res = await fetch('/api/products');
-      console.log('[CustomerApp] API response status:', res.status);
-      const data = await res.json();
-      const prods = data.products || [];
-      console.log('[CustomerApp] Got', prods.length, 'products');
-      setProducts(prods);
-
+      const res = await fetch('/api/products'); const data = await res.json();
+      const prods = data.products || []; setProducts(prods);
       const superCatMap = new Map();
       prods.forEach(p => {
         if (p.is_hidden) return;
-        const superKey = p.super_category || 'Other';
-        const subKey = p.category || 'Uncategorized';
-        if (!superCatMap.has(superKey)) {
-          superCatMap.set(superKey, { super: superKey, name: superKey, count: 0, subcategories: new Map() });
-        }
+        const superKey = p.super_category || 'Other'; const subKey = p.category || 'Uncategorized';
+        if (!superCatMap.has(superKey)) superCatMap.set(superKey, { super: superKey, name: superKey, count: 0, subcategories: new Map() });
         const superCat = superCatMap.get(superKey);
-        if (!superCat.subcategories.has(subKey)) {
-          superCat.subcategories.set(subKey, { name: subKey, super: superKey, count: 0 });
-        }
-        superCat.subcategories.get(subKey).count++;
-        superCat.count++;
+        if (!superCat.subcategories.has(subKey)) superCat.subcategories.set(subKey, { name: subKey, super: superKey, count: 0 });
+        superCat.subcategories.get(subKey).count++; superCat.count++;
       });
-
-      setCategories(Array.from(superCatMap.values())
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map(sc => ({
-          ...sc,
-          subcategories: Array.from(sc.subcategories.values()).sort((a, b) => a.name.localeCompare(b.name))
-        })));
-    } catch (err) {
-      console.error('Failed to load products:', err);
-    }
+      setCategories(Array.from(superCatMap.values()).sort((a, b) => a.name.localeCompare(b.name)).map(sc => ({
+        ...sc, subcategories: Array.from(sc.subcategories.values()).sort((a, b) => a.name.localeCompare(b.name))
+      })));
+    } catch (err) { console.error('Failed to load products:', err); }
   };
 
-  const addToCart = (product, qty = 1) => {
+  const addToCart = (product, qty = 1, unit = 'cases') => {
     setCartItems(prev => {
       const existing = prev.find(item => item.id === product.id);
-      if (existing) {
-        return prev.map(item => item.id === product.id ? { ...item, qty: item.qty + qty } : item);
-      }
-      return [...prev, { ...product, qty }];
+      if (existing) return prev.map(item => item.id === product.id ? { ...item, qty: item.qty + qty, unit } : item);
+      return [...prev, { ...product, qty, unit }];
     });
   };
 
   const toggleFavorite = async (product) => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
+    const token = localStorage.getItem('token'); if (!token) return;
     const isFav = favorites.some(f => f.id === product.id);
+    const prevFavorites = [...favorites];
+    if (isFav) setFavorites(prev => prev.filter(f => f.id !== product.id));
+    else setFavorites(prev => [...prev, product]);
     try {
-      if (isFav) {
-        await fetch(`/api/favorites/${product.id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-        setFavorites(prev => prev.filter(f => f.id !== product.id));
-      } else {
-        await fetch('/api/favorites', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ product_id: product.id }) });
-        setFavorites(prev => [...prev, product]);
-      }
-    } catch (err) { console.error('Toggle favorite error:', err); }
+      if (isFav) { const res = await fetch(`/api/favorites/${product.id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } }); if (!res.ok) throw new Error('Failed'); }
+      else { const res = await fetch('/api/favorites', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ product_id: product.id }) }); if (!res.ok) throw new Error('Failed'); }
+    } catch (err) { setFavorites(prevFavorites); console.error('Toggle favorite error:', err); }
   };
 
   const loadFavorites = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    try {
-      const res = await fetch('/api/favorites', { headers: { 'Authorization': `Bearer ${token}` } });
-      if (res.ok) {
-        const data = await res.json();
-        setFavorites(data.favorites || []);
-      }
-    } catch (err) { console.error(err); }
+    const token = localStorage.getItem('token'); if (!token) return;
+    try { const res = await fetch('/api/favorites', { headers: { 'Authorization': `Bearer ${token}` } }); if (res.ok) { const data = await res.json(); setFavorites(data.favorites || []); } } catch (err) { console.error(err); }
   };
 
   const loadOrders = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    try {
-      const res = await fetch('/api/orders', { headers: { 'Authorization': `Bearer ${token}` } });
-      if (res.ok) {
-        const data = await res.json();
-        setOrders(data.orders || data || []);
-      }
-    } catch (e) { /* ignore */ }
+    const token = localStorage.getItem('token'); if (!token) return;
+    try { const res = await fetch('/api/orders', { headers: { 'Authorization': `Bearer ${token}` } }); if (res.ok) { const data = await res.json(); setOrders(data.orders || data || []); } } catch (e) {}
   };
 
   const filteredProducts = useMemo(() => {
     let filtered = products.filter(p => !p.is_hidden);
     if (selectedCategory) {
       const isSuperCat = selectedCategory.totalProducts !== undefined || selectedCategory.categories;
-      if (isSuperCat) {
-        filtered = filtered.filter(p => p.super_category_id === selectedCategory.id || p.super_category === selectedCategory.name);
-      } else {
-        filtered = filtered.filter(p => p.category_id === selectedCategory.id || p.category === selectedCategory.name);
-      }
+      if (isSuperCat) filtered = filtered.filter(p => p.super_category_id === selectedCategory.id || p.super_category === selectedCategory.name);
+      else filtered = filtered.filter(p => p.category_id === selectedCategory.id || p.category === selectedCategory.name);
     }
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      filtered = filtered.filter(p =>
-        p.name.toLowerCase().includes(q) ||
-        p.sku?.toLowerCase().includes(q) ||
-        p.super_category?.toLowerCase().includes(q) ||
-        p.category?.toLowerCase().includes(q)
-      );
-    }
+    if (searchQuery) { const q = searchQuery.toLowerCase(); filtered = filtered.filter(p => p.name.toLowerCase().includes(q) || p.sku?.toLowerCase().includes(q) || p.super_category?.toLowerCase().includes(q) || p.category?.toLowerCase().includes(q)); }
     return filtered;
   }, [products, selectedCategory, searchQuery]);
 
-  const newItems = useMemo(() => {
-    return products.filter(p => {
-      if (!p.created_at) return false;
-      const createdDate = new Date(p.created_at);
-      const now = new Date();
-      const diffDays = (now - createdDate) / (1000 * 60 * 60 * 24);
-      return diffDays <= 7 && !p.is_hidden;
-    });
-  }, [products]);
+  const newItems = useMemo(() => products.filter(p => { if (!p.created_at) return false; return ((new Date() - new Date(p.created_at)) / (1000 * 60 * 60 * 24)) <= 7 && !p.is_hidden; }), [products]);
+  const filteredOrders = useMemo(() => historyFilter === 'all' ? orders : orders.filter(o => (o.status || '').toLowerCase() === historyFilter.toLowerCase()), [orders, historyFilter]);
+  const cartTotal = useMemo(() => cartItems.reduce((sum, item) => { const cases = item.unit === 'pallets' ? item.qty * (parseInt(item.cases_per_pallet) || 60) : item.qty; return sum + (parseFloat(item.price || 0) * cases); }, 0), [cartItems]);
+  const totalCases = useMemo(() => cartItems.reduce((sum, item) => sum + (item.unit === 'pallets' ? item.qty * (parseInt(item.cases_per_pallet) || 60) : item.qty), 0), [cartItems]);
 
-  const filteredOrders = useMemo(() => {
-    if (historyFilter === 'all') return orders;
-    return orders.filter(o => (o.status || '').toLowerCase() === historyFilter.toLowerCase());
-  }, [orders, historyFilter]);
-
-  const cartTotal = useMemo(() => {
-    return cartItems.reduce((sum, item) => sum + (parseFloat(item.price || 0) * item.qty), 0);
-  }, [cartItems]);
-
-  const totalCases = useMemo(() => {
-    return cartItems.reduce((sum, item) => sum + item.qty, 0);
-  }, [cartItems]);
-
-  const getInitials = () => {
-    const source = currentUser?.companyName || currentUser?.email || 'User';
-    const parts = source.split(/[\s@]/).filter(p => p);
-    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-    return source.substring(0, 2).toUpperCase();
-  };
-
+  const getInitials = () => { const s = currentUser?.companyName || currentUser?.email || 'User'; const p = s.split(/[\s@]/).filter(p => p); return p.length >= 2 ? (p[0][0] + p[1][0]).toUpperCase() : s.substring(0, 2).toUpperCase(); };
   const getDisplayName = () => currentUser?.companyName || currentUser?.email || 'User';
-
-  const removeFromCart = (productId) => {
-    setCartItems(prev => prev.filter(item => item.id !== productId));
-  };
-
-  const updateCartQty = (productId, newQty) => {
-    if (newQty <= 0) {
-      removeFromCart(productId);
-      return;
-    }
-    setCartItems(prev =>
-      prev.map(item => item.id === productId ? { ...item, qty: newQty } : item)
-    );
-  };
-
-  const clearCart = () => {
-    if (window.confirm('Clear all items from cart?')) setCartItems([]);
-  };
+  const removeFromCart = (productId) => setCartItems(prev => prev.filter(item => item.id !== productId));
+  const updateCartQty = (productId, newQty) => { if (newQty <= 0) { removeFromCart(productId); return; } setCartItems(prev => prev.map(item => item.id === productId ? { ...item, qty: newQty } : item)); };
+  const clearCart = () => { if (window.confirm('Clear all items from cart?')) setCartItems([]); };
 
   const submitOrder = async () => {
+    if (isSubmittingOrder) return; setIsSubmittingOrder(true);
     try {
       const token = localStorage.getItem('token');
-      const orderItems = cartItems.map(item => ({
-        product_id: item.id,
-        name: item.name,
-        qty: item.qty,
-        unit: 'cases'
-      }));
-      const res = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ items: orderItems })
-      });
-      if (res.ok) {
-        setCartItems([]);
-        setConfirmModalOpen(false);
-        setActivePage('history');
-        loadOrders();
-      }
-    } catch (e) { console.error(e); }
+      const orderItems = cartItems.map(item => ({ product_id: item.id, name: item.name, qty: item.qty, unit: 'cases' }));
+      const res = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ items: orderItems }) });
+      if (res.ok) { setCartItems([]); setConfirmModalOpen(false); setActivePage('history'); showToast('Order placed successfully'); loadOrders(); }
+      else showToast('Failed to place order', 'error');
+    } catch (e) { showToast('Connection error', 'error'); }
+    finally { setIsSubmittingOrder(false); }
   };
 
-  const selectProduct = (product) => {
-    setSelectedProduct(product);
-    setProductSheetOpen(true);
-    setSheetQty(1);
-    setSelectedUnit('cases');
-  };
-
-  const showAcctBanner = (msg) => {
-    setAcctSaveBanner(msg);
-    setTimeout(() => setAcctSaveBanner(''), 3000);
-  };
-
-  const checkPwdStrength = (val) => {
-    let s = 0;
-    if (val.length >= 8) s++;
-    if (/[A-Z]/.test(val)) s++;
-    if (/[a-z]/.test(val)) s++;
-    if (/[0-9]/.test(val)) s++;
-    if (/[^A-Za-z0-9]/.test(val)) s++;
-    setAcctPwdStrength(s);
-  };
-
-  const pwdStrengthColor = acctPwdStrength <= 1 ? '#c0392b' : acctPwdStrength <= 3 ? '#a05c00' : '#2d7a4f';
+  const selectProduct = (product) => { setSelectedProduct(product); setProductSheetOpen(true); setSheetQty(1); setSelectedUnit('cases'); };
+  const showAcctBanner = (msg) => { setAcctSaveBanner(msg); setTimeout(() => setAcctSaveBanner(''), 3000); };
+  const showToast = (msg, type = 'success') => { setToastMsg(msg); setToastType(type); setTimeout(() => setToastMsg(''), 3000); };
+  const checkPwdStrength = (val) => { let s = 0; if (val.length >= 8) s++; if (/[A-Z]/.test(val)) s++; if (/[a-z]/.test(val)) s++; if (/[0-9]/.test(val)) s++; if (/[^A-Za-z0-9]/.test(val)) s++; setAcctPwdStrength(s); };
+  const pwdStrengthColor = acctPwdStrength <= 1 ? '#ef4444' : acctPwdStrength <= 3 ? '#f59e0b' : '#10b981';
   const pwdStrengthLabel = acctPwdStrength <= 1 ? 'Weak' : acctPwdStrength <= 3 ? 'Medium' : 'Strong';
 
   const saveAcctProfile = async () => {
-    if (!acctData.firstName) return;
+    if (!acctData.firstName) { showToast('First name is required', 'error'); return; }
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('/api/customers/profile', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ contact_name: `${acctData.firstName} ${acctData.lastName}`.trim(), company_name: acctData.company })
-      });
-      if (res.ok) showAcctBanner('Profile saved successfully');
-    } catch (e) { console.error('saveAcctProfile error:', e); }
+      const res = await fetch('/api/customers/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }, body: JSON.stringify({ contact_name: `${acctData.firstName} ${acctData.lastName}`.trim(), company_name: acctData.company }) });
+      if (res.ok) { showAcctBanner('Profile saved successfully'); showToast('Profile saved'); const updatedUser = { ...currentUser, companyName: acctData.company, company_name: acctData.company, name: `${acctData.firstName} ${acctData.lastName}`.trim(), contact_name: `${acctData.firstName} ${acctData.lastName}`.trim() }; setCurrentUser(updatedUser); try { localStorage.setItem('user', JSON.stringify(updatedUser)); localStorage.setItem('userInfo', JSON.stringify({ ...updatedUser, role: userRole })); } catch (e) {} }
+      else showToast('Failed to save profile', 'error');
+    } catch (e) { showToast('Connection error', 'error'); }
   };
 
   const saveAcctContact = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('/api/customers/profile', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ phone: acctData.phone, address_line1: acctData.address1, address_line2: acctData.address2, city: acctData.city, state: acctData.state, zip: acctData.zip, country: acctData.country })
-      });
-      if (res.ok) showAcctBanner('Contact info saved');
-    } catch (e) { console.error('saveAcctContact error:', e); }
+      const res = await fetch('/api/customers/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }, body: JSON.stringify({ phone: acctData.phone, alt_phone: acctData.altPhone, address_line1: acctData.address1, address_line2: acctData.address2, city: acctData.city, state: acctData.state, zip: acctData.zip, country: acctData.country }) });
+      if (res.ok) { showAcctBanner('Contact info saved'); showToast('Contact info saved'); } else showToast('Failed to save contact info', 'error');
+    } catch (e) { showToast('Connection error', 'error'); }
   };
 
-  const clearAcctContact = () => {
-    setAcctData(prev => ({ ...prev, phone: '', altPhone: '', address1: '', address2: '', city: '', state: '', zip: '', country: '' }));
-  };
+  const clearAcctContact = () => { setAcctData(prev => ({ ...prev, phone: '', altPhone: '', address1: '', address2: '', city: '', state: '', zip: '', country: '' })); showToast('Contact fields cleared'); };
 
   const saveAcctSecurity = async () => {
-    if (!acctCurrentPwd || !acctNewPwd) return;
-    if (acctNewPwd !== acctConfirmPwd) { showAcctBanner('Passwords do not match'); return; }
+    if (!acctCurrentPwd || !acctNewPwd) { showToast('Please fill in all password fields', 'error'); return; }
+    if (acctNewPwd !== acctConfirmPwd) { showToast('Passwords do not match', 'error'); return; }
+    if (acctNewPwd.length < 8) { showToast('Password must be at least 8 characters', 'error'); return; }
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('/api/customers/change-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ currentPassword: acctCurrentPwd, newPassword: acctNewPwd })
-      });
-      if (res.ok) { showAcctBanner('Password updated successfully'); setAcctCurrentPwd(''); setAcctNewPwd(''); setAcctConfirmPwd(''); setAcctPwdStrength(0); }
-      else { const d = await res.json(); showAcctBanner(d.error || 'Failed to update password'); }
-    } catch (e) { console.error('saveAcctSecurity error:', e); }
+      const res = await fetch('/api/customers/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }, body: JSON.stringify({ currentPassword: acctCurrentPwd, newPassword: acctNewPwd }) });
+      if (res.ok) { showAcctBanner('Password updated successfully'); showToast('Password updated'); setAcctCurrentPwd(''); setAcctNewPwd(''); setAcctConfirmPwd(''); setAcctPwdStrength(0); }
+      else { const d = await res.json(); showToast(d.error || 'Failed to update password', 'error'); }
+    } catch (e) { showToast('Connection error', 'error'); }
+  };
+
+  const statusBadgeClass = (status) => {
+    const s = (status || '').toLowerCase();
+    if (s === 'pending') return 'bg-amber-100 text-amber-600';
+    if (s === 'processing') return 'bg-blue-100 text-blue-600';
+    if (s === 'received') return 'bg-emerald-100 text-emerald-600';
+    return 'bg-slate-100 text-slate-600';
   };
 
   return (
-    <div className="app">
+    <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
+
+      {/* UTILITY BAR */}
+      <div className="hidden sm:flex items-center justify-between px-6 h-8 bg-slate-900 text-slate-400 text-[11px] shrink-0">
+        <span>B2B Wholesale Portal — Registered Distributors Only</span>
+        <div className="flex gap-4">
+          <a href="https://drprepperusa.com" className="text-slate-400 no-underline hover:text-white transition-colors" target="_blank" rel="noopener noreferrer">Visit Website</a>
+          <a href="#" className="text-slate-400 no-underline hover:text-white transition-colors">Help Center</a>
+          <a href="#" className="text-slate-400 no-underline hover:text-white transition-colors">Contact Sales</a>
+        </div>
+      </div>
 
       {/* NAV */}
-      <nav className="topnav">
-        <div className="nav-left">
-          <button className={`burger ${sidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(!sidebarOpen)}>
-            <span></span><span></span><span></span>
+      <nav className="grid grid-cols-[auto_1fr_auto] items-center px-6 h-14 bg-white border-b border-slate-200 sticky top-0 z-[1000] shadow-sm gap-3 max-sm:px-3 max-sm:fixed max-sm:top-0 max-sm:left-0 max-sm:right-0">
+        <div className="flex items-center gap-5 max-sm:gap-2">
+          <button className="w-9 h-9 border-none bg-transparent cursor-pointer flex flex-col items-center justify-center gap-1 rounded-lg transition-colors hover:bg-slate-100"
+            onClick={() => setSidebarOpen(!sidebarOpen)}>
+            <Menu className={`w-5 h-5 transition-colors ${sidebarOpen ? 'text-indigo-500' : 'text-slate-500'}`} />
           </button>
-          <div className="brand">
-            <div className="brand-logo">{'\uD83D\uDD25'}</div>
-            <span className="brand-name"><span>DR</span> Prepper</span>
+          <div className="flex items-center gap-2.5 font-bold cursor-pointer">
+            <div className="bg-slate-900 text-white p-1.5 rounded-lg">
+              <Flame className="w-4 h-4" />
+            </div>
+            <span className="text-lg tracking-tight max-sm:text-[15px]"><span className="text-indigo-500">DR</span> Prepper</span>
           </div>
         </div>
-        <div className="nav-right">
-          <div className="nav-tabs">
+
+        <div className="flex items-center justify-center gap-3 max-sm:!hidden">
+          <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
             {tabs.map(tab => (
-              <button
-                key={tab.id}
-                className={`nav-tab ${activePage === tab.id ? 'active' : ''}`}
-                onClick={() => setActivePage(tab.id)}
-              >
-                {tab.icon} {tab.name}
+              <button key={tab.id} onClick={() => setActivePage(tab.id)}
+                className={`flex items-center gap-1.5 px-4 py-2 border-none rounded-lg text-sm font-medium cursor-pointer transition-all ${activePage === tab.id ? 'bg-white text-slate-800 shadow-sm' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}>
+                <tab.Icon className="w-4 h-4" /> {tab.name}
               </button>
             ))}
           </div>
           {userRole === 'admin' && (
-            <div className="view-mode-toggle">
-              <button className={`toggle-btn ${viewMode === 'customer' ? 'active' : ''}`} onClick={() => setViewMode('customer')}>{'\uD83D\uDC65'} Customer</button>
-              <button className={`toggle-btn ${viewMode === 'admin' ? 'active' : ''}`} onClick={() => setViewMode('admin')}>{'\uD83D\uDD27'} Admin</button>
+            <div className="hidden sm:flex gap-1 bg-slate-100 p-1 rounded-xl">
+              <button className={`px-3 py-1.5 border-none rounded-md text-xs font-semibold cursor-pointer transition-all ${viewMode === 'customer' ? 'bg-indigo-500 text-white' : 'bg-transparent text-slate-500'}`} onClick={() => setViewMode('customer')}>Customer</button>
+              <button className={`px-3 py-1.5 border-none rounded-md text-xs font-semibold cursor-pointer transition-all ${viewMode === 'admin' ? 'bg-indigo-500 text-white' : 'bg-transparent text-slate-500'}`} onClick={() => setViewMode('admin')}>Admin</button>
             </div>
           )}
-          <div className="size-slider">
-            <span className="size-label">Cards:</span>
-            <input type="range" min="0.8" max="1.6" step="0.2" value={cardSize} onChange={(e) => setCardSize(parseFloat(e.target.value))} className="slider" />
-            <span className="size-icon">{'\u{1F4CF}'}</span>
+          <div className="hidden sm:flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm">
+            <span className="text-xs font-medium text-slate-500 whitespace-nowrap">Cards:</span>
+            <input type="range" min="0.8" max="1.6" step="0.2" value={cardSize} onChange={(e) => setCardSize(parseFloat(e.target.value))}
+              className="w-20 h-1 rounded-full bg-slate-200 outline-none appearance-none accent-indigo-500 cursor-pointer" />
           </div>
+        </div>
 
-          <div className="acct-wrap">
-            <div className="acct-trigger" onClick={() => setAcctDropdownOpen(!acctDropdownOpen)}>
-              <div className="acct-avatar">{getInitials()}</div>
-              <span className="acct-name">{getDisplayName()}</span>
-              <span className="acct-chevron">{'\u25BC'}</span>
+        <div className="flex items-center gap-3 justify-end max-sm:gap-2">
+          <div className="relative">
+            <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl cursor-pointer transition-colors hover:bg-slate-100"
+              onClick={() => setAcctDropdownOpen(!acctDropdownOpen)}>
+              <div className="w-8 h-8 bg-indigo-500 text-white rounded-full flex items-center justify-center text-xs font-bold">{getInitials()}</div>
+              <span className="text-sm font-semibold max-sm:hidden">{getDisplayName()}</span>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 max-sm:hidden" />
             </div>
-            <div className={`acct-dropdown ${acctDropdownOpen ? 'open' : ''}`}>
-              <div className="acct-dd-head">
-                <div className="acct-dd-co">{currentUser?.companyName || 'Guest'}</div>
-                <div className="acct-dd-email">{currentUser?.email}</div>
+
+            <div className={`absolute top-[calc(100%+8px)] right-0 w-[220px] bg-white border border-slate-200 rounded-xl shadow-xl z-[400] transition-all ${acctDropdownOpen ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-1.5 pointer-events-none'}`}>
+              <div className="px-4 pt-3.5 pb-2.5 border-b border-slate-200">
+                <div className="text-sm font-semibold text-slate-800">{currentUser?.companyName || 'Guest'}</div>
+                <div className="text-[11px] text-slate-400 mt-0.5 truncate">{currentUser?.email}</div>
               </div>
-              <div className="acct-dd-items">
-                <button className="acct-dd-item" onClick={() => { setAcctDropdownOpen(false); setAcctModal('profile'); }}>
-                  <span className="dd-icon">{'\uD83D\uDC64'}</span> My Profile
-                </button>
-                <button className="acct-dd-item" onClick={() => { setAcctDropdownOpen(false); setAcctModal('contact'); }}>
-                  <span className="dd-icon">{'\uD83D\uDCCB'}</span> Contact & Address
-                </button>
-                <button className="acct-dd-item" onClick={() => { setAcctDropdownOpen(false); setAcctModal('security'); }}>
-                  <span className="dd-icon">{'\uD83D\uDD12'}</span> Password & Security
-                </button>
-                <div className="acct-dd-divider"></div>
-                <button className="acct-dd-item danger" onClick={onLogout}>
-                  <span className="dd-icon">{'\u21A9'}</span> Sign out
-                </button>
+              <div className="py-1.5">
+                <button className="flex items-center gap-2.5 w-full px-4 py-2.5 text-left border-none bg-transparent text-[13px] text-slate-600 cursor-pointer transition-colors hover:bg-slate-50 hover:text-slate-800"
+                  onClick={() => { setAcctDropdownOpen(false); setAcctModal('profile'); }}><User className="w-4 h-4" /> My Profile</button>
+                <button className="flex items-center gap-2.5 w-full px-4 py-2.5 text-left border-none bg-transparent text-[13px] text-slate-600 cursor-pointer transition-colors hover:bg-slate-50 hover:text-slate-800"
+                  onClick={() => { setAcctDropdownOpen(false); setAcctModal('contact'); }}><ClipboardList className="w-4 h-4" /> Contact & Address</button>
+                <button className="flex items-center gap-2.5 w-full px-4 py-2.5 text-left border-none bg-transparent text-[13px] text-slate-600 cursor-pointer transition-colors hover:bg-slate-50 hover:text-slate-800"
+                  onClick={() => { setAcctDropdownOpen(false); setAcctModal('security'); }}><Lock className="w-4 h-4" /> Password & Security</button>
+                {userRole === 'admin' && (
+                  <button className="flex items-center gap-2.5 w-full px-4 py-2.5 text-left border-none bg-transparent text-[13px] text-emerald-600 font-semibold cursor-pointer transition-colors hover:bg-emerald-50"
+                    onClick={() => { setAcctDropdownOpen(false); setViewMode('admin'); }}><Settings className="w-4 h-4" /> Back to Admin</button>
+                )}
+                <div className="h-px bg-slate-200 my-1" />
+                <button className="flex items-center gap-2.5 w-full px-4 py-2.5 text-left border-none bg-transparent text-[13px] text-red-500 cursor-pointer transition-colors hover:bg-red-50"
+                  onClick={onLogout}><LogOut className="w-4 h-4" /> Sign out</button>
               </div>
             </div>
           </div>
@@ -406,437 +334,438 @@ function CustomerApp({ currentUser, userRole, viewMode, setViewMode, onLogout })
       </nav>
 
       {/* MOBILE NAV */}
-      <div className="mobile-nav">
-        <div className="mobile-nav-inner">
-          <button className={`mnav-btn ${activePage === 'catalog' ? 'active' : ''}`} onClick={() => setActivePage('catalog')}><span className="micon">{'\uD83D\uDECD'}</span>Order</button>
-          <button className={`mnav-btn ${activePage === 'favs' ? 'active' : ''}`} onClick={() => setActivePage('favs')}><span className="micon">{'\u2661'}</span>Favorites</button>
-          <button className={`mnav-btn ${cartOverlayOpen ? 'active' : ''}`} onClick={() => setCartOverlayOpen(true)}>
-            <span className="micon">{'\uD83D\uDED2'}</span>Cart
-            {cartItems.length > 0 && <span className="mbadge">{cartItems.length}</span>}
-          </button>
-          <button className={`mnav-btn ${activePage === 'history' ? 'active' : ''}`} onClick={() => setActivePage('history')}><span className="micon">{'\uD83D\uDCCB'}</span>History</button>
+      <div className="hidden max-sm:block fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 z-[500] shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+        <div className="flex justify-around items-center h-full">
+          {[
+            { id: 'catalog', name: 'Order', Icon: ShoppingBag },
+            { id: 'favs', name: 'Favs', Icon: Heart },
+            { id: 'cart', name: 'Cart', Icon: ShoppingCart, isCart: true },
+            { id: 'history', name: 'History', Icon: ClipboardList }
+          ].map(item => (
+            <button key={item.id}
+              className={`flex flex-col items-center gap-0.5 px-3 py-2 border-none bg-transparent cursor-pointer text-[10px] relative ${item.isCart ? (cartOverlayOpen ? 'text-indigo-500' : 'text-slate-400') : (activePage === item.id ? 'text-indigo-500' : 'text-slate-400')}`}
+              onClick={() => item.isCart ? setCartOverlayOpen(true) : setActivePage(item.id)}>
+              <item.Icon className="w-5 h-5" />
+              {item.name}
+              {item.isCart && cartItems.length > 0 && (
+                <span className="absolute top-0.5 right-1 bg-indigo-500 text-white text-[9px] font-bold px-1.5 py-0 rounded-full min-w-[16px] text-center">{cartItems.length}</span>
+              )}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* CONTENT ROW: sidebar + main + cart */}
-      <div className="content-row">
-        {/* SIDEBAR */}
-        <CategorySidebar
-          isOpen={sidebarOpen}
-          token={typeof window !== 'undefined' ? localStorage.getItem('token') : null}
-          selectedCategory={selectedCategory}
-          onSelectCategory={(cat) => { setSelectedCategory(cat); }}
-          onClose={() => setSidebarOpen(false)}
-        />
+      {/* CONTENT ROW */}
+      <div className="flex-1 flex overflow-hidden max-sm:pt-14">
+        <CategorySidebar isOpen={sidebarOpen} token={typeof window !== 'undefined' ? localStorage.getItem('token') : null}
+          selectedCategory={selectedCategory} onSelectCategory={(cat) => setSelectedCategory(cat)} onClose={() => setSidebarOpen(false)} />
 
-        {/* MAIN CONTENT */}
-        <main className={`main-content ${sidebarOpen ? 'sidebar-open' : ''}`}>
-        {activePage === 'catalog' && (
-          <div className="catalog-wrap">
-            <div className="catalog-main">
-              {products.length === 0 && <div style={{padding:20,textAlign:'center',color:'#9a948c'}}>Loading products...</div>}
-              <div className="cat-bar">
-                <span className="cat-bar-title">
-                  {selectedCategory?.name || 'All Products'}
-                  <span className="cat-bar-count">({filteredProducts.length})</span>
-                </span>
-                <div className="cat-bar-controls">
-                  <div className="view-toggle">
-                    <button className={`view-btn ${gridViewMode === 'grid' ? 'active' : ''}`} onClick={() => setGridViewMode('grid')}>{'\u25A6'} Grid</button>
-                    <button className={`view-btn ${gridViewMode === 'categories' ? 'active' : ''}`} onClick={() => setGridViewMode('categories')}>{'\uD83D\uDCC2'} Categories</button>
+        <main className="flex-1 flex relative max-sm:pb-16 min-h-0 overflow-hidden">
+          {/* CATALOG */}
+          {activePage === 'catalog' && (
+            <div className="flex flex-1 w-full min-h-0">
+              <div className="flex-1 overflow-y-auto p-8 max-sm:p-3 max-lg:p-5" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
+                {products.length === 0 && <div className="p-5 text-center text-slate-400">Loading products...</div>}
+
+                {/* Promo Banner */}
+                {promoBanner && promoBanner.type === 'image' && promoBanner.imageUrl ? (
+                  <div className="mb-6 max-sm:mb-4 rounded-2xl overflow-hidden cursor-pointer"
+                    onClick={() => { if (promoBanner.ctaLink) window.open(promoBanner.ctaLink, '_blank') }}>
+                    <img src={promoBanner.imageUrl} alt="Promo" className="w-full max-h-[220px] max-sm:max-h-[140px] object-cover rounded-2xl" />
                   </div>
-                  <div className="search-box">
-                    <span className="search-icon">{'\uD83D\uDD0D'}</span>
-                    <input type="text" placeholder="Search products..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                ) : promoBanner ? (
+                  <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-6 max-sm:p-4 mb-6 max-sm:mb-4 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-40 h-40 bg-indigo-500/10 rounded-full -translate-y-1/2 translate-x-1/3"></div>
+                    <div className="absolute bottom-0 right-20 w-24 h-24 bg-indigo-500/5 rounded-full translate-y-1/2"></div>
+                    <div className="relative flex items-center justify-between gap-6 max-sm:flex-col max-sm:items-start max-sm:gap-3">
+                      <div className="flex-1">
+                        {promoBanner.label && (
+                          <div className="flex items-center gap-2 text-indigo-400 text-[11px] font-bold tracking-widest uppercase mb-2">
+                            <span className="w-5 h-0.5 bg-indigo-400 rounded"></span>
+                            {promoBanner.label}
+                          </div>
+                        )}
+                        <div className="text-white text-xl max-sm:text-lg font-bold leading-tight mb-2">{promoBanner.headline}</div>
+                        {promoBanner.subtitle && <div className="text-slate-400 text-sm max-sm:text-xs leading-relaxed">{promoBanner.subtitle}</div>}
+                      </div>
+                      {promoBanner.ctaText && (
+                        <button onClick={() => { if (promoBanner.ctaLink) window.open(promoBanner.ctaLink, '_blank'); else setActivePage('newItems'); }}
+                          className="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold text-sm px-6 py-3 rounded-xl border-none cursor-pointer transition-colors whitespace-nowrap flex items-center gap-2 shrink-0 max-sm:w-full max-sm:justify-center">
+                          {promoBanner.ctaText} <ArrowRight className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="mb-4 max-sm:mb-3">
+                  <div className="flex items-center justify-between mb-2 max-sm:mb-1.5">
+                    <span className="text-[17px] font-semibold text-slate-800 truncate max-sm:text-[15px]">
+                      {selectedCategory?.name || 'All Products'} <span className="text-[13px] text-slate-400 font-normal ml-1.5">({filteredProducts.length})</span>
+                    </span>
+                    <div className="flex gap-1 bg-slate-100 border border-slate-200 rounded-lg p-0.5 shrink-0 ml-3">
+                      <button className={`px-3.5 py-1.5 border-none rounded-md text-xs font-medium cursor-pointer transition-all flex items-center gap-1 ${gridViewMode === 'grid' ? 'bg-white text-slate-800 shadow-sm font-semibold' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
+                        onClick={() => setGridViewMode('grid')}><LayoutGrid className="w-3.5 h-3.5" /> Grid</button>
+                      <button className={`px-3.5 py-1.5 border-none rounded-md text-xs font-medium cursor-pointer transition-all flex items-center gap-1 ${gridViewMode === 'categories' ? 'bg-white text-slate-800 shadow-sm font-semibold' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
+                        onClick={() => setGridViewMode('categories')}><FolderOpen className="w-3.5 h-3.5" /> Categories</button>
+                    </div>
+                  </div>
+                  <div className="relative max-w-[400px] max-sm:max-w-full">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input type="text" placeholder="Search products..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} autoComplete="off"
+                      className="w-full py-2.5 pl-9 pr-3 border border-slate-200 rounded-xl text-sm transition-colors focus:border-indigo-400 focus:outline-none" />
                   </div>
                 </div>
-              </div>
-              <div className="catalog-content" style={{ '--card-scale': cardSize }}>
+
                 {gridViewMode === 'grid' ? (
-                  <ProductGrid
-                    products={filteredProducts}
-                    favorites={favorites}
-                    cart={cartItems}
-                    cardSize={cardSize}
-                    onProductSelected={selectProduct}
-                    onAddToCart={addToCart}
-                    onToggleFavorite={toggleFavorite}
-                  />
+                  <ProductGrid products={filteredProducts} favorites={favorites} cart={cartItems} cardSize={cardSize}
+                    onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} onCardResize={setCardSize} showPrices={showPrices} />
                 ) : (
-                  <CategoryView
-                    products={filteredProducts}
-                    favorites={favorites}
-                    cart={cartItems}
-                    onProductSelected={selectProduct}
-                    onAddToCart={addToCart}
-                    onToggleFavorite={toggleFavorite}
-                  />
+                  <CategoryView products={filteredProducts} favorites={favorites} cart={cartItems} cardSize={cardSize}
+                    onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} />
                 )}
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {activePage === 'favs' && (
-          <div className="catalog-main fav-main">
-            <div className="page-header">
-              <div className="page-title">{'\u2661'} Favorites</div>
-              <div className="page-subtitle">Products you've saved for quick reordering</div>
-            </div>
-            {favorites.length > 0 ? (
-              <div className="fav-grid" style={{ '--card-scale': cardSize }}>
-                <ProductGrid
-                  products={favorites}
-                  favorites={favorites}
-                  cart={cartItems}
-                  cardSize={cardSize}
-                  onProductSelected={selectProduct}
-                  onAddToCart={addToCart}
-                  onToggleFavorite={toggleFavorite}
-                />
+          {/* FAVORITES */}
+          {activePage === 'favs' && (
+            <div className="flex-1 overflow-y-auto p-8 max-sm:p-3">
+              <div className="mb-6">
+                <div className="text-2xl font-bold text-slate-800 flex items-center gap-2"><Heart className="w-6 h-6" /> Favorites</div>
+                <div className="text-sm text-slate-400 mt-1">Products you&apos;ve saved for quick reordering</div>
               </div>
-            ) : (
-              <div className="empty-state">
-                <div className="es-icon">{'\u2661'}</div>
-                <p>No favorites yet</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activePage === 'newItems' && (
-          <div className="catalog-main">
-            <div className="page-header">
-              <div className="page-title">{'\u2728'} New Items</div>
-              <div className="page-subtitle">Products added in the last 7 days</div>
-            </div>
-            {newItems.length > 0 ? (
-              <CategoryView
-                products={newItems}
-                favorites={favorites}
-                cart={cartItems}
-                onProductSelected={selectProduct}
-                onAddToCart={addToCart}
-                onToggleFavorite={toggleFavorite}
-              />
-            ) : (
-              <div className="empty-state">
-                <div className="es-icon">{'\u2728'}</div>
-                <p>No new items yet</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activePage === 'history' && (
-          <div className="history-main">
-            <div className="history-header">
-              <div className="page-title">Order History</div>
-              <div className="filter-row">
-                {['All', 'Received', 'Processing', 'Pending'].map(f => (
-                  <button key={f} className={`filter-btn ${historyFilter === f.toLowerCase() ? 'active' : ''}`} onClick={() => setHistoryFilter(f.toLowerCase())}>{f}</button>
-                ))}
-              </div>
-            </div>
-            <div className="order-list">
-              {filteredOrders.length > 0 ? filteredOrders.map(order => (
-                <div key={order.id} className="order-card">
-                  <div className="order-card-head">
-                    <div>
-                      <div className="order-id">#{order.id}</div>
-                      <div className="order-date">{new Date(order.created_at).toLocaleDateString()}</div>
-                    </div>
-                    <span className={`order-status-badge s-${(order.status || '').toLowerCase()}`}>{order.status}</span>
-                  </div>
-                  <div className="order-items-list">
-                    {order.items?.map((item, idx) => (
-                      <div key={idx} className="order-item-row">
-                        <span className="oi-name">{item.name}</span>
-                        <span className="oi-qty">{item.qty} cases</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="order-footer">
-                    <span className="order-cases">{order.total_cases || order.items?.reduce((s, i) => s + i.qty, 0)} total cases</span>
-                  </div>
-                </div>
-              )) : (
-                <div className="empty-state">
-                  <div className="es-icon">{'\uD83D\uDCCB'}</div>
-                  <p>No orders yet</p>
-                </div>
+              {favorites.length > 0 ? (
+                <ProductGrid products={favorites} favorites={favorites} cart={cartItems} cardSize={cardSize}
+                  onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} />
+              ) : (
+                <div className="text-center py-16"><Heart className="w-12 h-12 text-slate-300 mx-auto mb-4 opacity-40" /><p className="text-slate-400 text-sm">No favorites yet</p></div>
               )}
             </div>
+          )}
+
+          {/* NEW ITEMS */}
+          {activePage === 'newItems' && (
+            <div className="flex-1 overflow-y-auto p-8 max-sm:p-3">
+              <div className="mb-6">
+                <div className="text-2xl font-bold text-slate-800 flex items-center gap-2"><Sparkles className="w-6 h-6" /> New Items</div>
+                <div className="text-sm text-slate-400 mt-1">Products added in the last 7 days</div>
+              </div>
+              {newItems.length > 0 ? (
+                <CategoryView products={newItems} favorites={favorites} cart={cartItems}
+                  onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} />
+              ) : (
+                <div className="text-center py-16"><Sparkles className="w-12 h-12 text-slate-300 mx-auto mb-4 opacity-40" /><p className="text-slate-400 text-sm">No new items yet</p></div>
+              )}
+            </div>
+          )}
+
+          {/* ORDER HISTORY */}
+          {activePage === 'history' && (
+            <div className="flex-1 overflow-y-auto p-8 max-sm:p-3">
+              <div className="mb-6">
+                <div className="text-2xl font-bold text-slate-800">Order History</div>
+                <div className="flex gap-2 mt-3">
+                  {['All', 'Received', 'Processing', 'Pending'].map(f => (
+                    <button key={f} onClick={() => setHistoryFilter(f.toLowerCase())}
+                      className={`px-4 py-1.5 border rounded-lg text-[13px] cursor-pointer transition-all ${historyFilter === f.toLowerCase() ? 'bg-indigo-500 text-white border-indigo-500' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'}`}>{f}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-3">
+                {filteredOrders.length > 0 ? filteredOrders.map(order => (
+                  <div key={order.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm max-sm:p-3">
+                    <div className="flex justify-between items-center mb-3">
+                      <div>
+                        <div className="font-semibold text-sm">#{(order.id || '').substring(0, 8).toUpperCase()}</div>
+                        <div className="text-xs text-slate-400">{new Date(order.created_at).toLocaleDateString()}</div>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-md text-[11px] font-semibold uppercase ${statusBadgeClass(order.status)}`}>{order.status}</span>
+                    </div>
+                    <div className="border-t border-slate-200 pt-2">
+                      {order.items?.map((item, idx) => (
+                        <div key={idx} className="flex items-center gap-2 py-1.5 text-[13px] border-b border-slate-100 last:border-b-0">
+                          <span className="flex-1 text-slate-800 min-w-0 truncate">{item.name}</span>
+                          <span className="text-slate-400 text-xs whitespace-nowrap">{item.qty} cases × ${parseFloat(item.price || 0).toFixed(2)}</span>
+                          <span className="text-slate-800 font-semibold text-[13px] whitespace-nowrap min-w-[50px] text-right">${(parseFloat(item.price || 0) * (item.qty || 0)).toFixed(2)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-between items-center border-t border-slate-200 pt-2.5 mt-2 text-[13px] text-slate-500 font-medium">
+                      <span>{order.total_cases || order.items?.reduce((s, i) => s + i.qty, 0)} total cases</span>
+                      <span className="text-base font-bold text-indigo-500">${order.items ? order.items.reduce((s, i) => s + (parseFloat(i.price || 0) * (i.qty || 0)), 0).toFixed(2) : '0.00'}</span>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="text-center py-16"><ClipboardList className="w-12 h-12 text-slate-300 mx-auto mb-4 opacity-40" /><p className="text-slate-400 text-sm">No orders yet</p></div>
+                )}
+              </div>
+            </div>
+          )}
+        </main>
+
+        {/* DESKTOP CART SIDEBAR */}
+        <div className="hidden sm:flex w-[340px] min-w-[340px] bg-white border-l border-slate-200 flex-col sticky top-14 shrink-0 max-lg:w-[300px] max-lg:min-w-[300px]" style={{ height: 'calc(100vh - 56px)' }}>
+          <div className="px-5 py-4 border-b border-slate-200"><h2 className="text-base font-semibold m-0 flex items-center gap-2"><ShoppingCart className="w-4 h-4" /> Order</h2></div>
+          <div className="flex-1 overflow-y-auto p-2.5">
+            {cartItems.length === 0 ? <div className="text-center py-10 text-slate-400 text-sm">Your cart is empty</div> :
+              cartItems.map(item => (
+                <div key={item.id} className="flex flex-col gap-1.5 p-3 border-b border-slate-200 relative">
+                  <div className="flex gap-2.5 items-start">
+                    {item.image_url && <img src={item.image_url} alt="" className="w-[60px] h-[60px] object-contain rounded-md bg-white shrink-0 border border-slate-200" />}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium text-slate-800 leading-tight mb-0.5">{item.name}</div>
+                      <div className="text-[11px] text-slate-400 mb-0.5">{item.weight}{item.bags_per_case ? ` · ${item.bags_per_case} bags/case` : ''}</div>
+                      <div className="text-[13px] font-semibold text-indigo-500">${parseFloat(item.price || 0).toFixed(2)}/case</div>
+                    </div>
+                    <button onClick={() => removeFromCart(item.id)} className="bg-transparent border-none cursor-pointer text-slate-400 text-sm p-1 hover:text-red-500"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+                      <button className="w-6 h-6 border border-slate-200 bg-white rounded text-slate-700 cursor-pointer flex items-center justify-center hover:border-indigo-400 hover:text-indigo-500"
+                        onClick={() => updateCartQty(item.id, Math.max(1, item.qty - 1))}><Minus className="w-3 h-3" /></button>
+                      <input type="number" className="w-10 h-6 text-center border border-slate-200 rounded text-xs" value={item.qty} min="1"
+                        onChange={e => updateCartQty(item.id, Math.max(1, parseInt(e.target.value) || 1))} />
+                      <button className="w-6 h-6 border border-slate-200 bg-white rounded text-slate-700 cursor-pointer flex items-center justify-center hover:border-indigo-400 hover:text-indigo-500"
+                        onClick={() => updateCartQty(item.id, item.qty + 1)}><Plus className="w-3 h-3" /></button>
+                      <span className="text-[11px] text-slate-400 ml-1">{item.unit || 'cases'}</span>
+                    </div>
+                    <div className="text-xs font-semibold text-slate-800">${(parseFloat(item.price || 0) * (item.unit === 'pallets' ? item.qty * (parseInt(item.cases_per_pallet) || 60) : item.qty)).toFixed(2)}</div>
+                  </div>
+                </div>
+              ))
+            }
           </div>
-        )}
-      </main>
+          {cartItems.length > 0 && (
+            <div className="px-4 py-4 border-t border-slate-200 bg-slate-50">
+              <div className="flex justify-between text-xs text-slate-500 mb-1"><span>Line items</span><span>{cartItems.length}</span></div>
+              <div className="flex justify-between text-xs text-slate-500 mb-1"><span>Total cases</span><span>{totalCases}</span></div>
+              <div className="flex justify-between text-[13px] text-slate-800 font-semibold border-t border-slate-200 pt-1.5 mt-0.5"><span>Est. total</span><span>${cartTotal.toFixed(2)}</span></div>
+              <button onClick={() => setConfirmModalOpen(true)} className="w-full py-3 bg-indigo-500 border-none rounded-lg text-white font-semibold text-sm cursor-pointer mt-2.5 transition-colors hover:bg-indigo-600 flex items-center justify-center gap-2">Place Order <ArrowRight className="w-4 h-4" /></button>
+              <button onClick={clearCart} className="w-full py-2 bg-transparent border border-slate-200 rounded-lg text-slate-500 text-[13px] cursor-pointer mt-1.5 transition-colors hover:border-red-300 hover:text-red-500">Clear cart</button>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* PRODUCT SHEET */}
-      <div className={`sheet-overlay ${productSheetOpen ? 'open' : ''}`} onClick={(e) => { if (e.target === e.currentTarget) setProductSheetOpen(false); }}>
-        <div className="prod-sheet" onClick={e => e.stopPropagation()}>
-          <div className="sheet-handle"></div>
+      {productSheetOpen && (
+      <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 max-sm:items-end"
+        style={{ animation: 'fadeIn 0.2s ease' }}
+        onClick={(e) => { if (e.target === e.currentTarget) setProductSheetOpen(false); }}>
+        <div className="bg-white rounded-2xl w-full max-w-[500px] overflow-hidden shadow-2xl flex flex-col relative max-sm:max-w-full max-sm:rounded-t-xl max-sm:rounded-b-none max-sm:h-[75vh] max-sm:max-h-[75vh]"
+          style={{ maxHeight: '85vh', animation: 'popIn 0.25s ease' }} onClick={e => e.stopPropagation()}>
+          <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mt-2.5 shrink-0 hidden max-sm:block" />
+          <button onClick={() => setProductSheetOpen(false)}
+            className="absolute top-3 right-3.5 w-7 h-7 rounded-lg border border-slate-200 bg-slate-50 text-slate-400 flex items-center justify-center cursor-pointer z-10 transition-colors hover:bg-indigo-500 hover:border-indigo-500 hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
           {selectedProduct && (
             <>
-              <div className="sheet-hero">
-                <div className="sheet-img-wrap">
-                  <img src={selectedProduct.image_url} alt={selectedProduct.name} />
+              <div className="flex-1 overflow-y-auto min-h-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+                <div className="flex gap-4 p-5 max-sm:flex-col max-sm:items-center max-sm:gap-2 max-sm:p-4 max-sm:text-center">
+                  <div className="w-[180px] h-[180px] shrink-0 bg-white rounded-xl overflow-hidden border border-slate-200 max-sm:w-[150px] max-sm:h-[150px]">
+                    <img src={selectedProduct.image_url} alt={selectedProduct.name} className="w-full h-full object-contain p-2" />
+                  </div>
+                  <div className="flex-1 min-w-0 pt-1 max-sm:w-full">
+                    <div className="text-xl font-semibold text-slate-800 leading-tight mb-1.5 tracking-tight max-sm:text-[17px]">{selectedProduct.name}</div>
+                    <div className="flex flex-wrap gap-1.5 mb-2 max-sm:justify-center">
+                      <span className="bg-slate-100 border border-slate-200 rounded-md px-2.5 py-0.5 text-[11px] text-slate-500">{selectedProduct.super_category}</span>
+                      <span className="bg-slate-100 border border-slate-200 rounded-md px-2.5 py-0.5 text-[11px] text-slate-500">{selectedProduct.category}</span>
+                    </div>
+                    <div className="mb-2 max-sm:hidden">
+                      {selectedProduct.weight && <div className="flex justify-between py-0.5 text-xs"><span className="text-slate-400">Weight</span><span className="text-slate-800 font-medium">{selectedProduct.weight}</span></div>}
+                      {selectedProduct.bags_per_case && <div className="flex justify-between py-0.5 text-xs"><span className="text-slate-400">Bags/Case</span><span className="text-slate-800 font-medium">{selectedProduct.bags_per_case}</span></div>}
+                      {selectedProduct.cases_per_pallet && <div className="flex justify-between py-0.5 text-xs"><span className="text-slate-400">Cases/Pallet</span><span className="text-slate-800 font-medium">{selectedProduct.cases_per_pallet}</span></div>}
+                      {selectedProduct.sku && <div className="flex justify-between py-0.5 text-xs"><span className="text-slate-400">SKU</span><span className="text-slate-800 font-medium font-mono text-[11px]">{selectedProduct.sku}</span></div>}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-2.5 cursor-pointer w-fit max-sm:mx-auto" onClick={() => toggleFavorite(selectedProduct)}>
+                      <Heart className={`w-4.5 h-4.5 transition-colors ${favorites.some(f => f.id === selectedProduct.id) ? 'fill-red-500 text-red-500' : 'text-slate-400'}`} />
+                      <span className="text-xs text-slate-400">{favorites.some(f => f.id === selectedProduct.id) ? 'Saved' : 'Add to favorites'}</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="sheet-info">
-                  <div className="sheet-name">{selectedProduct.name}</div>
-                  <div className="sheet-tags">
-                    <span className="sheet-tag">{selectedProduct.super_category}</span>
-                    <span className="sheet-tag">{selectedProduct.category}</span>
+                <div className="h-px bg-slate-200 mx-5 shrink-0" />
+                <div className="p-5 overflow-y-auto flex-1">
+                  <div className="text-[13px] font-semibold text-slate-800 mb-3">Add to Order</div>
+                  <div className="flex gap-0 bg-slate-100 border border-slate-200 rounded-lg p-0.5 mb-3">
+                    <button className={`flex-1 py-2 text-center rounded-md border-none text-[13px] font-medium cursor-pointer transition-all flex items-center justify-center gap-1.5 ${selectedUnit === 'cases' ? 'bg-white text-indigo-500 shadow-sm font-semibold' : 'bg-transparent text-slate-500'}`}
+                      onClick={() => setSelectedUnit('cases')}><Package className="w-3.5 h-3.5" /> Cases</button>
+                    <button className={`flex-1 py-2 text-center rounded-md border-none text-[13px] font-medium cursor-pointer transition-all flex items-center justify-center gap-1.5 ${selectedUnit === 'pallets' ? 'bg-white text-indigo-500 shadow-sm font-semibold' : 'bg-transparent text-slate-500'}`}
+                      onClick={() => setSelectedUnit('pallets')}><Building className="w-3.5 h-3.5" /> Pallets</button>
                   </div>
-                  <div className="sheet-meta">
-                    {selectedProduct.weight && <div className="sheet-meta-row"><span className="sheet-meta-label">Weight</span><span className="sheet-meta-val">{selectedProduct.weight}</span></div>}
-                    {selectedProduct.bags_per_case && <div className="sheet-meta-row"><span className="sheet-meta-label">Bags/Case</span><span className="sheet-meta-val">{selectedProduct.bags_per_case}</span></div>}
-                    {selectedProduct.cases_per_pallet && <div className="sheet-meta-row"><span className="sheet-meta-label">Cases/Pallet</span><span className="sheet-meta-val">{selectedProduct.cases_per_pallet}</span></div>}
-                    {selectedProduct.sku && <div className="sheet-meta-row"><span className="sheet-meta-label">SKU</span><span className="sheet-meta-val mono">{selectedProduct.sku}</span></div>}
-                  </div>
-                  <div className="sheet-fav" onClick={() => toggleFavorite(selectedProduct)}>
-                    <span className={`sheet-fav-icon ${favorites.some(f => f.id === selectedProduct.id) ? 'faved' : ''}`}>
-                      {favorites.some(f => f.id === selectedProduct.id) ? '\u2665' : '\u2661'}
-                    </span>
-                    <span className="sheet-fav-label">{favorites.some(f => f.id === selectedProduct.id) ? 'Saved' : 'Add to favorites'}</span>
+                  {selectedProduct.show_price !== false && showPrices && (() => {
+                    const casePrice = parseFloat(selectedProduct.price || 0);
+                    const casesPerPallet = parseInt(selectedProduct.cases_per_pallet) || 60;
+                    const unitPrice = selectedUnit === 'pallets' ? casePrice * casesPerPallet : casePrice;
+                    const subtotal = unitPrice * sheetQty;
+                    return (
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 mb-3 text-[13px]">
+                        {selectedUnit === 'pallets' && <div className="flex justify-between py-0.5"><span className="text-slate-400">Cases per pallet</span><span className="text-slate-800 font-medium">{casesPerPallet}</span></div>}
+                        <div className="flex justify-between py-0.5"><span className="text-slate-400">Price per {selectedUnit === 'pallets' ? 'pallet' : 'case'}</span><span className="text-slate-800 font-medium">${unitPrice.toFixed(2)}{selectedUnit === 'pallets' ? ` (${casesPerPallet} × $${casePrice.toFixed(2)})` : ''}</span></div>
+                        <div className="flex justify-between py-0.5"><span className="text-slate-400">Est. subtotal</span><span className="text-indigo-500 font-semibold">${subtotal.toFixed(2)}</span></div>
+                      </div>
+                    );
+                  })()}
+                  <div className="flex items-center gap-2.5 mb-3.5">
+                    <span className="text-[13px] text-slate-500 flex-1 font-medium">Qty ({selectedUnit})</span>
+                    <button onClick={() => setSheetQty(prev => Math.max(1, prev - 1))}
+                      className="w-9 h-9 rounded-lg border border-slate-200 bg-white text-slate-800 cursor-pointer flex items-center justify-center shadow-sm transition-colors hover:bg-indigo-500 hover:border-indigo-500 hover:text-white"><Minus className="w-4 h-4" /></button>
+                    <input type="number" min="1" value={sheetQty} onChange={(e) => setSheetQty(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-14 text-center bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[17px] font-semibold py-1.5 focus:outline-none focus:border-indigo-400" />
+                    <button onClick={() => setSheetQty(prev => prev + 1)}
+                      className="w-9 h-9 rounded-lg border border-slate-200 bg-white text-slate-800 cursor-pointer flex items-center justify-center shadow-sm transition-colors hover:bg-indigo-500 hover:border-indigo-500 hover:text-white"><Plus className="w-4 h-4" /></button>
                   </div>
                 </div>
               </div>
-              <div className="sheet-divider"></div>
-              <div className="sheet-order">
-                <div className="sheet-order-title">Add to Order</div>
-                <div className="unit-tabs">
-                  <button className={`unit-tab ${selectedUnit === 'cases' ? 'active' : ''}`} onClick={() => setSelectedUnit('cases')}>{'\uD83D\uDCE6'} Cases</button>
-                  <button className={`unit-tab ${selectedUnit === 'pallets' ? 'active' : ''}`} onClick={() => setSelectedUnit('pallets')}>{'\uD83C\uDFD7'} Pallets</button>
-                </div>
-                {selectedProduct.show_price !== false && (
-                  <div className="unit-info">
-                    <div className="ui-row">
-                      <span className="ui-label">Price per unit</span>
-                      <span className="ui-val">${parseFloat(selectedProduct.price || 0).toFixed(2)}</span>
-                    </div>
-                    <div className="ui-row">
-                      <span className="ui-label">Est. subtotal</span>
-                      <span className="ui-val red">${(parseFloat(selectedProduct.price || 0) * sheetQty).toFixed(2)}</span>
-                    </div>
-                  </div>
-                )}
-                <div className="qty-row">
-                  <span className="qty-label">Qty ({selectedUnit})</span>
-                  <button className="qty-minus" onClick={() => setSheetQty(prev => Math.max(1, prev - 1))}>{'\u2212'}</button>
-                  <input
-                    type="number"
-                    min="1"
-                    className="qty-input"
-                    value={sheetQty}
-                    onChange={(e) => setSheetQty(Math.max(1, parseInt(e.target.value) || 1))}
-                  />
-                  <button className="qty-plus" onClick={() => setSheetQty(prev => prev + 1)}>+</button>
-                </div>
-                <button className="btn-add" onClick={() => { addToCart(selectedProduct, sheetQty); setProductSheetOpen(false); }}>
-                  Add {sheetQty} {selectedUnit} to Cart
+              <div className="p-4 border-t border-slate-200 bg-white shrink-0 max-sm:p-4 max-sm:border-t-0">
+                <button onClick={() => { addToCart(selectedProduct, sheetQty, selectedUnit); setProductSheetOpen(false); }}
+                  className="w-full py-3.5 bg-indigo-500 border-none rounded-xl text-white font-semibold text-[15px] cursor-pointer transition-colors hover:bg-indigo-600">
+                  Add {sheetQty} {selectedUnit}{selectedUnit === 'pallets' ? ` (${sheetQty * (parseInt(selectedProduct.cases_per_pallet) || 60)} cases)` : ''} to Cart
                 </button>
               </div>
             </>
           )}
         </div>
       </div>
+      )}
 
-      {/* CART OVERLAY */}
-      <CartOverlay
-        isOpen={cartOverlayOpen}
-        cartItems={cartItems}
-        onClose={() => setCartOverlayOpen(false)}
-        onRemoveItem={removeFromCart}
-        onPlaceOrder={() => { setConfirmModalOpen(true); setCartOverlayOpen(false); }}
-        onClearCart={clearCart}
-        onUpdateQty={updateCartQty}
-      />
+      <CartOverlay isOpen={cartOverlayOpen} cartItems={cartItems} onClose={() => setCartOverlayOpen(false)}
+        onRemoveItem={removeFromCart} onPlaceOrder={() => { setConfirmModalOpen(true); setCartOverlayOpen(false); }}
+        onClearCart={clearCart} onUpdateQty={updateCartQty} />
 
-      {/* DESKTOP CART SIDEBAR */}
-      <div className={`cart-sidebar ${cartItems.length === 0 ? 'empty' : ''} desktop-only`}>
-        <div className="cart-head"><h2>{'\uD83D\uDED2'} Order</h2></div>
-        <div className="cart-items">
-          {cartItems.length === 0 ? <div className="cart-empty">Your cart is empty</div> :
-            cartItems.map(item => (
-              <div key={item.id} className="cart-item">
-                {item.image_url && <img src={item.image_url} alt="" className="ci-img" />}
-                <div className="ci-details">
-                  <div className="ci-meta-top">{item.weight}{item.bags_per_case ? ` · ${item.bags_per_case} bags/case` : ''}</div>
-                  <div className="ci-price">${parseFloat(item.price || 0).toFixed(2)}</div>
-                  <div className="ci-qty-row">
-                    <button className="ci-qty-btn" onClick={() => updateCartQty(item.id, Math.max(1, item.qty - 1))}>−</button>
-                    <input type="number" className="ci-qty-input" value={item.qty} min="1"
-                      onChange={e => updateCartQty(item.id, Math.max(1, parseInt(e.target.value) || 1))} />
-                    <button className="ci-qty-btn" onClick={() => updateCartQty(item.id, item.qty + 1)}>+</button>
-                    <span className="ci-unit">cases</span>
-                  </div>
-                  <div className="ci-subtotal">${(parseFloat(item.price || 0) * item.qty).toFixed(2)}</div>
-                </div>
-                <button className="ci-remove" onClick={() => removeFromCart(item.id)}>{'\u2715'}</button>
-              </div>
-            ))
-          }
-        </div>
-        {cartItems.length > 0 && (
-          <div className="cart-footer">
-            <div className="sum-row"><span>Line items</span><span>{cartItems.length}</span></div>
-            <div className="sum-row"><span>Total cases</span><span>{totalCases}</span></div>
-            <div className="sum-row total"><span>Est. total</span><span>${cartTotal.toFixed(2)}</span></div>
-            <button className="btn-place" onClick={() => setConfirmModalOpen(true)}>Place Order {'\u2192'}</button>
-            <button className="btn-clear-cart" onClick={clearCart}>Clear cart</button>
-          </div>
-        )}
-      </div>
-      </div>{/* END content-row */}
-
-      {/* ORDER CONFIRM MODAL */}
-      <OrderConfirmModal
-        isOpen={confirmModalOpen}
-        onClose={() => setConfirmModalOpen(false)}
-        onSubmit={submitOrder}
-        cartItems={cartItems}
-        total={cartTotal}
-      />
+      <OrderConfirmModal isOpen={confirmModalOpen} onClose={() => setConfirmModalOpen(false)} onSubmit={submitOrder}
+        cartItems={cartItems} total={cartTotal} isSubmitting={isSubmittingOrder} />
 
       {/* ACCOUNT SETTINGS MODAL */}
       {acctModal && (
-        <div className="acct-modal-overlay" onClick={() => setAcctModal(null)}>
-          <div className="acct-modal" onClick={e => e.stopPropagation()}>
-            <div className="acct-modal-header">
-              <div className="acct-modal-title">Account Settings</div>
-              <button className="acct-modal-close" onClick={() => setAcctModal(null)}>{'\u2715'}</button>
+        <div className="fixed inset-0 bg-black/40 z-[2000] flex items-center justify-center p-5" onClick={() => setAcctModal(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-[480px] max-h-[90vh] flex flex-col shadow-2xl overflow-hidden max-sm:max-w-full max-sm:rounded-xl max-sm:m-2.5"
+            style={{ animation: 'popIn 0.2s ease' }} onClick={e => e.stopPropagation()} onKeyDown={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
+              <div className="text-base font-semibold text-slate-800">Account Settings</div>
+              <button onClick={() => setAcctModal(null)} className="w-7 h-7 rounded-lg border border-slate-200 bg-slate-50 text-slate-400 cursor-pointer flex items-center justify-center transition-colors hover:bg-indigo-500 hover:border-indigo-500 hover:text-white"><X className="w-3.5 h-3.5" /></button>
             </div>
-            <div className="acct-modal-tabs">
-              <button className={`am-tab ${acctModal === 'profile' ? 'active' : ''}`} onClick={() => setAcctModal('profile')}>{'\u{1F464}'} Profile</button>
-              <button className={`am-tab ${acctModal === 'contact' ? 'active' : ''}`} onClick={() => setAcctModal('contact')}>{'\u{1F4CB}'} Contact</button>
-              <button className={`am-tab ${acctModal === 'security' ? 'active' : ''}`} onClick={() => setAcctModal('security')}>{'\u{1F512}'} Security</button>
+            <div className="flex gap-0.5 px-3 py-2 bg-slate-50 border-b border-slate-200 shrink-0">
+              {[{ key: 'profile', label: 'Profile', Icon: User }, { key: 'contact', label: 'Contact', Icon: ClipboardList }, { key: 'security', label: 'Security', Icon: Lock }].map(t => (
+                <button key={t.key} onClick={e => { e.stopPropagation(); setAcctModal(t.key); }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 border-none rounded-lg text-xs font-medium cursor-pointer transition-all ${acctModal === t.key ? 'bg-white text-indigo-500 shadow-sm font-semibold' : 'bg-transparent text-slate-500 hover:bg-slate-200 hover:text-slate-700'}`}>
+                  <t.Icon className="w-3.5 h-3.5" /> {t.label}
+                </button>
+              ))}
             </div>
-            <div className="acct-modal-body">
-              {acctSaveBanner && <div className="acct-save-banner">{'\u2705'} {acctSaveBanner}</div>}
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {acctSaveBanner && <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-lg px-3.5 py-2.5 text-[13px] font-medium mb-3.5"><CheckCircle className="w-4 h-4 shrink-0" /> {acctSaveBanner}</div>}
 
               {acctModal === 'profile' && (
                 <div>
-                  <div className="am-readonly-section">
-                    <div className="am-field-row">
-                      <span className="am-label">Account ID</span>
-                      <span className="am-value mono">{acctData.accountId}</span>
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 mb-4">
+                    {[['Account ID', acctData.accountId, true], ['Customer since', acctData.customerSince], ['Assigned rep', acctData.salesRep]].map(([label, val, mono]) => (
+                      <div key={label} className="flex justify-between items-center py-1.5 text-xs border-b border-slate-100 last:border-b-0">
+                        <span className="text-slate-400">{label}</span>
+                        <span className={`text-slate-800 font-medium ${mono ? 'font-mono text-[11px] text-slate-500' : ''}`}>{val}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex flex-col gap-2.5 mb-4">
+                    <div className="flex gap-2.5 max-sm:flex-col">
+                      {[['First Name', 'firstName'], ['Last Name', 'lastName']].map(([label, key]) => (
+                        <div key={key} className="flex-1 flex flex-col gap-1">
+                          <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</label>
+                          <input type="text" value={acctData[key]} onChange={e => setAcctData(p => ({ ...p, [key]: e.target.value }))}
+                            className="px-2.5 py-2 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400" />
+                        </div>
+                      ))}
                     </div>
-                    <div className="am-field-row">
-                      <span className="am-label">Customer since</span>
-                      <span className="am-value">{acctData.customerSince}</span>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Company Name</label>
+                      <input type="text" value={acctData.company} onChange={e => setAcctData(p => ({ ...p, company: e.target.value }))}
+                        className="px-2.5 py-2 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400" />
                     </div>
-                    <div className="am-field-row">
-                      <span className="am-label">Assigned rep</span>
-                      <span className="am-value">{acctData.salesRep}</span>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Email (cannot change)</label>
+                      <input type="email" value={acctData.email} disabled autoComplete="off"
+                        className="px-2.5 py-2 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-slate-50 outline-none opacity-60 cursor-not-allowed" />
                     </div>
                   </div>
-                  <div className="am-form">
-                    <div className="am-input-row">
-                      <div className="am-input-group">
-                        <label>First Name</label>
-                        <input type="text" value={acctData.firstName} onChange={e => setAcctData(p => ({ ...p, firstName: e.target.value }))} />
-                      </div>
-                      <div className="am-input-group">
-                        <label>Last Name</label>
-                        <input type="text" value={acctData.lastName} onChange={e => setAcctData(p => ({ ...p, lastName: e.target.value }))} />
-                      </div>
-                    </div>
-                    <div className="am-input-group">
-                      <label>Company Name</label>
-                      <input type="text" value={acctData.company} onChange={e => setAcctData(p => ({ ...p, company: e.target.value }))} />
-                    </div>
-                    <div className="am-input-group">
-                      <label>Email (cannot change)</label>
-                      <input type="email" value={acctData.email} disabled />
-                    </div>
-                  </div>
-                  <button className="btn-am-save" onClick={saveAcctProfile}>Save Profile</button>
+                  <button onClick={saveAcctProfile} className="w-full py-2.5 bg-indigo-500 border-none rounded-lg text-white font-semibold text-sm cursor-pointer transition-colors hover:bg-indigo-600">Save Profile</button>
                 </div>
               )}
 
               {acctModal === 'contact' && (
                 <div>
-                  <div className="am-form">
-                    <div className="am-input-row">
-                      <div className="am-input-group">
-                        <label>Primary Phone</label>
-                        <input type="tel" value={acctData.phone} onChange={e => setAcctData(p => ({ ...p, phone: e.target.value }))} />
-                      </div>
-                      <div className="am-input-group">
-                        <label>Alt Phone</label>
-                        <input type="tel" value={acctData.altPhone} onChange={e => setAcctData(p => ({ ...p, altPhone: e.target.value }))} />
-                      </div>
+                  <div className="flex flex-col gap-2.5 mb-4">
+                    <div className="flex gap-2.5 max-sm:flex-col">
+                      {[['Primary Phone', 'phone', 'tel'], ['Alt Phone', 'altPhone', 'tel']].map(([label, key, type]) => (
+                        <div key={key} className="flex-1 flex flex-col gap-1">
+                          <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</label>
+                          <input type={type} value={acctData[key]} onChange={e => setAcctData(p => ({ ...p, [key]: e.target.value }))}
+                            className="px-2.5 py-2 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400" />
+                        </div>
+                      ))}
                     </div>
-                    <div className="am-input-group">
-                      <label>Address Line 1</label>
-                      <input type="text" value={acctData.address1} onChange={e => setAcctData(p => ({ ...p, address1: e.target.value }))} />
-                    </div>
-                    <div className="am-input-group">
-                      <label>Address Line 2</label>
-                      <input type="text" value={acctData.address2} onChange={e => setAcctData(p => ({ ...p, address2: e.target.value }))} />
-                    </div>
-                    <div className="am-input-row">
-                      <div className="am-input-group">
-                        <label>City</label>
-                        <input type="text" value={acctData.city} onChange={e => setAcctData(p => ({ ...p, city: e.target.value }))} />
+                    {[['Address Line 1', 'address1'], ['Address Line 2', 'address2']].map(([label, key]) => (
+                      <div key={key} className="flex flex-col gap-1">
+                        <label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{label}</label>
+                        <input type="text" value={acctData[key]} onChange={e => setAcctData(p => ({ ...p, [key]: e.target.value }))}
+                          className="px-2.5 py-2 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400" />
                       </div>
-                      <div className="am-input-group" style={{ maxWidth: 80 }}>
-                        <label>State</label>
-                        <input type="text" value={acctData.state} onChange={e => setAcctData(p => ({ ...p, state: e.target.value }))} />
-                      </div>
-                      <div className="am-input-group" style={{ maxWidth: 100 }}>
-                        <label>ZIP</label>
-                        <input type="text" value={acctData.zip} onChange={e => setAcctData(p => ({ ...p, zip: e.target.value }))} />
-                      </div>
+                    ))}
+                    <div className="flex gap-2.5 max-sm:flex-col">
+                      <div className="flex-1 flex flex-col gap-1"><label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">City</label><input type="text" value={acctData.city} onChange={e => setAcctData(p => ({ ...p, city: e.target.value }))} className="px-2.5 py-2 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400" /></div>
+                      <div className="w-20 flex flex-col gap-1 max-sm:w-full"><label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">State</label><input type="text" value={acctData.state} onChange={e => setAcctData(p => ({ ...p, state: e.target.value }))} className="px-2.5 py-2 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400" /></div>
+                      <div className="w-24 flex flex-col gap-1 max-sm:w-full"><label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">ZIP</label><input type="text" value={acctData.zip} onChange={e => setAcctData(p => ({ ...p, zip: e.target.value }))} className="px-2.5 py-2 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400" /></div>
                     </div>
-                    <div className="am-input-group">
-                      <label>Country</label>
-                      <input type="text" value={acctData.country} onChange={e => setAcctData(p => ({ ...p, country: e.target.value }))} />
-                    </div>
+                    <div className="flex flex-col gap-1"><label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Country</label><input type="text" value={acctData.country} onChange={e => setAcctData(p => ({ ...p, country: e.target.value }))} className="px-2.5 py-2 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400" /></div>
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="btn-am-save" onClick={saveAcctContact}>Save Contact</button>
-                    <button className="btn-am-clear" onClick={clearAcctContact}>Clear All</button>
+                  <div className="flex gap-2">
+                    <button onClick={saveAcctContact} className="flex-1 py-2.5 bg-indigo-500 border-none rounded-lg text-white font-semibold text-sm cursor-pointer transition-colors hover:bg-indigo-600">Save Contact</button>
+                    <button onClick={clearAcctContact} className="flex-1 py-2.5 bg-transparent border border-slate-200 rounded-lg text-slate-500 font-semibold text-sm cursor-pointer transition-colors hover:border-red-300 hover:text-red-500 hover:bg-red-50">Clear All</button>
                   </div>
                 </div>
               )}
 
               {acctModal === 'security' && (
                 <div>
-                  <div className="am-readonly-section">
-                    <div className="am-field-row">
-                      <span className="am-label">Login email</span>
-                      <span className="am-value">{acctData.email}</span>
-                    </div>
-                    <div className="am-field-row">
-                      <span className="am-label">Last sign in</span>
-                      <span className="am-value">{acctData.lastSignIn}</span>
-                    </div>
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 mb-4">
+                    {[['Login email', acctData.email], ['Last sign in', acctData.lastSignIn]].map(([label, val]) => (
+                      <div key={label} className="flex justify-between items-center py-1.5 text-xs border-b border-slate-100 last:border-b-0">
+                        <span className="text-slate-400">{label}</span><span className="text-slate-800 font-medium">{val}</span>
+                      </div>
+                    ))}
                   </div>
-                  <div className="am-form">
-                    <div className="am-input-group">
-                      <label>Current Password</label>
-                      <input type="password" value={acctCurrentPwd} onChange={e => setAcctCurrentPwd(e.target.value)} placeholder="Enter current password" />
-                    </div>
-                    <div className="am-input-group">
-                      <label>New Password</label>
-                      <input type="password" value={acctNewPwd} onChange={e => { setAcctNewPwd(e.target.value); checkPwdStrength(e.target.value); }} placeholder="Min 8 characters" />
+                  <div className="flex flex-col gap-2.5 mb-4">
+                    <div className="flex flex-col gap-1"><label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Current Password</label>
+                      <input type="password" value={acctCurrentPwd} onChange={e => setAcctCurrentPwd(e.target.value)} placeholder="Enter current password" autoComplete="off"
+                        className="px-2.5 py-2 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400" /></div>
+                    <div className="flex flex-col gap-1"><label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">New Password</label>
+                      <input type="password" value={acctNewPwd} onChange={e => { setAcctNewPwd(e.target.value); checkPwdStrength(e.target.value); }} placeholder="Min 8 characters" autoComplete="new-password"
+                        className="px-2.5 py-2 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400" />
                       {acctNewPwd && (
-                        <div className="pwd-strength">
-                          <div className="pwd-bar"><div className="pwd-fill" style={{ width: `${(acctPwdStrength / 5) * 100}%`, background: pwdStrengthColor }} /></div>
-                          <span className="pwd-label" style={{ color: pwdStrengthColor }}>{pwdStrengthLabel}</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="flex-1 h-1 bg-slate-200 rounded-full overflow-hidden"><div className="h-full rounded-full transition-all duration-300" style={{ width: `${(acctPwdStrength / 5) * 100}%`, background: pwdStrengthColor }} /></div>
+                          <span className="text-[11px] font-medium whitespace-nowrap" style={{ color: pwdStrengthColor }}>{pwdStrengthLabel}</span>
                         </div>
                       )}
                     </div>
-                    <div className="am-input-group">
-                      <label>Confirm New Password</label>
-                      <input type="password" value={acctConfirmPwd} onChange={e => setAcctConfirmPwd(e.target.value)} placeholder="Repeat new password" />
-                    </div>
+                    <div className="flex flex-col gap-1"><label className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Confirm New Password</label>
+                      <input type="password" value={acctConfirmPwd} onChange={e => setAcctConfirmPwd(e.target.value)} placeholder="Repeat new password" autoComplete="new-password"
+                        className="px-2.5 py-2 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400" /></div>
                   </div>
-                  <button className="btn-am-save" onClick={saveAcctSecurity}>Change Password</button>
+                  <button onClick={saveAcctSecurity} className="w-full py-2.5 bg-indigo-500 border-none rounded-lg text-white font-semibold text-sm cursor-pointer transition-colors hover:bg-indigo-600">Change Password</button>
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* TOAST */}
+      {toastMsg && (
+        <div className={`fixed bottom-6 right-6 px-5 py-3 rounded-xl text-sm font-medium text-white z-[3000] shadow-lg max-sm:bottom-[74px] max-sm:right-3 max-sm:left-3 max-sm:text-center ${toastType === 'success' ? 'bg-emerald-500' : 'bg-red-500'}`}
+          style={{ animation: 'toastIn 0.3s ease' }}>
+          <div className="flex items-center gap-2 justify-center">
+            <CheckCircle className="w-4 h-4" /> {toastMsg}
           </div>
         </div>
       )}

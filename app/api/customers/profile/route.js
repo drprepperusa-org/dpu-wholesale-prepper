@@ -10,9 +10,9 @@ export async function GET(request) {
     }
 
     const result = await pool.query(`
-      SELECT id, company_name, contact_name, email, phone,
+      SELECT id, company_name, contact_name, email, phone, alt_phone,
              address_line1, address_line2, city, state, zip, country,
-             created_at, last_login
+             show_prices, created_at, last_login
       FROM customers WHERE id = $1
     `, [customer.id]);
 
@@ -30,6 +30,10 @@ export async function GET(request) {
   }
 }
 
+export async function PATCH(request) {
+  return PUT(request);
+}
+
 export async function PUT(request) {
   try {
     const customer = await requireAuth(request);
@@ -38,7 +42,7 @@ export async function PUT(request) {
     }
 
     const body = await request.json();
-    const { contact_name, company_name, email, phone, address_line1, address_line2, city, state, zip, country } = body;
+    const { contact_name, company_name, email, phone, alt_phone, address_line1, address_line2, city, state, zip, country } = body;
 
     const updateFields = [];
     const values = [];
@@ -48,6 +52,7 @@ export async function PUT(request) {
     if (company_name !== undefined) { updateFields.push(`company_name = $${paramIndex++}`); values.push(company_name); }
     if (email !== undefined) { updateFields.push(`email = $${paramIndex++}`); values.push(email); }
     if (phone !== undefined) { updateFields.push(`phone = $${paramIndex++}`); values.push(phone); }
+    if (alt_phone !== undefined) { updateFields.push(`alt_phone = $${paramIndex++}`); values.push(alt_phone); }
     if (address_line1 !== undefined) { updateFields.push(`address_line1 = $${paramIndex++}`); values.push(address_line1); }
     if (address_line2 !== undefined) { updateFields.push(`address_line2 = $${paramIndex++}`); values.push(address_line2); }
     if (city !== undefined) { updateFields.push(`city = $${paramIndex++}`); values.push(city); }

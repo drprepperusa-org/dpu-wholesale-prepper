@@ -1,7 +1,8 @@
 'use client';
 import React, { useState, useEffect } from 'react'
+import { Heart } from 'lucide-react'
 
-function ProductCard({ product, isFavorited, inCart, isFirst, onProductSelected, onAddToCart, onToggleFavorite, cardSize }) {
+function ProductCard({ product, isFavorited, inCart, isFirst, onProductSelected, onAddToCart, onToggleFavorite, cardSize, onCardResize, showPrices = true }) {
   const [isResizing, setIsResizing] = useState(false)
   const [startX, setStartX] = useState(0)
   const [startY, setStartY] = useState(0)
@@ -16,288 +17,132 @@ function ProductCard({ product, isFavorited, inCart, isFirst, onProductSelected,
     return diffDays <= 7
   })()
 
+  const getXY = (e) => {
+    if (e.touches && e.touches[0]) return { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    return { x: e.clientX, y: e.clientY }
+  }
+
   const startResize = (e) => {
-    e.preventDefault()
-    setIsResizing(true)
-    setStartX(e.clientX)
-    setStartY(e.clientY)
-    setInitialScale(cardSize)
+    e.preventDefault(); e.stopPropagation()
+    const { x, y } = getXY(e)
+    setIsResizing(true); setStartX(x); setStartY(y); setInitialScale(cardSize)
   }
 
   useEffect(() => {
     if (!isResizing) return
-
     const doResize = (e) => {
-      const deltaX = e.clientX - startX
-      const deltaY = e.clientY - startY
+      const { x, y } = getXY(e)
+      const deltaX = x - startX; const deltaY = y - startY
       const delta = Math.sqrt(deltaX * deltaX + deltaY * deltaY)
       const direction = deltaX + deltaY > 0 ? 1 : -1
-
-      let newScale = initialScale + (direction * delta * 0.005)
-      newScale = Math.max(0.5, Math.min(2.0, newScale))
+      let newScale = initialScale + (direction * delta * 0.004)
+      newScale = Math.round(Math.max(0.6, Math.min(2.0, newScale)) * 10) / 10
+      if (onCardResize) onCardResize(newScale)
     }
-
-    const endResize = () => {
-      setIsResizing(false)
-    }
-
+    const endResize = () => setIsResizing(false)
     document.addEventListener('mousemove', doResize)
     document.addEventListener('mouseup', endResize)
+    document.addEventListener('touchmove', doResize, { passive: false })
+    document.addEventListener('touchend', endResize)
     return () => {
       document.removeEventListener('mousemove', doResize)
       document.removeEventListener('mouseup', endResize)
+      document.removeEventListener('touchmove', doResize)
+      document.removeEventListener('touchend', endResize)
     }
-  }, [isResizing, startX, startY, initialScale, cardSize])
+  }, [isResizing, startX, startY, initialScale, cardSize, onCardResize])
 
   const placeholderSvg = `data:image/svg+xml,${encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160"><rect fill="#f5f4f0" width="160" height="160"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#d4cfc9" font-family="sans-serif" font-size="14">No Image</text></svg>'
+    '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160"><rect fill="#f1f5f9" width="160" height="160"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="14">No Image</text></svg>'
   )}`
+
+  const scale = cardSize || 1
 
   return (
     <div
-      className={`product-card ${inCart ? 'in-cart' : ''} ${isFavorited ? 'favorited' : ''}`}
-      style={{ '--card-scale': cardSize }}
+      className={`group relative bg-white rounded-xl cursor-pointer transition-all duration-200 border flex flex-col hover:-translate-y-0.5 hover:shadow-md active:scale-[0.97] ${inCart ? 'border-indigo-400 bg-indigo-50/50' : 'border-slate-200 hover:border-indigo-200'} ${isFavorited ? 'ring-1 ring-indigo-100' : ''}`}
+      style={{
+        padding: `${12 * scale}px ${10 * scale}px ${10 * scale}px`,
+        minHeight: `${224 * scale}px`,
+      }}
+      onClick={() => onProductSelected(product)}
     >
-      {isNewItem && <div className="new-badge">NEW ITEM</div>}
-      {product.is_oos && <div className="oos-badge">OUT OF STOCK</div>}
-      <div
-        className="fav-btn"
+      {isNewItem && (
+        <div className="absolute top-3 left-3 bg-indigo-500 text-white rounded text-[9px] font-bold tracking-wider z-5"
+          style={{ padding: `${4 * scale}px ${8 * scale}px`, fontSize: `${9 * scale}px` }}>
+          NEW
+        </div>
+      )}
+      {product.is_oos && (
+        <div className="absolute top-3 left-3 bg-slate-400 text-white rounded text-[9px] font-bold tracking-wider z-5"
+          style={{ padding: `${4 * scale}px ${6 * scale}px`, fontSize: `${9 * scale}px` }}>
+          OUT OF STOCK
+        </div>
+      )}
+
+      <button
+        className="absolute top-1.5 right-2 bg-transparent border-none cursor-pointer p-0.5 transition-transform hover:scale-125 z-10"
         onClick={(e) => { e.stopPropagation(); onToggleFavorite(product); }}
-        style={{ color: isFavorited ? '#c0392b' : '#d4cfc9' }}
       >
-        {isFavorited ? '\u2665' : '\u2661'}
-      </div>
-      <div className="p-img-wrap" onClick={() => onProductSelected(product)}>
+        <Heart className={`w-4 h-4 transition-colors ${isFavorited ? 'fill-red-500 text-red-500' : 'text-slate-300 hover:text-red-400'}`} />
+      </button>
+
+      <div className="w-full flex items-center justify-center bg-white"
+        style={{ height: `${160 * scale}px`, marginBottom: `${8 * scale}px` }}
+        onClick={() => onProductSelected(product)}>
         <img
           src={imgError ? placeholderSvg : (product.image_url || placeholderSvg)}
           alt={product.name}
-          className="p-img"
+          className="max-w-full max-h-full object-contain rounded-md"
           onError={() => setImgError(true)}
         />
       </div>
-      <div className="p-name" onClick={() => onProductSelected(product)}>{product.name}</div>
-      <div className="p-meta">
+
+      {product.category && (
+        <div className="text-indigo-500 font-semibold uppercase tracking-wider"
+          style={{ fontSize: `${9 * scale}px`, marginBottom: `${2 * scale}px` }}>
+          {product.category}
+        </div>
+      )}
+
+      <div className="text-slate-800 font-semibold leading-tight overflow-hidden cursor-pointer"
+        style={{ fontSize: `${12 * scale}px`, height: `${32 * scale}px`, marginBottom: `${4 * scale}px` }}
+        onClick={() => onProductSelected(product)}>
+        {product.name}
+      </div>
+
+      <div className="text-slate-400 leading-snug"
+        style={{ fontSize: `${10 * scale}px`, marginBottom: `${8 * scale}px` }}>
         {product.weight && <div>{product.weight}</div>}
         {product.bags_per_case && <div>{product.bags_per_case} bags/case</div>}
       </div>
-      {product.show_price !== false && (
-        <div className="p-price">${parseFloat(product.price || 0).toFixed(2)}</div>
+
+      {product.show_price !== false && showPrices && (
+        <div className="text-slate-800 font-bold"
+          style={{ fontSize: `${16 * scale}px`, marginBottom: `${8 * scale}px` }}>
+          ${parseFloat(product.price || 0).toFixed(2)}
+          <span className="font-normal text-slate-400" style={{ fontSize: `${11 * scale}px` }}> /case</span>
+        </div>
       )}
-      <div className="product-actions">
-        <button className="btn-view" onClick={() => onProductSelected(product)}>View</button>
-        <button className="btn-cart" onClick={() => onAddToCart(product)}>Add</button>
+
+      <div className="flex gap-1.5 mt-auto" style={{ gap: `${6 * scale}px` }} onClick={(e) => e.stopPropagation()}>
+        <button className="flex-1 bg-slate-100 text-slate-700 border-none rounded-md font-semibold cursor-pointer transition-colors hover:bg-slate-200"
+          style={{ padding: `${6 * scale}px ${8 * scale}px`, fontSize: `${11 * scale}px` }}
+          onClick={() => onProductSelected(product)}>
+          View
+        </button>
+        <button className="flex-1 bg-indigo-500 text-white border-none rounded-md font-semibold cursor-pointer transition-colors hover:bg-indigo-600"
+          style={{ padding: `${6 * scale}px ${8 * scale}px`, fontSize: `${11 * scale}px` }}
+          onClick={() => onAddToCart(product)}>
+          Add
+        </button>
       </div>
-      {isFirst && <div className="resize-handle" onMouseDown={startResize}></div>}
 
-      <style jsx>{`
-        .product-card {
-          background: var(--surface, #fff);
-          border-radius: var(--radius, 10px);
-          padding: calc(12px * var(--card-scale, 1)) calc(10px * var(--card-scale, 1)) calc(10px * var(--card-scale, 1));
-          text-align: center;
-          cursor: pointer;
-          transition: all 0.18s;
-          position: relative;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.07), 0 4px 12px rgba(0,0,0,0.04);
-          border: 1px solid var(--border, #e2ddd8);
-          min-height: calc(224px * var(--card-scale, 1));
-          display: flex;
-          flex-direction: column;
-        }
-
-        .product-card:hover {
-          border-color: #e8c5c0;
-          box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-          transform: translateY(-2px);
-        }
-
-        .product-card:active {
-          transform: scale(0.97);
-        }
-
-        .product-card.in-cart {
-          border-color: #c0392b;
-          background: #f9eeec;
-        }
-
-        .new-badge {
-          position: absolute;
-          top: calc(12px * var(--card-scale, 1));
-          left: calc(12px * var(--card-scale, 1));
-          background: #c0392b;
-          color: white;
-          padding: calc(4px * var(--card-scale, 1)) calc(6px * var(--card-scale, 1));
-          border-radius: 4px;
-          font-size: calc(9px * var(--card-scale, 1));
-          font-weight: 700;
-          letter-spacing: 0.5px;
-          z-index: 5;
-        }
-
-        .oos-badge {
-          position: absolute;
-          top: calc(12px * var(--card-scale, 1));
-          left: calc(12px * var(--card-scale, 1));
-          background: #7f8c8d;
-          color: white;
-          padding: calc(4px * var(--card-scale, 1)) calc(6px * var(--card-scale, 1));
-          border-radius: 4px;
-          font-size: calc(9px * var(--card-scale, 1));
-          font-weight: 700;
-          letter-spacing: 0.5px;
-          z-index: 5;
-        }
-
-        .fav-btn {
-          position: absolute;
-          top: 5px;
-          right: 7px;
-          background: none;
-          border: none;
-          cursor: pointer;
-          font-size: 16px;
-          transition: all 0.15s;
-          line-height: 1;
-          padding: 2px;
-          display: block;
-        }
-
-        .fav-btn:hover {
-          transform: scale(1.2);
-        }
-
-        .p-img-wrap {
-          width: 100%;
-          height: calc(160px * var(--card-scale, 1));
-          margin-bottom: calc(8px * var(--card-scale, 1));
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: #fff;
-        }
-
-        .p-img {
-          max-width: 100%;
-          max-height: 100%;
-          object-fit: contain;
-          border-radius: 6px;
-        }
-
-        .p-name {
-          font-size: calc(11px * var(--card-scale, 1));
-          color: var(--text, #1a1a18);
-          line-height: 1.35;
-          height: calc(28px * var(--card-scale, 1));
-          overflow: hidden;
-          margin-bottom: calc(4px * var(--card-scale, 1));
-          font-weight: 500;
-        }
-
-        .p-meta {
-          font-size: calc(10px * var(--card-scale, 1));
-          color: var(--muted, #9a948c);
-          margin-bottom: calc(8px * var(--card-scale, 1));
-          line-height: 1.4;
-        }
-
-        .p-price {
-          font-size: calc(13px * var(--card-scale, 1));
-          font-weight: 700;
-          color: #c0392b;
-          margin-bottom: calc(8px * var(--card-scale, 1));
-        }
-
-        .product-actions {
-          display: flex;
-          gap: calc(6px * var(--card-scale, 1));
-          margin-top: auto;
-        }
-
-        .btn-view, .btn-cart {
-          flex: 1;
-          padding: calc(6px * var(--card-scale, 1)) calc(8px * var(--card-scale, 1));
-          border: none;
-          border-radius: 6px;
-          font-size: calc(11px * var(--card-scale, 1));
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-          font-family: 'DM Sans', sans-serif;
-          text-transform: capitalize;
-        }
-
-        .btn-view {
-          background: var(--bg, #f5f4f0);
-          color: var(--text, #1a1a18);
-        }
-
-        .btn-view:hover {
-          background: #d4cfc9;
-        }
-
-        .btn-cart {
-          background: #4CAF50;
-          color: white;
-        }
-
-        .btn-cart:hover {
-          background: #45a049;
-        }
-
-        .resize-handle {
-          position: absolute;
-          bottom: 2px;
-          right: 2px;
-          width: 20px;
-          height: 20px;
-          background: linear-gradient(135deg, transparent 50%, #c0392b 50%);
-          border-radius: 0 0 4px 0;
-          cursor: nwse-resize;
-          opacity: 0;
-          transition: opacity 0.2s;
-          pointer-events: all;
-          user-select: none;
-          z-index: 10;
-        }
-
-        .product-card:hover .resize-handle {
-          opacity: 0.8;
-        }
-
-        .product-card:hover .resize-handle:hover {
-          opacity: 1;
-        }
-
-        @media (max-width: 640px) {
-          .product-card {
-            padding: 10px 8px 8px;
-            min-height: 350px;
-          }
-
-          .p-img-wrap {
-            height: 200px;
-            margin-bottom: 6px;
-            background: #fff;
-            flex-shrink: 0;
-          }
-
-          .p-name {
-            font-size: 10px;
-            height: auto;
-            margin-bottom: 4px;
-          }
-
-          .p-meta {
-            font-size: 9px;
-            margin-bottom: 6px;
-          }
-
-          .btn-view, .btn-cart {
-            font-size: 10px;
-            padding: 4px 6px;
-          }
-        }
-      `}</style>
+      {isFirst && (
+        <div className="absolute bottom-0.5 right-0.5 w-5 h-5 cursor-nwse-resize opacity-0 group-hover:opacity-80 hover:!opacity-100 transition-opacity z-10 select-none"
+          style={{ background: 'linear-gradient(135deg, transparent 50%, #6366f1 50%)', borderRadius: '0 0 4px 0' }}
+          onMouseDown={startResize} onTouchStart={startResize} />
+      )}
     </div>
   )
 }

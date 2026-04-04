@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { extractToken, verifyAdminToken, logActivity } from '@/lib/auth';
+import { deleteImage } from '@/lib/supabase';
 
 export async function PUT(request, { params }) {
   try {
@@ -12,6 +13,11 @@ export async function PUT(request, { params }) {
     if (!admin) {
       return NextResponse.json({ error: 'Admin required' }, { status: 403 });
     }
+
+    // Get old image URL before updating
+    let oldImageUrl = null;
+    const oldProduct = await pool.query('SELECT image_url FROM products WHERE id = $1', [id]);
+    if (oldProduct.rows[0]) oldImageUrl = oldProduct.rows[0].image_url;
 
     const body = await request.json();
     const { name, weight, bags_per_case, cases_per_pallet, category_id, super_category_id, image_url, sku, is_hidden, is_oos, show_price, price } = body;
@@ -61,6 +67,11 @@ export async function PUT(request, { params }) {
       entityId: id,
     });
 
+    // Delete old image from Supabase if image was changed
+    if (image_url !== undefined && oldImageUrl && oldImageUrl !== image_url) {
+      try { await deleteImage(oldImageUrl); } catch (e) { console.error('Failed to delete old image:', e); }
+    }
+
     return NextResponse.json({
       success: true,
       product: result.rows[0]
@@ -82,13 +93,19 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ error: 'Admin required' }, { status: 403 });
     }
 
-    const nameResult = await pool.query('SELECT name FROM products WHERE id = $1', [id]);
+    const nameResult = await pool.query('SELECT name, image_url FROM products WHERE id = $1', [id]);
     if (nameResult.rows.length === 0) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
     const productName = nameResult.rows[0].name;
+    const productImageUrl = nameResult.rows[0].image_url;
 
     const result = await pool.query('DELETE FROM products WHERE id = $1 RETURNING id', [id]);
+
+    // Delete image from Supabase storage
+    if (productImageUrl) {
+      try { await deleteImage(productImageUrl); } catch (e) { console.error('Failed to delete product image:', e); }
+    }
 
     if (result.rows.length === 0) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });

@@ -10,7 +10,7 @@ export async function GET(request) {
     if (!admin) return NextResponse.json({ error: 'Admin required' }, { status: 403 });
 
     const result = await pool.query(`
-      SELECT id, company_name, contact_name, email, phone, view_preset, active, created_at, last_login
+      SELECT id, company_name, contact_name, email, phone, view_preset, active, show_prices, created_at, last_login
       FROM customers
       ORDER BY created_at DESC
     `);

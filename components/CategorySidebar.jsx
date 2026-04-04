@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect, useMemo } from 'react'
+import { Package, Search, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react'
 
 function CategorySidebar({ isOpen, onClose, onSelectCategory, token }) {
   const [hierarchy, setHierarchy] = useState([])
@@ -19,28 +20,21 @@ function CategorySidebar({ isOpen, onClose, onSelectCategory, token }) {
     'Korean Snacks': '\uD83C\uDDF0\uD83C\uDDF7'
   }
 
-  useEffect(() => {
-    loadHierarchy()
-  }, [token])
+  const loadedRef = React.useRef(false)
 
-  const loadHierarchy = async () => {
+  useEffect(() => {
+    if (loadedRef.current) return
+    loadedRef.current = true
+    const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('token') : null)
+    const headers = {}
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`
     setLoading(true)
-    setError(null)
-    try {
-      const headers = {}
-      if (token) headers['Authorization'] = `Bearer ${token}`
-      const response = await fetch('/api/categories/hierarchy', { headers })
-      if (!response.ok) throw new Error('Failed to load categories')
-      const data = await response.json()
-      if (!data.success) throw new Error(data.error || 'Failed to load categories')
-      setHierarchy(data.hierarchy || [])
-    } catch (err) {
-      console.error('Error loading hierarchy:', err)
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
+    fetch('/api/categories/hierarchy', { headers })
+      .then(res => { if (!res.ok) throw new Error('Failed'); return res.json() })
+      .then(data => { if (data.success) setHierarchy(data.hierarchy || []) })
+      .catch(err => { console.error('Error loading hierarchy:', err); setError(err.message) })
+      .finally(() => setLoading(false))
+  }, [])
 
   const totalProducts = hierarchy.reduce((sum, cat) => sum + (cat.totalProducts || 0), 0)
 
@@ -55,128 +49,94 @@ function CategorySidebar({ isOpen, onClose, onSelectCategory, token }) {
 
   const getEmoji = (name) => emojiMap[name] || '\uD83D\uDCE6'
 
-  const selectAll = () => {
-    setSelectedId(null)
-    setExpandedSuper(null)
-    onSelectCategory(null)
-  }
-
-  const toggleSuper = (superCat) => {
-    if (expandedSuper === superCat.name) {
-      setExpandedSuper(null)
-    } else {
-      setExpandedSuper(superCat.name)
-    }
-  }
-
-  const selectSub = (subCat) => {
-    setSelectedId(subCat.id || subCat.name)
-    onSelectCategory(subCat)
-  }
+  const selectAll = () => { setSelectedId(null); setExpandedSuper(null); onSelectCategory(null) }
+  const toggleSuper = (superCat) => { setExpandedSuper(expandedSuper === superCat.name ? null : superCat.name) }
+  const selectSub = (subCat) => { setSelectedId(subCat.id || subCat.name); onSelectCategory(subCat) }
 
   return (
     <>
-      <div className={`sidebar-overlay ${isOpen ? 'open' : ''}`} onClick={onClose}></div>
-      <aside className={`sidebar${isOpen ? ' open-mobile' : ' collapsed'}`}>
-        <div className="sb-top">
-          <div className="sb-label">Browse</div>
+      {/* Mobile overlay */}
+      <div className={`fixed inset-0 bg-black/25 z-[150] top-14 hidden max-sm:block ${isOpen ? 'max-sm:!block' : 'max-sm:!hidden'}`}
+        onClick={onClose} />
+
+      {/* Sidebar */}
+      <aside className={`w-[236px] min-w-[236px] bg-slate-900 overflow-y-auto sticky top-14 z-[160] shrink-0 transition-all duration-300 ease-out
+        ${isOpen ? '' : '-ml-[236px]'}
+        max-sm:fixed max-sm:left-0 max-sm:top-14 max-sm:bottom-16 max-sm:w-[55vw] max-sm:min-w-[55vw] max-sm:ml-0 max-sm:h-auto max-sm:overflow-y-auto max-sm:shadow-lg
+        ${isOpen ? 'max-sm:translate-x-0' : 'max-sm:-translate-x-full'}
+      `} style={{ height: 'calc(100vh - 56px)' }}>
+
+        <div className="px-3.5 pt-3.5 pb-1.5">
+          <div className="text-[10px] font-semibold tracking-widest uppercase text-slate-500 mb-2">Browse</div>
         </div>
-        <div className="sb-search">
-          <input
-            type="text"
-            placeholder="Search Categories..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-          />
+
+        {/* Search */}
+        <div className="px-2.5 pb-2.5">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+            <input type="text" placeholder="Search Categories..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+              className="w-full py-2 pl-8 pr-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 text-[13px] outline-none transition-colors focus:border-indigo-400 placeholder:text-slate-500 max-sm:!text-base" />
+          </div>
         </div>
 
         {loading ? (
-          <div className="sb-loading"><span className="sb-spinner"></span> Loading...</div>
+          <div className="p-4 text-center text-slate-500 text-[13px]">
+            <div className="inline-block w-3.5 h-3.5 border-2 border-slate-700 border-t-indigo-400 rounded-full animate-spin mr-2" />
+            Loading...
+          </div>
         ) : error ? (
-          <div className="sb-loading" style={{ color: '#c0392b' }}>{'\u26A0\uFE0F'} {error}</div>
+          <div className="p-4 text-center text-red-400 text-[13px] flex items-center justify-center gap-2">
+            <AlertTriangle className="w-4 h-4" /> {error}
+          </div>
         ) : (
           <>
-            <div className={`sb-all ${selectedId === null ? 'active' : ''}`} onClick={selectAll}>
-              <span style={{ fontSize: 14 }}>{'\uD83D\uDCE6'}</span> All Products
-              <span className="a-count">{totalProducts}</span>
+            {/* All Products */}
+            <div className={`flex items-center gap-2.5 px-3.5 py-3 cursor-pointer text-[13px] font-medium transition-colors border-b border-white/[0.06]
+              ${selectedId === null ? 'text-indigo-400 bg-indigo-500/10' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}
+              onClick={selectAll}>
+              <Package className="w-3.5 h-3.5" />
+              All Products
+              <span className="ml-auto text-[11px] text-slate-400 bg-white/[0.08] px-2 py-0.5 rounded-full border border-white/10">{totalProducts}</span>
             </div>
-            <div className="sb-divider"></div>
-            <div className="sb-categories">
+
+            <div className="h-px bg-white/[0.06]" />
+
+            {/* Categories */}
+            <div className="flex flex-col">
               {filteredHierarchy.map(superCat => (
-                <div key={superCat.id} className="sb-super-group">
-                  <div
-                    className={`sb-super-btn ${expandedSuper === superCat.name ? 'active open' : ''}`}
-                    onClick={() => toggleSuper(superCat)}
-                  >
-                    <span className="s-emoji">{superCat.emoji || getEmoji(superCat.name)}</span>
-                    <span className="s-label">{superCat.name}</span>
-                    <span className="s-cnt">{superCat.totalProducts}</span>
-                    <span className="s-arr">{expandedSuper === superCat.name ? '\u25BC' : '\u203A'}</span>
+                <div key={superCat.id}>
+                  <div className={`w-full flex items-center gap-2.5 px-3.5 py-3 cursor-pointer text-[13px] font-medium transition-colors border-b border-white/[0.06]
+                    ${expandedSuper === superCat.name ? 'text-indigo-400 bg-indigo-500/10' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}
+                    onClick={() => toggleSuper(superCat)}>
+                    <span className="text-sm w-[18px] text-center shrink-0">{superCat.emoji || getEmoji(superCat.name)}</span>
+                    <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{superCat.name}</span>
+                    <span className="text-[11px] text-slate-400 bg-white/[0.08] px-2 py-0.5 rounded-full border border-white/10">{superCat.totalProducts}</span>
+                    {expandedSuper === superCat.name
+                      ? <ChevronDown className="w-3 h-3 text-slate-500 shrink-0" />
+                      : <ChevronRight className="w-3 h-3 text-slate-500 shrink-0" />
+                    }
                   </div>
-                  <div className={`sb-cats ${expandedSuper === superCat.name ? 'open' : ''}`}>
+
+                  <div className={`overflow-hidden transition-all duration-250 ${expandedSuper === superCat.name ? 'max-h-[700px]' : 'max-h-0'}`}>
                     {superCat.categories?.map(subCat => (
-                      <div
-                        key={subCat.id}
-                        className={`sb-cat ${selectedId === (subCat.id || subCat.name) ? 'active' : ''}`}
-                        onClick={() => selectSub(subCat)}
-                      >
-                        <span className="sc-label">{subCat.name}</span>
-                        <span className="sc-cnt">{subCat.productCount}</span>
+                      <div key={subCat.id}
+                        className={`flex items-center justify-between py-2.5 pr-3.5 pl-11 cursor-pointer text-xs transition-colors border-b border-white/[0.04]
+                          ${selectedId === (subCat.id || subCat.name) ? 'text-indigo-400 bg-indigo-500/[0.08] font-medium' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'}`}
+                        onClick={() => selectSub(subCat)}>
+                        <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{subCat.name}</span>
+                        <span className="text-[11px] text-slate-500">{subCat.productCount}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               ))}
               {filteredHierarchy.length === 0 && (
-                <div className="sb-loading">No categories found</div>
+                <div className="p-4 text-center text-slate-500 text-[13px]">No categories found</div>
               )}
             </div>
           </>
         )}
       </aside>
-
-      <style jsx>{`
-        .sidebar-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.25); z-index: 150; display: none; top: 56px; }
-        @media (max-width: 768px) {
-          .sidebar-overlay.open { display: block; }
-        }
-        .sidebar { width: 236px; min-width: 236px; background: var(--surface); border-right: 1px solid var(--border); overflow-y: auto; height: calc(100vh - 56px); position: sticky; top: 56px; transition: transform 0.28s cubic-bezier(.4,0,.2,1), margin-left 0.28s cubic-bezier(.4,0,.2,1); z-index: 160; flex-shrink: 0; }
-        .sidebar.collapsed { margin-left: -236px; }
-        .sb-top { padding: 14px 14px 6px; }
-        .sb-label { font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
-        .sb-search { padding: 0 10px 10px; }
-        .sb-search input { width: 100%; padding: 7px 11px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none; transition: border-color 0.15s; box-sizing: border-box; }
-        .sb-search input:focus { border-color: var(--red); }
-        .sb-search input::placeholder { color: var(--muted); }
-        .sb-all { display: flex; align-items: center; gap: 10px; padding: 14px 14px; cursor: pointer; font-size: 14px; color: var(--sub); font-weight: 500; transition: all 0.15s; background: var(--bg); border-bottom: 1px solid var(--border); }
-        .sb-all:hover { background: var(--border2); color: var(--text); }
-        .sb-all.active { color: var(--red); background: var(--red-light); }
-        .a-count { margin-left: auto; font-size: 11px; color: var(--muted); background: var(--surface); padding: 2px 8px; border-radius: 20px; border: 1px solid var(--border); }
-        .sb-divider { height: 1px; background: var(--border); margin: 0; }
-        .sb-categories { display: flex; flex-direction: column; }
-        .sb-super-btn { width: 100%; display: flex; align-items: center; gap: 10px; padding: 14px 14px; border: none; background: var(--bg); color: var(--sub); cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; text-align: left; transition: all 0.15s; border-bottom: 1px solid var(--border); }
-        .sb-super-btn:hover { background: var(--border2); color: var(--text); }
-        .sb-super-btn.active { color: var(--red); background: var(--red-light); }
-        .sb-super-btn .s-emoji { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
-        .sb-super-btn .s-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .sb-super-btn .s-cnt { font-size: 11px; color: var(--muted); background: var(--surface); padding: 2px 8px; border-radius: 20px; border: 1px solid var(--border); }
-        .sb-super-btn .s-arr { font-size: 10px; color: var(--faint); transition: transform 0.2s; flex-shrink: 0; }
-        .sb-super-btn.open .s-arr { transform: rotate(90deg); }
-        .sb-cats { overflow: hidden; max-height: 0; transition: max-height 0.25s ease; }
-        .sb-cats.open { max-height: 700px; }
-        .sb-cat { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px 10px 44px; cursor: pointer; font-size: 13px; color: var(--sub); transition: all 0.15s; background: var(--surface); border-bottom: 1px solid var(--border2); }
-        .sb-cat:hover { background: var(--bg); color: var(--text); }
-        .sb-cat.active { color: var(--red); background: var(--red-light); font-weight: 500; }
-        .sc-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .sc-cnt { font-size: 11px; color: var(--muted); }
-        .sb-loading { padding: 16px; text-align: center; color: var(--muted); font-size: 13px; }
-        .sb-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--red); border-radius: 50%; animation: spin 0.6s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @media (max-width: 768px) {
-          .sidebar { position: fixed; left: 0; top: 56px; transform: translateX(-100%); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-          .sidebar.open-mobile { transform: translateX(0); }
-        }
-      `}</style>
     </>
   )
 }

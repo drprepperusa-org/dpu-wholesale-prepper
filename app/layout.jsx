@@ -9,6 +9,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -16,7 +17,30 @@ export default function RootLayout({ children }) {
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <script dangerouslySetInnerHTML={{ __html: `
+          (function() {
+            var viewport = document.querySelector('meta[name="viewport"]');
+            function resetZoom() {
+              if (viewport) {
+                viewport.setAttribute('content', 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover');
+              }
+              document.body.style.zoom = 1;
+              window.scrollTo(0, 0);
+            }
+            window.addEventListener('orientationchange', function() {
+              setTimeout(resetZoom, 100);
+              setTimeout(resetZoom, 300);
+            });
+            window.addEventListener('resize', function() {
+              if (window.visualViewport && window.visualViewport.scale !== 1) {
+                resetZoom();
+              }
+            });
+          })();
+        `}} />
+      </body>
     </html>
   );
 }

@@ -19,11 +19,15 @@ export async function GET(request, { params }) {
       WHERE customer_id = $1
     `, [customerId]);
 
+    const custResult = await pool.query('SELECT show_prices FROM customers WHERE id = $1', [customerId]);
+    const showPrices = custResult.rows[0]?.show_prices !== false;
+
     return NextResponse.json({
       success: true,
-      catHidden: catResult.rows.map(r => r.id),
+      catHidden: catResult.rows.map(r => r.name),
       customHidden: prodResult.rows.filter(p => p.is_hidden).map(p => p.product_id),
-      customOos: prodResult.rows.filter(p => p.is_oos).map(p => p.product_id)
+      customOos: prodResult.rows.filter(p => p.is_oos).map(p => p.product_id),
+      showPrices
     });
   } catch (err) {
     console.error('Get view overrides error:', err);
@@ -37,11 +41,16 @@ export async function PUT(request, { params }) {
     const admin = await requireAdmin(request);
     if (!admin) return NextResponse.json({ error: 'Admin required' }, { status: 403 });
 
-    const { catHidden, customHidden, customOos } = await request.json();
+    const { catHidden, customHidden, customOos, showPrices } = await request.json();
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+
+      // Update show_prices if provided
+      if (showPrices !== undefined) {
+        await client.query('UPDATE customers SET show_prices = $1 WHERE id = $2', [showPrices, customerId]);
+      }
 
       await client.query('DELETE FROM customer_cat_hidden WHERE customer_id = $1', [customerId]);
       await client.query('DELETE FROM customer_overrides WHERE customer_id = $1', [customerId]);
