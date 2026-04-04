@@ -1,38 +1,78 @@
 # DR Prepper Wholesale Portal
 
-Full B2B wholesale ordering platform with product catalog, cart, favorites, order management, and admin dashboard.
+Full B2B wholesale ordering platform built with **Next.js 14**, **React 18**, **Tailwind CSS v4**, **Lucide React icons**, **PostgreSQL** (Supabase), and **Supabase Storage** for product images.
+
+## Tech Stack
+
+- **Frontend**: Next.js 14 App Router, React 18, Tailwind CSS v4, Lucide React
+- **Backend**: Next.js API Routes (serverless)
+- **Database**: PostgreSQL via Supabase (accessed through `pg` pool)
+- **Storage**: Supabase Storage (product images, banner images)
+- **Auth**: JWT (jsonwebtoken)
+- **Deployment**: Vercel
 
 ## Project Structure
 
 ```
-wholesale-portal/
-├── server.js                 # Express API server (all 25+ endpoints)
-├── schema.sql               # PostgreSQL database schema
-├── package.json             # Dependencies
-├── .env.example             # Environment variables template
-├── public/                  # Static HTML files (frontend)
-│   ├── 01_login.html
-│   ├── 02_customer_portal.html
-│   └── 03_admin_portal.html
-├── scripts/
-│   ├── seed.js             # Database seeding (demo customers)
-│   └── migrate.js          # Run migrations (create tables)
-└── products.json           # Product import data (populate via seed.js)
+dpu-wholesale-prepper/
+├── app/
+│   ├── page.jsx                    # Main app (routes to Admin or Customer)
+│   ├── login/page.jsx              # Login page route
+│   ├── layout.jsx                  # Root layout
+│   ├── globals.css                 # Tailwind CSS v4 imports + base styles
+│   └── api/                        # API Routes
+│       ├── auth/                   # Login, register, session
+│       ├── products/               # CRUD, search, image upload
+│       ├── orders/                 # Place/list/update orders
+│       ├── favorites/              # Add/remove/list favorites
+│       ├── customers/              # Profile, password change
+│       ├── categories/             # Category hierarchy
+│       ├── settings/               # App settings (key-value)
+│       ├── upload/                 # Image upload to Supabase
+│       └── admin/                  # Admin-only endpoints
+│           ├── banner/             # Promo banner image upload
+│           ├── bulk/               # Bulk visibility, delete
+│           ├── customers/          # Customer management, views
+│           ├── products/           # Bulk edit, Excel import/export
+│           ├── categories-tree/    # Category tree management
+│           ├── super-categories/   # Super category CRUD
+│           ├── pending-registrations/ # Approve/reject registrations
+│           └── ...
+├── components/
+│   ├── Login.jsx                   # Login/registration page
+│   ├── CustomerApp.jsx             # Customer portal (catalog, cart, orders, favorites)
+│   ├── AdminPortal.jsx             # Admin dashboard (products, customers, orders, settings)
+│   ├── ProductCard.jsx             # Product card component
+│   ├── ProductGrid.jsx             # Product grid layout
+│   ├── CategorySidebar.jsx         # Category navigation sidebar
+│   ├── CategoryView.jsx            # Category-grouped product view
+│   ├── CartOverlay.jsx             # Cart overlay/sheet
+│   ├── OrderConfirmModal.jsx       # Order confirmation modal
+│   └── BulkEditView.jsx            # Bulk product editor (table view)
+├── lib/
+│   ├── db.js                       # PostgreSQL connection pool
+│   ├── auth.js                     # JWT auth helpers (requireAdmin, requireAuth)
+│   └── supabase.js                 # Supabase storage client (upload/delete images)
+├── schema.sql                      # Database schema
+├── postcss.config.mjs              # PostCSS config for Tailwind v4
+├── next.config.mjs                 # Next.js configuration
+└── package.json
 ```
 
 ## Quick Start
 
-### 1. Database Setup
+### 1. Environment Setup
 
 ```bash
-# Create PostgreSQL database
-createdb drprepper_wholesale
+cp .env.example .env.local
+```
 
-# Copy environment template
-cp .env.example .env
-
-# Edit .env with your PostgreSQL credentials
-nano .env
+Required environment variables:
+```env
+DATABASE_URL=postgresql://user:pass@host:5432/dbname
+JWT_SECRET=your-secret-key
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
 ### 2. Install Dependencies
@@ -41,196 +81,132 @@ nano .env
 npm install
 ```
 
-### 3. Run Migrations
+### 3. Database Setup
 
 ```bash
-npm run migrate
+# Run schema.sql against your PostgreSQL database
+psql $DATABASE_URL < schema.sql
 ```
 
-This creates all tables: products, customers, orders, favorites, activity_log, settings, etc.
-
-### 4. Import Products
-
-**Option A: From products.json file**
+### 4. Run Development Server
 
 ```bash
-npm run seed
+npm run dev
 ```
 
-This will read `products.json` and import all 205 products.
-
-**Option B: Extract from Prototype HTML**
-
-The spec comes with a complete prototype (01_login.html, 02_customer_portal.html, 03_admin_portal.html) that has all 205 products as base64-encoded JavaScript arrays in the PRODS and IMGS variables.
-
-To extract and convert:
-1. Open the prototype HTML in a browser
-2. Run this in the browser console to export:
-```javascript
-copy(JSON.stringify(PRODS.map(p => ({
-  id: p.id,
-  name: p.name,
-  weight: p.weight,
-  bags_per_case: p.pack,
-  category_id: 1, // Map to your category_id
-  super_category_id: 1, // Map to your super_category_id
-  sku: p.id
-}))))
-```
-3. Paste into `products.json` and run `npm run seed`
-
-### 5. Seed Demo Customers
+### 5. Deploy to Vercel
 
 ```bash
-npm run seed
+npx vercel --prod
 ```
 
-Creates 3 demo customers:
-- buyer@happysnacks.com / demo1234 (full catalog access)
-- sarah@pacificrimports.com / demo1234 (chips only)
-- min@seoulgardens.com / demo1234 (korean only)
+## Features
 
-### 6. Start Server
+### Customer Portal
+- Product catalog with grid/category views
+- Category sidebar navigation
+- Product search
+- Card size slider
+- Product detail sheet with cases/pallets ordering
+- Shopping cart (sidebar + mobile overlay)
+- Order history with status tracking
+- Favorites with red heart toggle
+- Account settings (profile, contact, password)
+- Configurable promo banner (text or image)
+- Page persistence across refreshes
 
-```bash
-npm start
-```
+### Admin Portal
+- Dashboard stats cards (Total Products, Pending Orders, In Stock, New This Week)
+- Product management (add, edit, delete, visibility, OOS toggle)
+- Category sidebar with product counts
+- Bulk actions (show/hide/delete selected products)
+- Filter pills (visibility, stock, super category)
+- Bulk Edit view (table-based editing)
+- Excel import/export with image upload support
+- Customer management with per-customer visibility
+- Order management with status updates
+- Category & super-category drag-and-drop ordering
+- Promo banner editor (text banner or image banner)
+- Customer registration approval workflow
+- Activity log
+- Customer insights
+- Zoom control (70-150%)
+- Page persistence across refreshes
 
-Runs on port 5000 by default (override with PORT env var).
-
-## Frontend
-
-The three HTML files (01_login.html, 02_customer_portal.html, 03_admin_portal.html) are served as static files from `public/`:
-
-- **01_login.html** — Authentication gateway (customer + admin modes)
-- **02_customer_portal.html** — Customer catalog, cart, orders, favorites
-- **03_admin_portal.html** — Admin dashboard (products, customers, visibility, orders, settings)
-
-These should be the prototype files from the spec document (with all 205 products embedded).
+### Excel Import/Export
+- **Export**: Downloads all products as .xlsx with categories reference sheet
+- **Import**: Upload Excel + product images together
+  - Matches by Product ID or SKU (updates existing) or creates new
+  - Auto-generates Product ID (UUID) and SKU if not provided
+  - Resolves local image filenames (e.g. `dish1.jpg`) to uploaded Supabase URLs
+  - Parallel image upload (batches of 5) and batch DB operations (10 at a time)
 
 ## API Endpoints
 
 ### Auth
-- `POST /api/auth/login` — Customer login
-- `POST /api/auth/register` — Register new customer (creates pending registration)
+- `POST /api/auth/login` — Login (returns JWT token)
+- `POST /api/auth/register` — Register new customer (pending approval)
+- `GET /api/auth/me` — Get current user from token
 
 ### Products
-- `GET /api/products` — Get products (filtered by customer visibility)
+- `GET /api/products` — List products (filtered by customer visibility)
 - `POST /api/products` — Create product (admin)
 - `PUT /api/products/:id` — Update product (admin)
-- `DELETE /api/products/:id` — Delete product (admin)
-- `PUT /api/products/reorder` — Update sort order (admin, drag-drop)
+- `DELETE /api/products/:id` — Delete product + Supabase image (admin)
+- `POST /api/upload` — Upload product image to Supabase
 
 ### Orders
 - `POST /api/orders` — Place order
-- `GET /api/orders` — Get customer's orders (or all if admin)
-- `GET /api/orders/:orderId` — Get order details
-- `PUT /api/orders/:orderId/status` — Update order status (admin)
+- `GET /api/orders` — Get orders (customer's own or all for admin)
+- `PUT /api/orders/:id/status` — Update order status (admin)
 
 ### Favorites
+- `GET /api/favorites` — Get favorites (full product data including price)
 - `POST /api/favorites` — Add to favorites
-- `DELETE /api/favorites/:product_id` — Remove from favorites
-- `GET /api/favorites` — Get customer's favorites
+- `DELETE /api/favorites/:id` — Remove from favorites
 
-### Profile
-- `GET /api/customers/profile` — Get profile
-- `PUT /api/customers/profile` — Update profile
+### Customers
+- `GET /api/customers/profile` — Get customer profile
+- `PATCH /api/customers/profile` — Update profile
 - `POST /api/customers/change-password` — Change password
+
+### Settings
+- `GET /api/settings` — Get all settings (force-dynamic, no cache)
+- `PUT /api/settings/:key` — Update setting (admin)
 
 ### Admin
 - `GET /api/admin/customers` — List all customers
-- `GET /api/admin/customers/:customerId/view` — Get visibility overrides
-- `PUT /api/admin/customers/:customerId/view` — Update visibility overrides
-- `GET /api/admin/activity` — Activity log (with filters)
-- `GET /api/settings` — Get all settings
-- `PUT /api/settings/:key` — Update setting (admin)
+- `GET/PUT /api/admin/customers/:id/view` — Customer visibility overrides
+- `POST /api/admin/bulk/delete` — Bulk delete products + images
+- `POST /api/admin/bulk/visibility` — Bulk show/hide products
+- `PATCH /api/admin/products/bulk` — Bulk update product fields
+- `GET /api/admin/products/excel` — Export products as Excel
+- `POST /api/admin/products/excel` — Import products from Excel
+- `POST /api/admin/banner` — Upload banner image
+- `DELETE /api/admin/banner` — Delete banner image
+- `GET /api/admin/pending-registrations` — List pending registrations
+- `POST /api/admin/pending-registrations` — Approve/reject registration
+- `GET /api/categories/hierarchy` — Category tree with product counts
 
 ## Authentication
 
-Token format: `base64(email:customerId)`
+Uses JWT tokens (jsonwebtoken library):
+- Admin users are in the `users` table with `role = 'admin'`
+- Customer users are in the `customers` table
+- Token sent via `Authorization: Bearer <token>` header
 
-Sent in Authorization header: `Authorization: Bearer <token>`
+## Image Storage
 
-Admin check: Email matches `ADMIN_EMAIL` env var (default: admin@drprepper.com)
+Product and banner images are stored in **Supabase Storage**:
+- Product images: `products` bucket
+- Banner images: `products` bucket under `banners/` prefix
+- Images are auto-deleted from storage when products are deleted (single or bulk)
+- Banner bucket is cleaned when a new banner image is uploaded
 
-## Data Models
+## Design System
 
-### Customer
-```javascript
-{
-  id: "c1",
-  company_name: "Happy Snacks Co.",
-  contact_name: "John Buyer",
-  email: "buyer@happysnacks.com",
-  phone: "(555) 123-4567",
-  address_line1, address_line2, city, state, zip, country,
-  view_preset: "full", // or "chips", "korean", "noodles", etc.
-  active: true,
-  created_at, last_login
-}
-```
-
-### Product
-```javascript
-{
-  id: "LS-CHKN-90G-24",
-  name: "Lay's Potato Chips",
-  weight: "90g",
-  bags_per_case: "24bags/cs",
-  cases_per_pallet: 60,
-  category_id: 1,
-  super_category_id: 1,
-  image_url: "https://...",
-  sku: "LS-CHKN-90G-24",
-  is_hidden: false,
-  is_oos: false,
-  sort_order: 0
-}
-```
-
-### Order
-```javascript
-{
-  id: "order-uuid",
-  customer_id: "c1",
-  status: "Pending", // or "Processing", "Received"
-  total_cases: 120,
-  created_at,
-  items: [
-    { product_id, qty, unit: "cases" | "pallets" }
-  ]
-}
-```
-
-### Visibility Overrides
-```javascript
-// Global product state
-prodState[product_id] = {
-  hidden: true,        // Hidden for ALL customers
-  oos: false
-}
-
-// Per-customer overrides
-customer.catHidden: [1, 2, 3]  // Super-category IDs hidden for this customer
-customer.customHidden: ["prod-id-1", "prod-id-2"]  // Products hidden
-customer.customOos: ["prod-id-3"]  // Products marked OOS
-```
-
-## TODO / In Progress
-
-- [ ] Email notifications on order placement (send to DJ)
-- [ ] Email notifications on order status updates
-- [ ] Image upload endpoint (S3/R2 integration)
-- [ ] Registration approval workflow (admin reviews pending registrations)
-- [ ] Mobile app or responsive improvements
-- [ ] Export orders as CSV/PDF
-
-## Deployment
-
-See DEPLOYMENT.md for production setup on Mac mini with PM2.
-
-## Notes
-
-- **JWT**: Uses simple base64 encoding, not cryptographic JWT. Suitable for internal B2B use; upgrade to proper JWT/OAuth for public-facing.
-- **Images**: Currently expects `image_url` strings. Prototype has base64-encoded images; migrate to CDN on deployment.
-- **Email**: Configured for Gmail; update EMAIL_HOST, EMAIL_USER, EMAIL_PASS in .env for other providers.
+- **Color palette**: Soft indigo (#6366f1) primary, slate grays for text/borders
+- **Icons**: Lucide React (consistent SVG icon library)
+- **Styling**: Tailwind CSS v4 utility classes (no CSS-in-JS)
+- **Typography**: DM Sans font family
+- **Responsive**: Mobile-first with `max-sm:` breakpoints, bottom nav on mobile
