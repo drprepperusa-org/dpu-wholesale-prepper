@@ -1,10 +1,21 @@
 -- DR Prepper Wholesale Portal Database Schema
--- PostgreSQL
+-- PostgreSQL (Supabase compatible)
+
+-- Admin Users
+CREATE TABLE IF NOT EXISTS users (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  role VARCHAR(50) DEFAULT 'admin',
+  active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
 
 -- Super Categories
 CREATE TABLE IF NOT EXISTS super_categories (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL UNIQUE,
+  emoji VARCHAR(10),
   sort_order INT DEFAULT 0
 );
 
@@ -44,6 +55,7 @@ CREATE TABLE IF NOT EXISTS customers (
   email VARCHAR(255) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   phone VARCHAR(20),
+  alt_phone VARCHAR(20),
   address_line1 VARCHAR(255),
   address_line2 VARCHAR(255),
   city VARCHAR(100),
@@ -51,16 +63,18 @@ CREATE TABLE IF NOT EXISTS customers (
   zip VARCHAR(20),
   country VARCHAR(100),
   view_preset VARCHAR(50) DEFAULT 'full',
+  show_prices BOOLEAN DEFAULT TRUE,
   active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT NOW(),
   last_login TIMESTAMP
 );
 
--- Customer Overrides (per-customer product visibility)
+-- Customer Overrides (per-customer product visibility + pricing)
 CREATE TABLE IF NOT EXISTS customer_overrides (
   id SERIAL PRIMARY KEY,
   customer_id VARCHAR(50) NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
   product_id VARCHAR(50) NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  override_price DECIMAL(10, 2),
   is_hidden BOOLEAN DEFAULT FALSE,
   is_oos BOOLEAN DEFAULT FALSE,
   UNIQUE(customer_id, product_id)
@@ -91,6 +105,7 @@ CREATE TABLE IF NOT EXISTS order_items (
   product_id VARCHAR(50) NOT NULL REFERENCES products(id) ON DELETE CASCADE,
   qty INT NOT NULL,
   unit VARCHAR(20) NOT NULL,
+  price DECIMAL(10, 2),
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -106,9 +121,13 @@ CREATE TABLE IF NOT EXISTS favorites (
 -- Activity Log
 CREATE TABLE IF NOT EXISTS activity_log (
   id SERIAL PRIMARY KEY,
-  customer_id VARCHAR(50) NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+  customer_id VARCHAR(50) REFERENCES customers(id) ON DELETE SET NULL,
+  admin_id INT REFERENCES users(id) ON DELETE SET NULL,
   type VARCHAR(50) NOT NULL,
   detail TEXT,
+  entity_type VARCHAR(50),
+  entity_id VARCHAR(50),
+  metadata JSONB,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -124,7 +143,7 @@ CREATE TABLE IF NOT EXISTS pending_registrations (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Settings
+-- Settings (key-value store for app config)
 CREATE TABLE IF NOT EXISTS settings (
   key VARCHAR(255) PRIMARY KEY,
   value TEXT,
@@ -143,19 +162,24 @@ CREATE TABLE IF NOT EXISTS carts (
 );
 
 -- Indexes
-CREATE INDEX idx_products_category ON products(category_id);
-CREATE INDEX idx_products_super_category ON products(super_category_id);
-CREATE INDEX idx_products_created_at ON products(created_at);
-CREATE INDEX idx_products_category_hidden ON products(category_id, is_hidden);
-CREATE INDEX idx_categories_is_hidden ON categories(is_hidden);
-CREATE INDEX idx_orders_customer ON orders(customer_id);
-CREATE INDEX idx_order_items_order ON order_items(order_id);
-CREATE INDEX idx_favorites_customer ON favorites(customer_id);
-CREATE INDEX idx_activity_customer ON activity_log(customer_id);
-CREATE INDEX idx_activity_type ON activity_log(type);
-CREATE INDEX idx_activity_created_at ON activity_log(created_at DESC);
-CREATE INDEX idx_activity_admin ON activity_log(admin_id);
-CREATE INDEX idx_customer_overrides_customer ON customer_overrides(customer_id);
-CREATE INDEX idx_customer_cat_hidden_customer ON customer_cat_hidden(customer_id);
-CREATE INDEX idx_carts_customer ON carts(customer_id);
-CREATE INDEX idx_carts_created_at ON carts(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
+CREATE INDEX IF NOT EXISTS idx_products_super_category ON products(super_category_id);
+CREATE INDEX IF NOT EXISTS idx_products_created_at ON products(created_at);
+CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
+CREATE INDEX IF NOT EXISTS idx_products_category_hidden ON products(category_id, is_hidden);
+CREATE INDEX IF NOT EXISTS idx_categories_super ON categories(super_category_id);
+CREATE INDEX IF NOT EXISTS idx_categories_is_hidden ON categories(is_hidden);
+CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_favorites_customer ON favorites(customer_id);
+CREATE INDEX IF NOT EXISTS idx_activity_customer ON activity_log(customer_id);
+CREATE INDEX IF NOT EXISTS idx_activity_admin ON activity_log(admin_id);
+CREATE INDEX IF NOT EXISTS idx_activity_type ON activity_log(type);
+CREATE INDEX IF NOT EXISTS idx_activity_created_at ON activity_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_customer_overrides_customer ON customer_overrides(customer_id);
+CREATE INDEX IF NOT EXISTS idx_customer_overrides_product ON customer_overrides(product_id);
+CREATE INDEX IF NOT EXISTS idx_customer_cat_hidden_customer ON customer_cat_hidden(customer_id);
+CREATE INDEX IF NOT EXISTS idx_carts_customer ON carts(customer_id);
+CREATE INDEX IF NOT EXISTS idx_pending_reg_status ON pending_registrations(status);
+CREATE INDEX IF NOT EXISTS idx_pending_reg_email ON pending_registrations(email);
