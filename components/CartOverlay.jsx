@@ -65,6 +65,33 @@ function CartItem({ item, isLoading, onRemove, onUpdateQty }) {
 }
 
 function CartOverlay({ isOpen, cartItems = [], onClose, onRemoveItem, onPlaceOrder, onClearCart, onUpdateQty }) {
+  const [dragY, setDragY] = useState(0)
+  const dragStart = React.useRef(0)
+  const dragging = React.useRef(false)
+  const scrollRef = React.useRef(null)
+  const canDrag = React.useRef(false)
+  const onTouchStart = (e) => {
+    dragStart.current = e.touches[0].clientY
+    dragging.current = true
+    canDrag.current = !scrollRef.current || scrollRef.current.scrollTop <= 0
+  }
+  const onTouchMove = (e) => {
+    if (!dragging.current) return
+    const diff = e.touches[0].clientY - dragStart.current
+    if (diff < 0) { canDrag.current = false; setDragY(0); return }
+    if (!canDrag.current && scrollRef.current && scrollRef.current.scrollTop <= 0) {
+      canDrag.current = true
+      dragStart.current = e.touches[0].clientY
+      return
+    }
+    if (canDrag.current && diff > 0) setDragY(diff)
+  }
+  const onTouchEnd = () => {
+    dragging.current = false
+    if (dragY > 100) { onClose(); setTimeout(() => setDragY(0), 350) } else { setDragY(0) }
+  }
+  React.useEffect(() => { if (!isOpen) setDragY(0) }, [isOpen])
+
   const cartTotal = cartItems.reduce((sum, item) => {
     const price = parseFloat(item.price) || 0
     const qty = item.quantity || item.qty || 1
@@ -88,14 +115,17 @@ function CartOverlay({ isOpen, cartItems = [], onClose, onRemoveItem, onPlaceOrd
       ${isOpen ? 'bg-black/40' : 'bg-transparent'}`}
       style={{ pointerEvents: isOpen ? 'auto' : 'none' }}
       onClick={onClose}>
-      <div className={`bg-white rounded-t-2xl w-full max-w-[600px] overflow-hidden shadow-2xl transition-transform duration-350 flex flex-col
+      <div className={`bg-white rounded-t-2xl w-full max-w-[600px] overflow-hidden shadow-2xl flex flex-col
         max-sm:max-w-full max-sm:rounded-t-xl max-sm:h-[75vh] max-sm:max-h-[75vh]
-        ${isOpen ? 'translate-y-0' : 'translate-y-full pointer-events-none'}`}
-        style={{ maxHeight: '92vh', transitionTimingFunction: 'cubic-bezier(.32,1,.32,1)' }}
-        onClick={(e) => e.stopPropagation()}>
+        ${!isOpen ? 'pointer-events-none' : ''}`}
+        style={{ maxHeight: '92vh', transform: !isOpen ? 'translateY(100%)' : (dragY > 0 ? `translateY(${dragY}px)` : 'translateY(0)'), transition: dragging.current ? 'none' : 'transform 0.35s cubic-bezier(.32,1,.32,1)' }}
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
 
         {/* Handle */}
-        <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mt-2.5 shrink-0" />
+        <div className="shrink-0 flex justify-center items-center pt-2 pb-2">
+          <div className="w-10 h-1 bg-slate-300 rounded-full" />
+        </div>
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 shrink-0 max-sm:px-3.5">
@@ -107,7 +137,7 @@ function CartOverlay({ isOpen, cartItems = [], onClose, onRemoveItem, onPlaceOrd
         </div>
 
         {/* Items */}
-        <div className="flex-1 overflow-y-auto p-2.5 flex flex-col gap-1.5 max-sm:p-2 max-sm:gap-1">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-2.5 flex flex-col gap-1.5 max-sm:p-2 max-sm:gap-1">
           {cartItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-slate-400">
               <ShoppingCart className="w-12 h-12 mb-3.5 opacity-40" />

@@ -21,12 +21,53 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth > 640 : true);
   const [acctDropdownOpen, setAcctDropdownOpen] = useState(false);
   const [productSheetOpen, setProductSheetOpen] = useState(false);
+  const [sheetDragY, setSheetDragY] = useState(0);
+  const sheetDragStart = React.useRef(0);
+  const sheetDragging = React.useRef(false);
+  const sheetScrollRef = React.useRef(null);
+  const sheetCanDrag = React.useRef(false);
+  const sheetInteracted = React.useRef(false);
+  const onSheetTouchStart = (e) => {
+    sheetDragStart.current = e.touches[0].clientY;
+    sheetDragging.current = true;
+    sheetInteracted.current = true;
+    // Only allow drag if inner scroll is at top
+    sheetCanDrag.current = !sheetScrollRef.current || sheetScrollRef.current.scrollTop <= 0;
+  };
+  const onSheetTouchMove = (e) => {
+    if (!sheetDragging.current) return;
+    const diff = e.touches[0].clientY - sheetDragStart.current;
+    // If scrolling up, disable drag for this gesture
+    if (diff < 0) { sheetCanDrag.current = false; setSheetDragY(0); return; }
+    // Re-check scroll position if not yet allowed
+    if (!sheetCanDrag.current && sheetScrollRef.current && sheetScrollRef.current.scrollTop <= 0) {
+      sheetCanDrag.current = true;
+      sheetDragStart.current = e.touches[0].clientY;
+      return;
+    }
+    if (sheetCanDrag.current && diff > 0) setSheetDragY(diff);
+  };
+  const onSheetTouchEnd = () => {
+    sheetDragging.current = false;
+    if (sheetDragY > 100) {
+      // Animate sheet all the way down before closing
+      setSheetDragY(window.innerHeight);
+      setTimeout(() => { setProductSheetOpen(false); setSheetDragY(0); }, 300);
+    } else {
+      setSheetDragY(0);
+    }
+  };
   const [cartOverlayOpen, setCartOverlayOpen] = useState(false);
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [cardSize, setCardSize] = useState(1.0);
+  const [navsHidden, setNavsHidden] = useState(false);
+  const lastScrollY = React.useRef(0);
+  const pillsRowRef = React.useRef(null);
   const [cartItems, setCartItems] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+  const [viewSwitching, setViewSwitching] = useState(false);
   const [categories, setCategories] = useState([]);
   const [orders, setOrders] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
@@ -122,6 +163,53 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
     if (products.length === 0) { const timer = setTimeout(() => loadProducts(), 500); return () => clearTimeout(timer); }
   }, [products.length]);
 
+  // Lock body scroll when any popup is open or catalog is loading to prevent pull-to-refresh / shift
+  useEffect(() => {
+    const anyOpen = productSheetOpen || cartOverlayOpen || confirmModalOpen || !!acctModal;
+    const catalogLoading = activePage === 'catalog' && (productsLoading || products.length === 0 || superCatList.length === 0 || viewSwitching);
+    if (anyOpen || catalogLoading) {
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+    } else {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+      document.body.style.touchAction = '';
+    }
+    return () => { document.body.style.overflow = ''; document.documentElement.style.overflow = ''; document.body.style.touchAction = ''; };
+  }, [productSheetOpen, cartOverlayOpen, confirmModalOpen, acctModal, activePage, productsLoading, products.length, superCatList.length, viewSwitching]);
+
+  // Lock scroll briefly when switching between grid and categories view
+  useEffect(() => {
+    setViewSwitching(true);
+    if (catalogScrollRef.current) catalogScrollRef.current.scrollTop = 0;
+    const t = setTimeout(() => setViewSwitching(false), 500);
+    return () => clearTimeout(t);
+  }, [gridViewMode]);
+
+  // Auto-scroll active pill into view
+  useEffect(() => {
+    if (!activeSuperCatId || !pillsRowRef.current) return;
+    const pill = pillsRowRef.current.querySelector(`[data-pill-id="${activeSuperCatId}"]`);
+    if (pill) {
+      const row = pillsRowRef.current;
+      const pillLeft = pill.offsetLeft;
+      const pillWidth = pill.offsetWidth;
+      const rowScroll = row.scrollLeft;
+      const rowWidth = row.clientWidth;
+      if (pillLeft < rowScroll || pillLeft + pillWidth > rowScroll + rowWidth) {
+        row.scrollTo({ left: pillLeft - (rowWidth - pillWidth) / 2, behavior: 'smooth' });
+      }
+    }
+  }, [activeSuperCatId]);
+
+  // Reset scroll to top after products load if user was near top
+  useEffect(() => {
+    if (products.length > 0 && activePage === 'catalog' && catalogScrollRef.current && catalogScrollRef.current.scrollTop < 200) {
+      catalogScrollRef.current.scrollTop = 0;
+    }
+  }, [products.length]);
+
   // Load super categories for category pills
   useEffect(() => {
     fetch('/api/categories/hierarchy').then(r => r.json()).then(d => {
@@ -143,12 +231,24 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
     }
   }, [activePage]);
 
-  // Track which super category is currently scrolled to
+  // Track which super category is currently scrolled to + scroll direction for nav hide/show
   useEffect(() => {
-    if (activePage !== 'catalog' || superCatList.length === 0) return;
+    if (activePage !== 'catalog') return;
     const scrollEl = catalogScrollRef.current;
     if (!scrollEl) return;
     const handleScroll = () => {
+      // Nav hide/show on scroll direction
+      const currentY = scrollEl.scrollTop;
+      const diff = currentY - lastScrollY.current;
+      if (Math.abs(diff) > 5) {
+        if (diff > 0 && currentY > 60) setNavsHidden(true);
+        else if (diff < 0) setNavsHidden(false);
+        lastScrollY.current = currentY;
+      }
+      if (currentY < 10) setNavsHidden(false);
+
+      // Super category tracking
+      if (superCatList.length === 0) return;
       const containerTop = scrollEl.getBoundingClientRect().top;
       let active = null;
       for (const sc of superCatList) {
@@ -163,6 +263,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   }, [activePage, superCatList, gridViewMode]);
 
   const loadProducts = async () => {
+    setProductsLoading(true);
     try {
       const res = await fetch('/api/products'); const data = await res.json();
       const prods = data.products || []; setProducts(prods);
@@ -179,6 +280,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
         ...sc, subcategories: Array.from(sc.subcategories.values()).sort((a, b) => a.name.localeCompare(b.name))
       })));
     } catch (err) { console.error('Failed to load products:', err); }
+    finally { setProductsLoading(false); }
   };
 
   const addToCart = (product, qty = 1, unit = 'cases') => {
@@ -245,7 +347,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
     finally { setIsSubmittingOrder(false); }
   };
 
-  const selectProduct = (product) => { setSelectedProduct(product); setProductSheetOpen(true); setSheetQty(1); setSelectedUnit('cases'); };
+  const selectProduct = (product) => { sheetInteracted.current = false; setSelectedProduct(product); setProductSheetOpen(true); setSheetQty(1); setSelectedUnit('cases'); };
   const showAcctBanner = (msg) => { setAcctSaveBanner(msg); setTimeout(() => setAcctSaveBanner(''), 3000); };
   const showToast = (msg, type = 'success') => { setToastMsg(msg); setToastType(type); setTimeout(() => setToastMsg(''), 3000); };
   const checkPwdStrength = (val) => { let s = 0; if (val.length >= 8) s++; if (/[A-Z]/.test(val)) s++; if (/[a-z]/.test(val)) s++; if (/[0-9]/.test(val)) s++; if (/[^A-Za-z0-9]/.test(val)) s++; setAcctPwdStrength(s); };
@@ -306,7 +408,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       </div>
 
       {/* NAV */}
-      <nav className="customer-top-nav grid grid-cols-[auto_1fr_auto] items-center px-6 h-14 bg-white border-b border-slate-200 sticky top-0 z-[1000] shadow-sm gap-3 max-sm:px-3 max-sm:fixed max-sm:top-0 max-sm:left-0 max-sm:right-0">
+      <nav className={`customer-top-nav grid grid-cols-[auto_1fr_auto] items-center px-6 h-14 bg-white border-b border-slate-200 sticky top-0 z-[1000] shadow-sm gap-3 max-sm:px-3 max-sm:fixed max-sm:top-0 max-sm:left-0 max-sm:right-0 transition-transform duration-300 ${navsHidden && activePage === 'catalog' ? 'max-sm:-translate-y-full' : ''}`}>
         <div className="flex items-center gap-5 max-sm:gap-2">
           <button className="w-9 h-9 border-none bg-transparent cursor-pointer flex flex-col items-center justify-center gap-1 rounded-lg transition-colors hover:bg-slate-100"
             onClick={() => setSidebarOpen(!sidebarOpen)}>
@@ -377,7 +479,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       </nav>
 
       {/* MOBILE NAV */}
-      <div className="customer-bottom-nav hidden max-sm:block fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 z-[500] shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+      <div className={`customer-bottom-nav hidden max-sm:block fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 z-[500] shadow-[0_-4px_12px_rgba(0,0,0,0.05)] transition-transform duration-300 ${navsHidden && activePage === 'catalog' ? 'translate-y-full' : ''}`}>
         <div className="flex justify-around items-center h-full">
           {[
             { id: 'catalog', name: 'Order', Icon: ShoppingBag },
@@ -399,7 +501,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       </div>
 
       {/* CONTENT ROW */}
-      <div className="customer-content-row flex-1 flex overflow-hidden">
+      <div className={`customer-content-row flex-1 flex overflow-hidden transition-[padding] duration-300 ${navsHidden && activePage === 'catalog' ? 'customer-content-row-compact' : ''}`}>
         <CategorySidebar isOpen={sidebarOpen} token={typeof window !== 'undefined' ? localStorage.getItem('token') : null}
           selectedCategory={selectedCategory} onSelectCategory={(cat) => setSelectedCategory(cat)} onClose={() => setSidebarOpen(false)} />
 
@@ -407,7 +509,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
           {/* CATALOG */}
           {activePage === 'catalog' && (
             <div className="flex flex-1 w-full min-h-0">
-              <div ref={catalogScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
+              <div ref={catalogScrollRef} className={`flex-1 overflow-x-hidden ${(productsLoading || products.length === 0 || superCatList.length === 0 || viewSwitching) ? 'overflow-hidden' : 'overflow-y-auto'}`} style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none', overflowAnchor: 'none' }}>
                 {/* Spacer to ensure banner is visible above sticky bar offset */}
                 <div className="h-16 max-sm:h-10" style={{ overflowAnchor: 'auto' }} />
                 {/* Promo Banner */}
@@ -470,9 +572,9 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                   {gridViewMode === 'categories' && superCatList.length > 0 && !selectedCategory && filteredProducts.length > 0 &&
                     superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).length > 1 && (
                     <div className="pb-1">
-                      <div className="flex gap-2 max-sm:gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+                      <div ref={pillsRowRef} className="flex gap-2 max-sm:gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
                         {superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).map(sc => (
-                          <button key={sc.id}
+                          <button key={sc.id} data-pill-id={sc.id}
                             onClick={() => {
                               if (gridViewMode === 'categories') {
                                 setActiveSuperCatId(sc.id);
@@ -638,15 +740,18 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
         style={{ animation: 'fadeIn 0.2s ease' }}
         onClick={(e) => { if (e.target === e.currentTarget) setProductSheetOpen(false); }}>
         <div className="bg-white rounded-2xl w-full max-w-[500px] overflow-hidden shadow-2xl flex flex-col relative max-sm:max-w-full max-sm:rounded-t-xl max-sm:rounded-b-none max-sm:h-[75vh] max-sm:max-h-[75vh]"
-          style={{ maxHeight: '85vh', animation: 'popIn 0.25s ease' }} onClick={e => e.stopPropagation()}>
-          <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mt-2.5 shrink-0 hidden max-sm:block" />
+          style={{ maxHeight: '85vh', animation: !sheetInteracted.current ? 'popIn 0.25s ease' : undefined, transform: `translateY(${sheetDragY}px)`, transition: sheetDragging.current ? 'none' : 'transform 0.35s cubic-bezier(.32,1,.32,1)', willChange: 'transform' }} onClick={e => e.stopPropagation()}
+          onTouchStart={onSheetTouchStart} onTouchMove={onSheetTouchMove} onTouchEnd={onSheetTouchEnd}>
+          <div className="shrink-0 hidden max-sm:flex justify-center items-center pt-2 pb-3">
+            <div className="w-10 h-1 bg-slate-300 rounded-full" />
+          </div>
           <button onClick={() => setProductSheetOpen(false)}
             className="absolute top-3 right-3.5 w-7 h-7 rounded-lg border border-slate-200 bg-slate-50 text-slate-400 flex items-center justify-center cursor-pointer z-10 transition-colors hover:bg-indigo-500 hover:border-indigo-500 hover:text-white">
             <X className="w-4 h-4" />
           </button>
           {selectedProduct && (
             <>
-              <div className="flex-1 overflow-y-auto min-h-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <div ref={sheetScrollRef} className="flex-1 overflow-y-auto min-h-0" style={{ WebkitOverflowScrolling: 'touch' }}>
                 <div className="flex gap-4 p-5 max-sm:flex-col max-sm:items-center max-sm:gap-2 max-sm:p-4 max-sm:text-center">
                   <div className="w-[180px] h-[180px] shrink-0 bg-white rounded-xl overflow-hidden border border-slate-200 max-sm:w-[150px] max-sm:h-[150px]">
                     <img src={selectedProduct.image_url} alt={selectedProduct.name} className="w-full h-full object-contain p-2" />
