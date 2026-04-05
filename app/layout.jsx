@@ -3,6 +3,13 @@ import './globals.css';
 export const metadata = {
   title: 'DR Prepper \u2013 Wholesale Portal',
   description: 'DR Prepper Wholesale B2B Ordering Portal',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'DR Prepper',
+  },
+  themeColor: '#6366f1',
 };
 
 export default function RootLayout({ children }) {
