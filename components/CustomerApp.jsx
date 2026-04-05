@@ -63,6 +63,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   const [navsHidden, setNavsHidden] = useState(false);
   const lastScrollY = React.useRef(0);
   const pillsRowRef = React.useRef(null);
+  const programmaticScroll = React.useRef(false);
   const [cartItems, setCartItems] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [products, setProducts] = useState([]);
@@ -237,15 +238,17 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
     const scrollEl = catalogScrollRef.current;
     if (!scrollEl) return;
     const handleScroll = () => {
-      // Nav hide/show on scroll direction
-      const currentY = scrollEl.scrollTop;
-      const diff = currentY - lastScrollY.current;
-      if (Math.abs(diff) > 5) {
-        if (diff > 0 && currentY > 60) setNavsHidden(true);
-        else if (diff < 0) setNavsHidden(false);
-        lastScrollY.current = currentY;
+      // Nav hide/show on scroll direction (skip during programmatic scroll)
+      if (!programmaticScroll.current) {
+        const currentY = scrollEl.scrollTop;
+        const diff = currentY - lastScrollY.current;
+        if (Math.abs(diff) > 5) {
+          if (diff > 0 && currentY > 60) setNavsHidden(true);
+          else if (diff < 0) setNavsHidden(false);
+          lastScrollY.current = currentY;
+        }
+        if (currentY < 10) setNavsHidden(false);
       }
-      if (currentY < 10) setNavsHidden(false);
 
       // Super category tracking
       if (superCatList.length === 0) return;
@@ -505,7 +508,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
         <CategorySidebar isOpen={sidebarOpen} token={typeof window !== 'undefined' ? localStorage.getItem('token') : null}
           selectedCategory={selectedCategory} onSelectCategory={(cat) => setSelectedCategory(cat)} onClose={() => setSidebarOpen(false)} />
 
-        <main className="flex-1 flex relative max-sm:pb-16 min-h-0 overflow-hidden">
+        <main className={`flex-1 flex relative min-h-0 overflow-hidden transition-[padding] duration-300 ${navsHidden && activePage === 'catalog' ? 'max-sm:pb-0' : 'max-sm:pb-16'}`}>
           {/* CATALOG */}
           {activePage === 'catalog' && (
             <div className="flex flex-1 w-full min-h-0">
@@ -581,19 +584,21 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                                 const el = document.getElementById(`supercat-${sc.id}`);
                                 const scrollEl = catalogScrollRef.current;
                                 if (el && scrollEl) {
+                                  programmaticScroll.current = true;
                                   const scrollTop = el.offsetTop - 120;
                                   scrollEl.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
+                                  setTimeout(() => { programmaticScroll.current = false; lastScrollY.current = scrollEl.scrollTop; }, 800);
                                 }
                               } else {
                                 setSelectedCategory(activeSuperCatId === sc.id ? null : sc);
                               }
                             }}
-                            className={`flex items-center gap-1.5 px-3 max-sm:px-2.5 py-1.5 rounded-full border text-xs font-medium cursor-pointer transition-all whitespace-nowrap shrink-0 ${
+                            className={`flex items-center gap-1.5 px-3 py-1.5 max-sm:px-4 max-sm:py-2.5 rounded-lg border text-xs max-sm:text-sm font-medium cursor-pointer transition-all whitespace-nowrap shrink-0 ${
                               activeSuperCatId === sc.id
                                 ? 'bg-indigo-500 border-indigo-500 text-white shadow-sm'
                                 : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300 hover:text-indigo-500'
                             }`}>
-                            <span className="text-sm max-sm:text-xs">{sc.emoji}</span> {sc.name}
+                            <span className="text-sm max-sm:text-base">{sc.emoji}</span> {sc.name}
                           </button>
                         ))}
                       </div>
