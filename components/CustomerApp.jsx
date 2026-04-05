@@ -553,8 +553,8 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                 </div>
 
                 {/* Sticky block: view toggle + search + pills (categories view) OR search only (grid view) */}
-                <div className="sticky top-0 z-20 bg-white border-b border-slate-100 px-8 max-sm:px-3 max-lg:px-5 pt-2 pb-2" style={{ overflowAnchor: 'none' }}>
-                  <div className="flex items-center justify-between mb-2 max-sm:mb-1.5">
+                <div className="sticky top-0 z-20 bg-white border-b border-slate-100 px-8 max-sm:px-3 max-lg:px-5 py-2" style={{ overflowAnchor: 'none' }}>
+                  <div className="flex items-center justify-between">
                     <div className="relative max-w-[400px] max-sm:max-w-full flex-1">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                       <input type="text" placeholder="Search products..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} autoComplete="off"
@@ -571,8 +571,8 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                   {/* Category quick-nav pills - categories view only */}
                   {gridViewMode === 'categories' && superCatList.length > 0 && !selectedCategory && filteredProducts.length > 0 &&
                     superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).length > 1 && (
-                    <div className="pb-1">
-                      <div ref={pillsRowRef} className="flex gap-2 max-sm:gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+                    <div className="mt-2">
+                      <div ref={pillsRowRef} className="flex gap-2 max-sm:gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
                         {superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).map(sc => (
                           <button key={sc.id} data-pill-id={sc.id}
                             onClick={() => {
@@ -650,7 +650,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
           {activePage === 'history' && (
             <div className="flex-1 overflow-y-auto p-8 max-sm:p-3">
               <div className="mb-6">
-                <div className="text-2xl font-bold text-slate-800">Order History</div>
+                <div className="text-2xl font-bold text-slate-800 flex items-center gap-2"><ClipboardList className="w-6 h-6" /> Order History</div>
                 <div className="flex gap-2 mt-3">
                   {['All', 'Received', 'Processing', 'Pending'].map(f => (
                     <button key={f} onClick={() => setHistoryFilter(f.toLowerCase())}
