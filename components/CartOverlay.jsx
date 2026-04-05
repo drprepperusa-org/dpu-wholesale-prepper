@@ -88,7 +88,13 @@ function CartOverlay({ isOpen, cartItems = [], onClose, onRemoveItem, onPlaceOrd
   }
   const onTouchEnd = () => {
     dragging.current = false
-    if (dragY > 100) { onClose(); setTimeout(() => setDragY(0), 350) } else { setDragY(0) }
+    if (dragY > 100) {
+      // Animate all the way down, then trigger close
+      setDragY(typeof window !== 'undefined' ? window.innerHeight : 800)
+      setTimeout(() => { onClose(); setDragY(0) }, 300)
+    } else {
+      setDragY(0)
+    }
   }
   React.useEffect(() => { if (!isOpen) setDragY(0) }, [isOpen])
 
@@ -118,7 +124,7 @@ function CartOverlay({ isOpen, cartItems = [], onClose, onRemoveItem, onPlaceOrd
       <div className={`bg-white rounded-t-2xl w-full max-w-[600px] overflow-hidden shadow-2xl flex flex-col
         max-sm:max-w-full max-sm:rounded-t-xl max-sm:h-[75vh] max-sm:max-h-[75vh]
         ${!isOpen ? 'pointer-events-none' : ''}`}
-        style={{ maxHeight: '92vh', transform: !isOpen ? 'translateY(100%)' : (dragY > 0 ? `translateY(${dragY}px)` : 'translateY(0)'), transition: dragging.current ? 'none' : 'transform 0.35s cubic-bezier(.32,1,.32,1)' }}
+        style={{ maxHeight: '92vh', transform: !isOpen ? 'translateY(100%)' : `translateY(${dragY}px)`, transition: dragging.current ? 'none' : 'transform 0.35s cubic-bezier(.32,1,.32,1)', willChange: 'transform' }}
         onClick={(e) => e.stopPropagation()}
         onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
 
