@@ -398,7 +398,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
     <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
 
       {/* UTILITY BAR */}
-      <div className="hidden sm:flex items-center justify-between px-6 h-8 bg-slate-900 text-slate-400 text-[11px] shrink-0">
+      <div className="hidden items-center justify-between px-6 h-8 bg-slate-900 text-slate-400 text-[11px] shrink-0">
         <span>B2B Wholesale Portal — Registered Distributors Only</span>
         <div className="flex gap-4">
           <a href="https://drprepperusa.com" className="text-slate-400 no-underline hover:text-white transition-colors" target="_blank" rel="noopener noreferrer">Visit Website</a>
