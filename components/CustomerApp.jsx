@@ -757,7 +757,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                     <img src={selectedProduct.image_url} alt={selectedProduct.name} className="w-full h-full object-contain p-2" />
                   </div>
                   <div className="flex-1 min-w-0 pt-1 max-sm:w-full">
-                    <div className="text-xl font-semibold text-slate-800 leading-tight mb-1.5 tracking-tight max-sm:text-[17px]">{selectedProduct.name}</div>
+                    <div className="text-xl font-semibold text-slate-800 leading-tight mb-1.5 tracking-tight pr-10 max-sm:text-[17px] max-sm:pr-0">{selectedProduct.name}</div>
                     <div className="flex flex-wrap gap-1.5 mb-2 max-sm:justify-center">
                       <span className="bg-slate-100 border border-slate-200 rounded-md px-2.5 py-0.5 text-[11px] text-slate-500">{selectedProduct.super_category}</span>
                       <span className="bg-slate-100 border border-slate-200 rounded-md px-2.5 py-0.5 text-[11px] text-slate-500">{selectedProduct.category}</span>

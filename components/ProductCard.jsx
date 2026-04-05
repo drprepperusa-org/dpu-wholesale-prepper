@@ -98,14 +98,7 @@ function ProductCard({ product, isFavorited, inCart, isFirst, onProductSelected,
         />
       </div>
 
-      {product.category && (
-        <div className="text-indigo-500 font-semibold uppercase tracking-wider hidden sm:block"
-          style={{ fontSize: `${9 * scale}px`, marginBottom: `${2 * scale}px` }}>
-          {product.category}
-        </div>
-      )}
-
-      <div className="text-slate-800 font-semibold leading-tight overflow-hidden cursor-pointer"
+<div className="text-slate-800 font-semibold leading-tight overflow-hidden cursor-pointer"
         style={{ fontSize: `${12 * scale}px`, height: `${32 * scale}px`, marginBottom: `${4 * scale}px` }}
         onClick={() => onProductSelected(product)}>
         {product.name}
