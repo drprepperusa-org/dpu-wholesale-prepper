@@ -79,6 +79,19 @@ input[type=number] {
   html { font-size: 16px; }
 }
 
+/* Mobile fixed nav layout */
+@media (max-width: 640px) {
+  .customer-content-row {
+    padding-top: calc(3.5rem + env(safe-area-inset-top, 0px));
+  }
+  .customer-top-nav {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .customer-bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
 /* Prevent iOS form zoom */
 @media (max-width: 640px) {
   input, select, textarea {

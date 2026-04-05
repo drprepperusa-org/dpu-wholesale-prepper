@@ -99,7 +99,7 @@ function ProductCard({ product, isFavorited, inCart, isFirst, onProductSelected,
       </div>
 
       {product.category && (
-        <div className="text-indigo-500 font-semibold uppercase tracking-wider"
+        <div className="text-indigo-500 font-semibold uppercase tracking-wider hidden sm:block"
           style={{ fontSize: `${9 * scale}px`, marginBottom: `${2 * scale}px` }}>
           {product.category}
         </div>

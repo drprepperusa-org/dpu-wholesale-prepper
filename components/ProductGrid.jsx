@@ -15,7 +15,8 @@ function ProductGrid({ products, favorites, cart, cardSize, onProductSelected, o
   if (!products || products.length === 0) {
     return (
       <div className="text-center py-12 text-slate-400">
-        <p>No products found.</p>
+        <div className="w-6 h-6 border-[3px] border-slate-200 border-t-indigo-500 rounded-full animate-spin mx-auto mb-3"></div>
+        <p>Loading products...</p>
       </div>
     )
   }

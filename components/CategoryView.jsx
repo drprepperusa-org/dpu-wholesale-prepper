@@ -57,7 +57,7 @@ function CategoryView({ products, favorites, cart, onProductSelected, onAddToCar
         if (catSections.length === 0) return null
 
         return (
-          <div key={superCat.id} className="mb-10">
+          <div key={superCat.id} id={`supercat-${superCat.id}`} className="mb-10">
             <div className="flex items-center gap-3 mb-6 pb-4 border-b-2 border-slate-200">
               <span className="text-[28px]">{superCat.emoji}</span>
               <h2 className="text-2xl font-semibold text-slate-800 m-0 max-sm:text-lg">{superCat.name}</h2>

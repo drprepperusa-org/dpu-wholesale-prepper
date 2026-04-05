@@ -21,44 +21,45 @@ function CartItem({ item, isLoading, onRemove, onUpdateQty }) {
   const handleKeyDown = (e) => { if (e.key === 'Enter') e.target.blur() }
 
   return (
-    <div className={`flex gap-2.5 p-3 bg-white rounded-lg border border-slate-200 mb-1 relative shadow-sm transition-opacity max-sm:gap-2 max-sm:p-2.5 ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>
-      <div className="w-[60px] h-[60px] shrink-0 bg-slate-50 rounded-md overflow-hidden border border-slate-200 flex items-center justify-center max-sm:w-11 max-sm:h-11">
-        {item.image_url
-          ? <img src={item.image_url} alt={name} className="w-full h-full object-contain p-1" />
-          : <div className="text-[10px] text-slate-400">No img</div>
-        }
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <div className="text-xs font-medium text-slate-800 leading-tight mb-0.5 max-sm:whitespace-nowrap max-sm:overflow-hidden max-sm:text-ellipsis">{name}</div>
-        <div className="text-[10px] text-slate-400 leading-tight mb-1 overflow-hidden text-ellipsis whitespace-nowrap">
-          {item.weight || ''}{item.bags_per_case && <> &middot; {item.bags_per_case}</>}
+    <div className={`p-3 bg-white rounded-lg border border-slate-200 mb-1 shadow-sm transition-opacity max-sm:p-2.5 ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>
+      {/* Top row: image + name + remove button */}
+      <div className="flex gap-2.5 items-start max-sm:gap-2">
+        <div className="w-[60px] h-[60px] shrink-0 bg-slate-50 rounded-md overflow-hidden border border-slate-200 flex items-center justify-center max-sm:w-11 max-sm:h-11">
+          {item.image_url
+            ? <img src={item.image_url} alt={name} className="w-full h-full object-contain p-1" />
+            : <div className="text-[10px] text-slate-400">No img</div>
+          }
         </div>
-        <div className="text-[11px] font-semibold text-indigo-500">${price.toFixed(2)}</div>
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-medium text-slate-800 leading-tight mb-0.5 overflow-hidden text-ellipsis whitespace-nowrap">{name}</div>
+          <div className="text-[10px] text-slate-400 leading-tight mb-1 overflow-hidden text-ellipsis whitespace-nowrap">
+            {item.weight || ''}{item.bags_per_case && <> &middot; {item.bags_per_case}</>}
+          </div>
+          <div className="text-[11px] font-semibold text-indigo-500">${price.toFixed(2)}</div>
+        </div>
+        <button onClick={() => onRemove(item.id)} disabled={isLoading}
+          className="w-6 h-6 rounded bg-slate-100 text-slate-400 border-none cursor-pointer flex items-center justify-center transition-colors hover:bg-red-500 hover:text-white shrink-0">
+          <X className="w-3 h-3" />
+        </button>
       </div>
-
-      <div className="flex flex-col items-end justify-center gap-1 shrink-0">
+      {/* Bottom row: qty controls + total */}
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100">
         <div className="flex items-center gap-0">
           <button onClick={decrement} disabled={isLoading || quantity <= 1}
-            className="w-6 h-6 border border-slate-200 bg-white rounded text-slate-700 text-xs font-semibold cursor-pointer flex items-center justify-center transition-colors hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed max-sm:w-7 max-sm:h-[26px]">
-            <Minus className="w-3 h-3" />
+            className="w-7 h-7 border-none bg-transparent text-slate-500 text-xs font-semibold cursor-pointer flex items-center justify-center transition-colors hover:text-indigo-500 disabled:opacity-30 disabled:cursor-not-allowed">
+            <Minus className="w-4 h-4" />
           </button>
           <input type="number" value={localQty} onChange={handleInputChange} onBlur={handleInputBlur} onKeyDown={handleKeyDown}
             disabled={isLoading} min="1"
-            className="w-[30px] h-6 border-none bg-transparent text-center text-[11px] font-semibold text-slate-800 p-0 focus:outline-none max-sm:w-[30px] max-sm:h-[26px] max-sm:text-[13px]" />
+            className="w-[38px] h-7 border border-slate-200 bg-white rounded-md text-center text-[13px] font-semibold text-slate-800 p-0 focus:outline-none focus:border-indigo-400" />
           <button onClick={increment} disabled={isLoading}
-            className="w-6 h-6 border border-slate-200 bg-white rounded text-slate-700 text-xs font-semibold cursor-pointer flex items-center justify-center transition-colors hover:bg-slate-100 disabled:opacity-40 max-sm:w-7 max-sm:h-[26px]">
-            <Plus className="w-3 h-3" />
+            className="w-7 h-7 border-none bg-transparent text-slate-500 text-xs font-semibold cursor-pointer flex items-center justify-center transition-colors hover:text-indigo-500 disabled:opacity-30">
+            <Plus className="w-4 h-4" />
           </button>
-          <span className="text-[11px] text-slate-500 font-medium ml-1.5">{unit}{unit === 'pallets' ? ` (${totalCases} cs)` : ''}</span>
+          <span className="text-[11px] text-slate-500 font-medium ml-2">{unit}{unit === 'pallets' ? ` (${totalCases} cs)` : ''}</span>
         </div>
-        {price > 0 && <span className="text-xs font-semibold text-slate-800">${totalPrice.toFixed(2)}</span>}
+        {price > 0 && <span className="text-sm font-bold text-slate-800">${totalPrice.toFixed(2)}</span>}
       </div>
-
-      <button onClick={() => onRemove(item.id)} disabled={isLoading}
-        className="absolute top-1.5 right-1.5 w-5 h-5 rounded bg-slate-100 text-slate-400 border-none cursor-pointer flex items-center justify-center transition-colors hover:bg-red-500 hover:text-white">
-        <X className="w-3 h-3" />
-      </button>
     </div>
   )
 }

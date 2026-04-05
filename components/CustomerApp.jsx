@@ -51,6 +51,9 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   const [acctNewPwd, setAcctNewPwd] = useState('');
   const [acctConfirmPwd, setAcctConfirmPwd] = useState('');
   const [acctPwdStrength, setAcctPwdStrength] = useState(0);
+  const [activeSuperCatId, setActiveSuperCatId] = useState(null);
+  const [superCatList, setSuperCatList] = useState([]);
+  const catalogScrollRef = React.useRef(null);
 
   const tabs = [
     { id: 'catalog', name: 'Order', Icon: ShoppingBag },
@@ -118,6 +121,46 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   useEffect(() => {
     if (products.length === 0) { const timer = setTimeout(() => loadProducts(), 500); return () => clearTimeout(timer); }
   }, [products.length]);
+
+  // Load super categories for category pills
+  useEffect(() => {
+    fetch('/api/categories/hierarchy').then(r => r.json()).then(d => {
+      if (d.hierarchy) setSuperCatList(d.hierarchy);
+    }).catch(() => {});
+  }, []);
+
+  // Force scroll to top on catalog load so banner is fully visible
+  useEffect(() => {
+    if (activePage === 'catalog') {
+      if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+      const reset = () => { if (catalogScrollRef.current) catalogScrollRef.current.scrollTop = 0; };
+      reset();
+      requestAnimationFrame(reset);
+      const t1 = setTimeout(reset, 50);
+      const t2 = setTimeout(reset, 150);
+      const t3 = setTimeout(reset, 300);
+      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    }
+  }, [activePage]);
+
+  // Track which super category is currently scrolled to
+  useEffect(() => {
+    if (activePage !== 'catalog' || superCatList.length === 0) return;
+    const scrollEl = catalogScrollRef.current;
+    if (!scrollEl) return;
+    const handleScroll = () => {
+      const containerTop = scrollEl.getBoundingClientRect().top;
+      let active = null;
+      for (const sc of superCatList) {
+        const el = document.getElementById(`supercat-${sc.id}`);
+        if (el && el.getBoundingClientRect().top - containerTop <= 160) active = sc.id;
+      }
+      if (active) setActiveSuperCatId(active);
+    };
+    scrollEl.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => scrollEl.removeEventListener('scroll', handleScroll);
+  }, [activePage, superCatList, gridViewMode]);
 
   const loadProducts = async () => {
     try {
@@ -263,7 +306,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       </div>
 
       {/* NAV */}
-      <nav className="grid grid-cols-[auto_1fr_auto] items-center px-6 h-14 bg-white border-b border-slate-200 sticky top-0 z-[1000] shadow-sm gap-3 max-sm:px-3 max-sm:fixed max-sm:top-0 max-sm:left-0 max-sm:right-0">
+      <nav className="customer-top-nav grid grid-cols-[auto_1fr_auto] items-center px-6 h-14 bg-white border-b border-slate-200 sticky top-0 z-[1000] shadow-sm gap-3 max-sm:px-3 max-sm:fixed max-sm:top-0 max-sm:left-0 max-sm:right-0">
         <div className="flex items-center gap-5 max-sm:gap-2">
           <button className="w-9 h-9 border-none bg-transparent cursor-pointer flex flex-col items-center justify-center gap-1 rounded-lg transition-colors hover:bg-slate-100"
             onClick={() => setSidebarOpen(!sidebarOpen)}>
@@ -334,7 +377,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       </nav>
 
       {/* MOBILE NAV */}
-      <div className="hidden max-sm:block fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 z-[500] shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+      <div className="customer-bottom-nav hidden max-sm:block fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 z-[500] shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
         <div className="flex justify-around items-center h-full">
           {[
             { id: 'catalog', name: 'Order', Icon: ShoppingBag },
@@ -356,7 +399,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       </div>
 
       {/* CONTENT ROW */}
-      <div className="flex-1 flex overflow-hidden max-sm:pt-14">
+      <div className="customer-content-row flex-1 flex overflow-hidden">
         <CategorySidebar isOpen={sidebarOpen} token={typeof window !== 'undefined' ? localStorage.getItem('token') : null}
           selectedCategory={selectedCategory} onSelectCategory={(cat) => setSelectedCategory(cat)} onClose={() => setSidebarOpen(false)} />
 
@@ -364,10 +407,11 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
           {/* CATALOG */}
           {activePage === 'catalog' && (
             <div className="flex flex-1 w-full min-h-0">
-              <div className="flex-1 overflow-y-auto p-8 max-sm:p-3 max-lg:p-5" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
-                {products.length === 0 && <div className="p-5 text-center text-slate-400">Loading products...</div>}
-
+              <div ref={catalogScrollRef} className="flex-1 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
+                {/* Spacer to ensure banner is visible above sticky bar offset */}
+                <div className="h-16 max-sm:h-10" style={{ overflowAnchor: 'auto' }} />
                 {/* Promo Banner */}
+                <div className="px-8 max-sm:px-3 max-lg:px-5">
                 {promoBanner && promoBanner.type === 'image' && promoBanner.imageUrl ? (
                   <div className="mb-6 max-sm:mb-4 rounded-2xl overflow-hidden cursor-pointer"
                     onClick={() => { if (promoBanner.ctaLink) window.open(promoBanner.ctaLink, '_blank') }}>
@@ -397,12 +441,23 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                     </div>
                   </div>
                 ) : null}
+                </div>
 
-                <div className="mb-4 max-sm:mb-3">
+                {/* Title */}
+                <div className="px-8 max-sm:px-3 max-lg:px-5 pt-4 max-sm:pt-2">
+                  <span className="text-[17px] font-semibold text-slate-800 truncate max-sm:text-[15px]">
+                    {selectedCategory?.name || 'All Products'} <span className="text-[13px] text-slate-400 font-normal ml-1.5">({filteredProducts.length})</span>
+                  </span>
+                </div>
+
+                {/* Sticky block: view toggle + search + pills (categories view) OR search only (grid view) */}
+                <div className="sticky top-0 z-20 bg-white border-b border-slate-100 px-8 max-sm:px-3 max-lg:px-5 pt-2 pb-2" style={{ overflowAnchor: 'none' }}>
                   <div className="flex items-center justify-between mb-2 max-sm:mb-1.5">
-                    <span className="text-[17px] font-semibold text-slate-800 truncate max-sm:text-[15px]">
-                      {selectedCategory?.name || 'All Products'} <span className="text-[13px] text-slate-400 font-normal ml-1.5">({filteredProducts.length})</span>
-                    </span>
+                    <div className="relative max-w-[400px] max-sm:max-w-full flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input type="text" placeholder="Search products..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} autoComplete="off"
+                        className="w-full py-2.5 pl-9 pr-3 border border-slate-200 rounded-xl text-sm transition-colors focus:border-indigo-400 focus:outline-none" />
+                    </div>
                     <div className="flex gap-1 bg-slate-100 border border-slate-200 rounded-lg p-0.5 shrink-0 ml-3">
                       <button className={`px-3.5 py-1.5 border-none rounded-md text-xs font-medium cursor-pointer transition-all flex items-center gap-1 ${gridViewMode === 'grid' ? 'bg-white text-slate-800 shadow-sm font-semibold' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
                         onClick={() => setGridViewMode('grid')}><LayoutGrid className="w-3.5 h-3.5" /> Grid</button>
@@ -410,13 +465,41 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                         onClick={() => setGridViewMode('categories')}><FolderOpen className="w-3.5 h-3.5" /> Categories</button>
                     </div>
                   </div>
-                  <div className="relative max-w-[400px] max-sm:max-w-full">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input type="text" placeholder="Search products..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} autoComplete="off"
-                      className="w-full py-2.5 pl-9 pr-3 border border-slate-200 rounded-xl text-sm transition-colors focus:border-indigo-400 focus:outline-none" />
-                  </div>
+
+                  {/* Category quick-nav pills - categories view only */}
+                  {gridViewMode === 'categories' && superCatList.length > 0 && !selectedCategory && filteredProducts.length > 0 &&
+                    superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).length > 1 && (
+                    <div className="pb-1">
+                      <div className="flex gap-2 max-sm:gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+                        {superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).map(sc => (
+                          <button key={sc.id}
+                            onClick={() => {
+                              if (gridViewMode === 'categories') {
+                                setActiveSuperCatId(sc.id);
+                                const el = document.getElementById(`supercat-${sc.id}`);
+                                const scrollEl = catalogScrollRef.current;
+                                if (el && scrollEl) {
+                                  const scrollTop = el.offsetTop - 120;
+                                  scrollEl.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
+                                }
+                              } else {
+                                setSelectedCategory(activeSuperCatId === sc.id ? null : sc);
+                              }
+                            }}
+                            className={`flex items-center gap-1.5 px-3 max-sm:px-2.5 py-1.5 rounded-full border text-xs font-medium cursor-pointer transition-all whitespace-nowrap shrink-0 ${
+                              activeSuperCatId === sc.id
+                                ? 'bg-indigo-500 border-indigo-500 text-white shadow-sm'
+                                : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300 hover:text-indigo-500'
+                            }`}>
+                            <span className="text-sm max-sm:text-xs">{sc.emoji}</span> {sc.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
+                <div className="px-8 max-sm:px-3 max-lg:px-5 pb-8 max-sm:pb-3 max-lg:pb-5 pt-4 max-sm:pt-3">
                 {gridViewMode === 'grid' ? (
                   <ProductGrid products={filteredProducts} favorites={favorites} cart={cartItems} cardSize={cardSize}
                     onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} onCardResize={setCardSize} showPrices={showPrices} />
@@ -424,6 +507,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                   <CategoryView products={filteredProducts} favorites={favorites} cart={cartItems} cardSize={cardSize}
                     onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} />
                 )}
+                </div>
               </div>
             </div>
           )}
