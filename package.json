@@ -21,6 +21,7 @@
     "@supabase/supabase-js": "^2.101.1",
     "bcrypt": "^5.1.0",
     "dotenv": "^16.0.3",
+    "jsbarcode": "^3.12.3",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.7.0",
     "multer": "^2.1.1",

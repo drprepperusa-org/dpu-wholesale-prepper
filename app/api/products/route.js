@@ -28,11 +28,11 @@ export async function GET(request) {
       ? `p.id, p.name, p.weight, p.bags_per_case, p.cases_per_pallet, p.price,
          p.category_id, c.name as category, c.is_hidden as category_is_hidden,
          s.id as super_category_id, s.name as super_category,
-         p.image_url, p.sku, p.sort_order, p.is_hidden, p.is_oos, p.show_price, p.created_at`
+         p.image_url, p.box_image_url, p.bundle_image_url, p.sku, p.barcode_pack, p.barcode_bundle, p.barcode_box, p.sort_order, p.is_hidden, p.is_oos, p.show_price, p.created_at`
       : `p.id, p.name, p.weight, p.bags_per_case, p.cases_per_pallet, p.price,
          p.category_id, c.name as category,
          s.id as super_category_id, s.name as super_category,
-         p.image_url, p.sku, p.sort_order, p.show_price, p.created_at`;
+         p.image_url, p.box_image_url, p.bundle_image_url, p.sku, p.barcode_pack, p.barcode_bundle, p.barcode_box, p.sort_order, p.show_price, p.created_at`;
 
     let query = `SELECT ${selectFields}
       FROM products p
@@ -141,7 +141,7 @@ export async function POST(request) {
       }, { status: 422 });
     }
 
-    const { id, name, weight, bags_per_case, cases_per_pallet, category_id, super_category_id, image_url, sku, price, show_price } = body;
+    const { id, name, weight, bags_per_case, cases_per_pallet, category_id, super_category_id, image_url, box_image_url, bundle_image_url, sku, barcode_pack, barcode_bundle, barcode_box, price, show_price } = body;
 
     try {
       const productId = id || uuidv4();
@@ -175,10 +175,10 @@ export async function POST(request) {
       }
 
       const result = await pool.query(
-        `INSERT INTO products (id, name, weight, bags_per_case, cases_per_pallet, category_id, super_category_id, image_url, sku, price, show_price)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        `INSERT INTO products (id, name, weight, bags_per_case, cases_per_pallet, category_id, super_category_id, image_url, box_image_url, bundle_image_url, sku, barcode_pack, barcode_bundle, barcode_box, price, show_price)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
          RETURNING *`,
-        [productId, name, weight, bags_per_case, cases_per_pallet || 60, category_id, finalSuperCategoryId, image_url, productSku, price || 25.00, show_price !== false]
+        [productId, name, weight, bags_per_case, cases_per_pallet || 60, category_id, finalSuperCategoryId, image_url, box_image_url || null, bundle_image_url || null, productSku, barcode_pack || null, barcode_bundle || null, barcode_box || null, price || 25.00, show_price !== false]
       );
 
       await logActivity(null, 'admin_product_create', `Created product: ${name}`, {

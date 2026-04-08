@@ -13,8 +13,8 @@ export async function GET(request) {
     if (!admin) return NextResponse.json({ error: 'Admin required' }, { status: 403 });
 
     const result = await pool.query(`
-      SELECT p.id, p.sku, p.name, p.price, p.weight, p.bags_per_case, p.cases_per_pallet,
-             p.image_url, p.is_hidden, p.is_oos, p.show_price,
+      SELECT p.id, p.sku, p.barcode_pack, p.barcode_bundle, p.barcode_box, p.name, p.price, p.weight, p.bags_per_case, p.cases_per_pallet,
+             p.image_url, p.box_image_url, p.bundle_image_url, p.is_hidden, p.is_oos, p.show_price,
              s.name as super_category, c.name as category,
              p.super_category_id, p.category_id, p.created_at
       FROM products p
@@ -26,6 +26,9 @@ export async function GET(request) {
     const rows = result.rows.map(p => ({
       'Product ID (leave blank for new)': p.id,
       'SKU': p.sku || '',
+      'Barcode (Pack)': p.barcode_pack || '',
+      'Barcode (Bundle)': p.barcode_bundle || '',
+      'Barcode (Box)': p.barcode_box || '',
       'Product Name': p.name || '',
       'Price': p.price ? parseFloat(p.price) : '',
       'Weight': p.weight || '',
@@ -34,6 +37,8 @@ export async function GET(request) {
       'Super Category': p.super_category || '',
       'Category': p.category || '',
       'Image': p.image_url || '',
+      'Box Image': p.box_image_url || '',
+      'Bundle Image': p.bundle_image_url || '',
       'Hidden': p.is_hidden ? 'Yes' : 'No',
       'Out of Stock': p.is_oos ? 'Yes' : 'No',
       'Show Price': p.show_price === false ? 'No' : 'Yes',
@@ -48,6 +53,9 @@ export async function GET(request) {
     ws['!cols'] = [
       { wch: 28 }, // Product ID
       { wch: 14 }, // SKU
+      { wch: 16 }, // Barcode (Pack)
+      { wch: 16 }, // Barcode (Bundle)
+      { wch: 16 }, // Barcode (Box)
       { wch: 40 }, // Name
       { wch: 10 }, // Price
       { wch: 12 }, // Weight
@@ -56,6 +64,8 @@ export async function GET(request) {
       { wch: 22 }, // Super Category
       { wch: 22 }, // Category
       { wch: 50 }, // Image
+      { wch: 50 }, // Box Image
+      { wch: 50 }, // Bundle Image
       { wch: 8 },  // Hidden
       { wch: 12 }, // OOS
       { wch: 10 }, // Show Price
@@ -156,6 +166,9 @@ export async function POST(request) {
       if (!name) { skipped++; continue; }
 
       const sku = get(['SKU', 'sku', 'Sku']);
+      const barcode_pack = get(['Barcode (Pack)', 'barcode_pack', 'Barcode Pack', 'UPC', 'upc']);
+      const barcode_bundle = get(['Barcode (Bundle)', 'barcode_bundle', 'Barcode Bundle']);
+      const barcode_box = get(['Barcode (Box)', 'barcode_box', 'Barcode Box']);
       const price = parseFloat(get(['Price', 'price']) || 0) || null;
       const weight = get(['Weight', 'weight']);
       const bagsPerCase = get(['Bags Per Case', 'bags_per_case', 'Bags/Case']);
@@ -165,6 +178,18 @@ export async function POST(request) {
         const filename = imageUrl.replace(/\\/g, '/').split('/').pop().toLowerCase();
         const filenameNoExt = filename.replace(/\.[^.]+$/, '');
         imageUrl = imageMap[filename] || imageMap[filenameNoExt] || null;
+      }
+      let boxImageUrl = get(['Box Image', 'box_image_url', 'Box Image URL']);
+      if (boxImageUrl && !boxImageUrl.startsWith('http')) {
+        const boxFilename = boxImageUrl.replace(/\\/g, '/').split('/').pop().toLowerCase();
+        const boxFilenameNoExt = boxFilename.replace(/\.[^.]+$/, '');
+        boxImageUrl = imageMap[boxFilename] || imageMap[boxFilenameNoExt] || null;
+      }
+      let bundleImageUrl = get(['Bundle Image', 'bundle_image_url', 'Bundle Image URL']);
+      if (bundleImageUrl && !bundleImageUrl.startsWith('http')) {
+        const bundleFilename = bundleImageUrl.replace(/\\/g, '/').split('/').pop().toLowerCase();
+        const bundleFilenameNoExt = bundleFilename.replace(/\.[^.]+$/, '');
+        bundleImageUrl = imageMap[bundleFilename] || imageMap[bundleFilenameNoExt] || null;
       }
       const isHidden = ['yes', 'true', '1'].includes((get(['Hidden', 'is_hidden', 'hidden']) || '').toLowerCase());
       const isOos = ['yes', 'true', '1'].includes((get(['Out of Stock', 'is_oos', 'OOS', 'oos']) || '').toLowerCase());
@@ -189,11 +214,11 @@ export async function POST(request) {
       if (!existingId && sku && skuToId[sku.toLowerCase()]) existingId = skuToId[sku.toLowerCase()];
 
       if (existingId) {
-        toUpdate.push([name, sku, price, weight, bagsPerCase, casesPerPallet, imageUrl || '', isHidden, isOos, showPrice, superCatId, catId, existingId]);
+        toUpdate.push([name, sku, barcode_pack, barcode_bundle, barcode_box, price, weight, bagsPerCase, casesPerPallet, imageUrl || '', boxImageUrl || '', bundleImageUrl || '', isHidden, isOos, showPrice, superCatId, catId, existingId]);
       } else {
         const newId = productId || uuidv4();
         const newSku = sku || `SKU-${newId.substring(0, 8).toUpperCase()}`;
-        toCreate.push([newId, name, newSku, price, weight, bagsPerCase, casesPerPallet, imageUrl, isHidden, isOos, showPrice, superCatId, catId]);
+        toCreate.push([newId, name, newSku, barcode_pack, barcode_bundle, barcode_box, price, weight, bagsPerCase, casesPerPallet, imageUrl, boxImageUrl, bundleImageUrl, isHidden, isOos, showPrice, superCatId, catId]);
       }
     }
 
@@ -202,9 +227,9 @@ export async function POST(request) {
     for (let i = 0; i < toUpdate.length; i += BATCH) {
       const batch = toUpdate.slice(i, i + BATCH);
       await Promise.all(batch.map(params =>
-        pool.query(`UPDATE products SET name=$1, sku=$2, price=$3, weight=$4, bags_per_case=$5,
-          cases_per_pallet=$6, image_url=COALESCE(NULLIF($7,''), image_url), is_hidden=$8, is_oos=$9,
-          show_price=$10, super_category_id=$11, category_id=$12 WHERE id=$13`, params)
+        pool.query(`UPDATE products SET name=$1, sku=$2, barcode_pack=$3, barcode_bundle=$4, barcode_box=$5, price=$6, weight=$7, bags_per_case=$8,
+          cases_per_pallet=$9, image_url=COALESCE(NULLIF($10,''), image_url), box_image_url=COALESCE(NULLIF($11,''), box_image_url), bundle_image_url=COALESCE(NULLIF($12,''), bundle_image_url), is_hidden=$13, is_oos=$14,
+          show_price=$15, super_category_id=$16, category_id=$17 WHERE id=$18`, params)
           .then(() => { updated++ })
           .catch(e => { errors.push(`Update "${params[0]}": ${e.message}`); skipped++ })
       ));
@@ -214,8 +239,8 @@ export async function POST(request) {
     for (let i = 0; i < toCreate.length; i += BATCH) {
       const batch = toCreate.slice(i, i + BATCH);
       await Promise.all(batch.map(params =>
-        pool.query(`INSERT INTO products (id, name, sku, price, weight, bags_per_case, cases_per_pallet, image_url, is_hidden, is_oos, show_price, super_category_id, category_id)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`, params)
+        pool.query(`INSERT INTO products (id, name, sku, barcode_pack, barcode_bundle, barcode_box, price, weight, bags_per_case, cases_per_pallet, image_url, box_image_url, bundle_image_url, is_hidden, is_oos, show_price, super_category_id, category_id)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`, params)
           .then(() => { created++ })
           .catch(e => { errors.push(`Create "${params[1]}": ${e.message}`); skipped++ })
       ));

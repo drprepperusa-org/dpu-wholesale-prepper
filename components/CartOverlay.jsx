@@ -91,7 +91,10 @@ function CartOverlay({ isOpen, cartItems = [], onClose, onRemoveItem, onPlaceOrd
     if (dragY > 100) {
       // Animate all the way down, then trigger close
       setDragY(typeof window !== 'undefined' ? window.innerHeight : 800)
-      setTimeout(() => { onClose(); setDragY(0) }, 300)
+      setTimeout(() => {
+        dragging.current = true // Disable transition so translateY(100%) switch is instant
+        onClose()
+      }, 380)
     } else {
       setDragY(0)
     }
@@ -119,7 +122,7 @@ function CartOverlay({ isOpen, cartItems = [], onClose, onRemoveItem, onPlaceOrd
   return (
     <div className={`fixed inset-0 z-[10000] flex items-end justify-center transition-colors duration-300
       ${isOpen ? 'bg-black/40' : 'bg-transparent'}`}
-      style={{ pointerEvents: isOpen ? 'auto' : 'none' }}
+      style={{ pointerEvents: isOpen ? 'auto' : 'none', touchAction: isOpen ? 'none' : 'auto', overscrollBehavior: 'none' }}
       onClick={onClose}>
       <div className={`bg-white rounded-t-2xl w-full max-w-[600px] overflow-hidden shadow-2xl flex flex-col
         max-sm:max-w-full max-sm:rounded-t-xl max-sm:h-[75vh] max-sm:max-h-[75vh]

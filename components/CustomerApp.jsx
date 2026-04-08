@@ -27,6 +27,8 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   const sheetScrollRef = React.useRef(null);
   const sheetCanDrag = React.useRef(false);
   const sheetInteracted = React.useRef(false);
+  const [sheetImgIdx, setSheetImgIdx] = React.useState(0);
+  const sheetImgTouchX = React.useRef(0);
   const onSheetTouchStart = (e) => {
     sheetDragStart.current = e.touches[0].clientY;
     sheetDragging.current = true;
@@ -52,7 +54,10 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
     if (sheetDragY > 100) {
       // Animate sheet all the way down before closing
       setSheetDragY(window.innerHeight);
-      setTimeout(() => { setProductSheetOpen(false); setSheetDragY(0); }, 300);
+      setTimeout(() => {
+        setProductSheetOpen(false);
+        restoreModalScroll();
+      }, 380);
     } else {
       setSheetDragY(0);
     }
@@ -61,9 +66,17 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [cardSize, setCardSize] = useState(1.0);
   const [navsHidden, setNavsHidden] = useState(false);
+  const [showFloatingBar, setShowFloatingBar] = useState(false);
+  const [floatingSearchFocused, setFloatingSearchFocused] = useState(false);
+  const [mobileViewportOffsetTop, setMobileViewportOffsetTop] = useState(0);
   const lastScrollY = React.useRef(0);
   const pillsRowRef = React.useRef(null);
+  const floatingPillsRef = React.useRef(null);
   const programmaticScroll = React.useRef(false);
+  const stickyBarRef = React.useRef(null);
+  const [mobileBarH, setMobileBarH] = useState(0);
+  const [isMob, setIsMob] = useState(false);
+  const [hasScrolled, setHasScrolled] = useState(false);
   const [cartItems, setCartItems] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [products, setProducts] = useState([]);
@@ -75,7 +88,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [historyFilter, setHistoryFilter] = useState('all');
-  const [gridViewMode, setGridViewMode] = useState('grid');
+  const [gridViewMode, setGridViewMode] = useState('categories');
   const [selectedUnit, setSelectedUnit] = useState('cases');
   const [sheetQty, setSheetQty] = useState(1);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
@@ -96,6 +109,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   const [activeSuperCatId, setActiveSuperCatId] = useState(null);
   const [superCatList, setSuperCatList] = useState([]);
   const catalogScrollRef = React.useRef(null);
+  const modalScrollY = React.useRef(0);
 
   const tabs = [
     { id: 'catalog', name: 'Order', Icon: ShoppingBag },
@@ -106,6 +120,46 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
 
   const [showPrices, setShowPrices] = useState(true);
   const [promoBanner, setPromoBanner] = useState(null);
+
+  const captureModalScroll = () => {
+    if (typeof window !== 'undefined' && window.innerWidth <= 640) {
+      modalScrollY.current = window.scrollY;
+    }
+  };
+
+  const restoreModalScroll = () => {
+    if (typeof window !== 'undefined' && window.innerWidth <= 640) {
+      const y = Math.max(0, modalScrollY.current || 0);
+      requestAnimationFrame(() => window.scrollTo(0, y));
+      setTimeout(() => window.scrollTo(0, y), 50);
+    }
+  };
+
+  const openProductSheet = (product) => {
+    captureModalScroll();
+    sheetInteracted.current = false;
+    setSheetDragY(0);
+    setSelectedProduct(product);
+    setProductSheetOpen(true);
+    setSheetQty(1);
+    setSelectedUnit('cases');
+    setSheetImgIdx(0);
+  };
+
+  const closeProductSheet = () => {
+    setProductSheetOpen(false);
+    restoreModalScroll();
+  };
+
+  const openCartOverlay = () => {
+    captureModalScroll();
+    setCartOverlayOpen(true);
+  };
+
+  const closeCartOverlay = () => {
+    setCartOverlayOpen(false);
+    restoreModalScroll();
+  };
 
   useEffect(() => {
     loadProducts(); loadOrders();
@@ -165,49 +219,129 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   }, [products.length]);
 
   // Lock body scroll when any popup is open or catalog is loading to prevent pull-to-refresh / shift
+  const savedScrollY = React.useRef(0);
   useEffect(() => {
-    const anyOpen = productSheetOpen || cartOverlayOpen || confirmModalOpen || !!acctModal;
+    const anyOpen = productSheetOpen || cartOverlayOpen || confirmModalOpen || !!acctModal || floatingSearchFocused;
+    const isMobile = window.innerWidth <= 640;
     const catalogLoading = activePage === 'catalog' && (productsLoading || products.length === 0 || superCatList.length === 0 || viewSwitching);
-    if (anyOpen || catalogLoading) {
+    if (anyOpen && isMobile) {
+      // Only save scroll if not already locked (prevent overwriting with 0)
+      if (document.body.style.position !== 'fixed') {
+        savedScrollY.current = window.scrollY;
+      }
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${savedScrollY.current}px`;
+      document.body.style.left = '0';
+      document.body.style.right = '0';
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overscrollBehavior = 'none';
+      document.body.style.overscrollBehavior = 'none';
+    } else if (anyOpen) {
       document.body.style.overflow = 'hidden';
       document.documentElement.style.overflow = 'hidden';
-      document.body.style.touchAction = 'none';
+      document.documentElement.style.overscrollBehavior = 'none';
+      document.body.style.overscrollBehavior = 'none';
+    } else if (catalogLoading && !isMobile) {
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
     } else {
+      // Restore scroll position
+      const wasFixed = document.body.style.position === 'fixed';
+      const scrollY = savedScrollY.current;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
       document.body.style.overflow = '';
       document.documentElement.style.overflow = '';
-      document.body.style.touchAction = '';
+      document.documentElement.style.overscrollBehavior = '';
+      document.body.style.overscrollBehavior = '';
+      if (wasFixed && isMobile) {
+        window.scrollTo(0, scrollY);
+        requestAnimationFrame(() => window.scrollTo(0, scrollY));
+        setTimeout(() => window.scrollTo(0, scrollY), 50);
+      }
     }
-    return () => { document.body.style.overflow = ''; document.documentElement.style.overflow = ''; document.body.style.touchAction = ''; };
-  }, [productSheetOpen, cartOverlayOpen, confirmModalOpen, acctModal, activePage, productsLoading, products.length, superCatList.length, viewSwitching]);
+    return () => { document.body.style.position = ''; document.body.style.top = ''; document.body.style.left = ''; document.body.style.right = ''; document.body.style.overflow = ''; document.documentElement.style.overflow = ''; document.documentElement.style.overscrollBehavior = ''; document.body.style.overscrollBehavior = ''; };
+  }, [productSheetOpen, cartOverlayOpen, confirmModalOpen, acctModal, floatingSearchFocused, activePage, productsLoading, products.length, superCatList.length, viewSwitching]);
 
   // Lock scroll briefly when switching between grid and categories view
   useEffect(() => {
     setViewSwitching(true);
-    if (catalogScrollRef.current) catalogScrollRef.current.scrollTop = 0;
+    if (window.innerWidth <= 640) window.scrollTo(0, 0); else if (catalogScrollRef.current) catalogScrollRef.current.scrollTop = 0;
     const t = setTimeout(() => setViewSwitching(false), 500);
     return () => clearTimeout(t);
   }, [gridViewMode]);
 
-  // Auto-scroll active pill into view
+
+  // Keep floating bar off outside mobile catalog
   useEffect(() => {
-    if (!activeSuperCatId || !pillsRowRef.current) return;
-    const pill = pillsRowRef.current.querySelector(`[data-pill-id="${activeSuperCatId}"]`);
-    if (pill) {
-      const row = pillsRowRef.current;
-      const pillLeft = pill.offsetLeft;
-      const pillWidth = pill.offsetWidth;
-      const rowScroll = row.scrollLeft;
-      const rowWidth = row.clientWidth;
-      if (pillLeft < rowScroll || pillLeft + pillWidth > rowScroll + rowWidth) {
-        row.scrollTo({ left: pillLeft - (rowWidth - pillWidth) / 2, behavior: 'smooth' });
-      }
+    if (activePage !== 'catalog' || window.innerWidth > 640) {
+      setShowFloatingBar(false);
+      setFloatingSearchFocused(false);
     }
+  }, [activePage, gridViewMode]);
+
+  // Track visual viewport top offset on iOS so fixed controls stay aligned
+  // when browser chrome expands/collapses during scroll.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const syncViewportTop = () => {
+      if (window.innerWidth > 640 || !window.visualViewport) {
+        setMobileViewportOffsetTop(0);
+        return;
+      }
+      const next = Math.max(0, Math.round(window.visualViewport.offsetTop || 0));
+      setMobileViewportOffsetTop(next);
+    };
+
+    syncViewportTop();
+
+    const vv = window.visualViewport;
+    window.addEventListener('resize', syncViewportTop, { passive: true });
+    window.addEventListener('orientationchange', syncViewportTop, { passive: true });
+    if (vv) {
+      vv.addEventListener('resize', syncViewportTop);
+      vv.addEventListener('scroll', syncViewportTop);
+    }
+
+    return () => {
+      window.removeEventListener('resize', syncViewportTop);
+      window.removeEventListener('orientationchange', syncViewportTop);
+      if (vv) {
+        vv.removeEventListener('resize', syncViewportTop);
+        vv.removeEventListener('scroll', syncViewportTop);
+      }
+    };
+  }, []);
+
+  // Auto-scroll active pill into view (both original and floating)
+  useEffect(() => {
+    if (!activeSuperCatId) return;
+    [pillsRowRef, floatingPillsRef].forEach(ref => {
+      if (!ref.current) return;
+      const pill = ref.current.querySelector(`[data-pill-id="${activeSuperCatId}"]`) ||
+        Array.from(ref.current.querySelectorAll('button')).find(b => b.textContent.includes(superCatList.find(s => s.id === activeSuperCatId)?.name));
+      if (pill) {
+        const row = ref.current;
+        const pillLeft = pill.offsetLeft;
+        const pillWidth = pill.offsetWidth;
+        const rowScroll = row.scrollLeft;
+        const rowWidth = row.clientWidth;
+        if (pillLeft < rowScroll || pillLeft + pillWidth > rowScroll + rowWidth) {
+          row.scrollTo({ left: pillLeft - (rowWidth - pillWidth) / 2, behavior: 'smooth' });
+        }
+      }
+    });
   }, [activeSuperCatId]);
 
   // Reset scroll to top after products load if user was near top
   useEffect(() => {
-    if (products.length > 0 && activePage === 'catalog' && catalogScrollRef.current && catalogScrollRef.current.scrollTop < 200) {
-      catalogScrollRef.current.scrollTop = 0;
+    if (products.length > 0 && activePage === 'catalog') {
+      const mob = window.innerWidth <= 640;
+      const pos = mob ? window.scrollY : (catalogScrollRef.current?.scrollTop || 0);
+      if (pos < 200) { if (mob) window.scrollTo(0, 0); else if (catalogScrollRef.current) catalogScrollRef.current.scrollTop = 0; }
     }
   }, [products.length]);
 
@@ -222,7 +356,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   useEffect(() => {
     if (activePage === 'catalog') {
       if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
-      const reset = () => { if (catalogScrollRef.current) catalogScrollRef.current.scrollTop = 0; };
+      const reset = () => { if (window.innerWidth <= 640) window.scrollTo(0, 0); else if (catalogScrollRef.current) catalogScrollRef.current.scrollTop = 0; };
       reset();
       requestAnimationFrame(reset);
       const t1 = setTimeout(reset, 50);
@@ -232,27 +366,49 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
     }
   }, [activePage]);
 
+  // Detect mobile for sticky bar fixed positioning
+  useEffect(() => {
+    const check = () => setIsMob(window.innerWidth <= 640);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  // Measure sticky bar height for mobile spacer
+  useEffect(() => {
+    const bar = stickyBarRef.current;
+    if (!bar) return;
+    const ro = new ResizeObserver(() => setMobileBarH(bar.offsetHeight));
+    ro.observe(bar);
+    return () => ro.disconnect();
+  }, []);
+
   // Track which super category is currently scrolled to + scroll direction for nav hide/show
   useEffect(() => {
     if (activePage !== 'catalog') return;
-    const scrollEl = catalogScrollRef.current;
-    if (!scrollEl) return;
+    const isMobile = window.innerWidth <= 640;
+    const scrollEl = isMobile ? null : catalogScrollRef.current;
+    if (!isMobile && !scrollEl) return;
     const handleScroll = () => {
-      // Nav hide/show on scroll direction (skip during programmatic scroll)
+      const currentY = isMobile ? window.scrollY : scrollEl.scrollTop;
+      if (isMobile) setHasScrolled(currentY > 5);
       if (!programmaticScroll.current) {
-        const currentY = scrollEl.scrollTop;
         const diff = currentY - lastScrollY.current;
         if (Math.abs(diff) > 5) {
-          if (diff > 0 && currentY > 60) setNavsHidden(true);
-          else if (diff < 0) setNavsHidden(false);
+          // Only auto-hide bottom nav, not top nav
+          if (diff > 0 && currentY > 60) {
+            setNavsHidden(true);
+          } else if (diff < 0) {
+            setNavsHidden(false);
+          }
           lastScrollY.current = currentY;
         }
-        if (currentY < 10) setNavsHidden(false);
+        if (currentY < 10) {
+          setNavsHidden(false);
+        }
       }
-
-      // Super category tracking
       if (superCatList.length === 0) return;
-      const containerTop = scrollEl.getBoundingClientRect().top;
+      const containerTop = isMobile ? 0 : scrollEl.getBoundingClientRect().top;
       let active = null;
       for (const sc of superCatList) {
         const el = document.getElementById(`supercat-${sc.id}`);
@@ -260,10 +416,28 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       }
       if (active) setActiveSuperCatId(active);
     };
-    scrollEl.addEventListener('scroll', handleScroll, { passive: true });
+    const target = isMobile ? window : scrollEl;
+    target.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll();
-    return () => scrollEl.removeEventListener('scroll', handleScroll);
-  }, [activePage, superCatList, gridViewMode]);
+    return () => target.removeEventListener('scroll', handleScroll);
+  }, [activePage, superCatList, gridViewMode, floatingSearchFocused]);
+
+  const onFloatingSearchFocus = () => {
+    setFloatingSearchFocused(true);
+    const y = window.scrollY;
+    requestAnimationFrame(() => window.scrollTo(0, y));
+    setTimeout(() => window.scrollTo(0, y), 100);
+    setTimeout(() => window.scrollTo(0, y), 300);
+  };
+
+  const onFloatingSearchBlur = () => {
+    requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (!active || active.id !== 'floating-catalog-search') {
+        setFloatingSearchFocused(false);
+      }
+    });
+  };
 
   const loadProducts = async () => {
     setProductsLoading(true);
@@ -286,12 +460,17 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
     finally { setProductsLoading(false); }
   };
 
+  const [cartToast, setCartToast] = useState(null);
+  const cartToastTimer = React.useRef(null);
   const addToCart = (product, qty = 1, unit = 'cases') => {
     setCartItems(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) return prev.map(item => item.id === product.id ? { ...item, qty: item.qty + qty, unit } : item);
       return [...prev, { ...product, qty, unit }];
     });
+    if (cartToastTimer.current) clearTimeout(cartToastTimer.current);
+    setCartToast({ name: product.name, qty, unit });
+    cartToastTimer.current = setTimeout(() => setCartToast(null), 2000);
   };
 
   const toggleFavorite = async (product) => {
@@ -350,7 +529,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
     finally { setIsSubmittingOrder(false); }
   };
 
-  const selectProduct = (product) => { sheetInteracted.current = false; setSelectedProduct(product); setProductSheetOpen(true); setSheetQty(1); setSelectedUnit('cases'); };
+  const selectProduct = (product) => { openProductSheet(product); };
   const showAcctBanner = (msg) => { setAcctSaveBanner(msg); setTimeout(() => setAcctSaveBanner(''), 3000); };
   const showToast = (msg, type = 'success') => { setToastMsg(msg); setToastType(type); setTimeout(() => setToastMsg(''), 3000); };
   const checkPwdStrength = (val) => { let s = 0; if (val.length >= 8) s++; if (/[A-Z]/.test(val)) s++; if (/[a-z]/.test(val)) s++; if (/[0-9]/.test(val)) s++; if (/[^A-Za-z0-9]/.test(val)) s++; setAcctPwdStrength(s); };
@@ -398,7 +577,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
+    <div className={`flex flex-col bg-slate-50 sm:h-[100svh] sm:overflow-hidden ${activePage === 'catalog' ? 'max-sm:min-h-[100svh]' : 'max-sm:h-[100svh] max-sm:overflow-hidden'}`}>
 
       {/* UTILITY BAR */}
       <div className="hidden items-center justify-between px-6 h-8 bg-slate-900 text-slate-400 text-[11px] shrink-0">
@@ -411,7 +590,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       </div>
 
       {/* NAV */}
-      <nav className={`customer-top-nav grid grid-cols-[auto_1fr_auto] items-center px-6 h-14 bg-white border-b border-slate-200 sticky top-0 z-[1000] shadow-sm gap-3 max-sm:px-3 max-sm:fixed max-sm:top-0 max-sm:left-0 max-sm:right-0 transition-transform duration-300 ${navsHidden && activePage === 'catalog' ? 'max-sm:-translate-y-full' : ''}`}>
+      <nav className="customer-top-nav grid grid-cols-[auto_1fr_auto] items-center px-6 h-14 bg-white border-b border-slate-200 sticky top-0 z-[1000] shadow-sm gap-3 max-sm:px-3 max-sm:fixed max-sm:top-0 max-sm:left-0 max-sm:right-0">
         <div className="flex items-center gap-5 max-sm:gap-2">
           <button className="w-9 h-9 border-none bg-transparent cursor-pointer flex flex-col items-center justify-center gap-1 rounded-lg transition-colors hover:bg-slate-100"
             onClick={() => setSidebarOpen(!sidebarOpen)}>
@@ -482,7 +661,8 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       </nav>
 
       {/* MOBILE NAV */}
-      <div className={`customer-bottom-nav hidden max-sm:block fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-slate-200 z-[500] shadow-[0_-4px_12px_rgba(0,0,0,0.05)] transition-transform duration-300 ${navsHidden && activePage === 'catalog' ? 'translate-y-full' : ''}`}>
+      <div className={`customer-bottom-nav hidden max-sm:block fixed bottom-0 left-0 right-0 h-16 bg-white border-t z-[500] transition-all duration-300 ${navsHidden && activePage === 'catalog' ? 'border-transparent shadow-none' : 'border-slate-200 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]'}`}
+        style={{ transform: navsHidden && activePage === 'catalog' ? 'translateY(calc(100% + env(safe-area-inset-bottom, 0px) + 12px))' : 'translateY(0)' }}>
         <div className="flex justify-around items-center h-full">
           {[
             { id: 'catalog', name: 'Order', Icon: ShoppingBag },
@@ -492,7 +672,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
           ].map(item => (
             <button key={item.id}
               className={`flex flex-col items-center gap-0.5 px-3 py-2 border-none bg-transparent cursor-pointer text-[10px] relative ${item.isCart ? (cartOverlayOpen ? 'text-indigo-500' : 'text-slate-400') : (activePage === item.id ? 'text-indigo-500' : 'text-slate-400')}`}
-              onClick={() => item.isCart ? setCartOverlayOpen(true) : setActivePage(item.id)}>
+              onClick={() => item.isCart ? openCartOverlay() : setActivePage(item.id)}>
               <item.Icon className="w-5 h-5" />
               {item.name}
               {item.isCart && cartItems.length > 0 && (
@@ -504,17 +684,16 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       </div>
 
       {/* CONTENT ROW */}
-      <div className={`customer-content-row flex-1 flex overflow-hidden transition-[padding] duration-300 ${navsHidden && activePage === 'catalog' ? 'customer-content-row-compact' : ''}`}>
+      <div className={`customer-content-row flex-1 flex sm:overflow-hidden transition-[padding] duration-300 ${activePage !== 'catalog' ? 'max-sm:overflow-hidden' : ''}`}>
         <CategorySidebar isOpen={sidebarOpen} token={typeof window !== 'undefined' ? localStorage.getItem('token') : null}
           selectedCategory={selectedCategory} onSelectCategory={(cat) => setSelectedCategory(cat)} onClose={() => setSidebarOpen(false)} />
 
-        <main className={`flex-1 flex relative min-h-0 overflow-hidden transition-[padding] duration-300 ${navsHidden && activePage === 'catalog' ? 'max-sm:pb-0' : 'max-sm:pb-16'}`}>
+        <main className={`flex-1 flex min-h-0 sm:overflow-hidden transition-[padding] duration-300 max-sm:pb-16 ${activePage !== 'catalog' ? 'max-sm:overflow-hidden' : ''}`}>
           {/* CATALOG */}
           {activePage === 'catalog' && (
-            <div className="flex flex-1 w-full min-h-0">
-              <div ref={catalogScrollRef} className={`flex-1 overflow-x-hidden ${(productsLoading || products.length === 0 || superCatList.length === 0 || viewSwitching) ? 'overflow-hidden' : 'overflow-y-auto'}`} style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'none', overflowAnchor: 'none' }}>
-                {/* Spacer to ensure banner is visible above sticky bar offset */}
-                <div className="h-16 max-sm:h-10" style={{ overflowAnchor: 'auto' }} />
+              <div ref={catalogScrollRef} className={`flex-1 ${(productsLoading || products.length === 0 || superCatList.length === 0 || viewSwitching) ? 'overflow-hidden' : 'sm:overflow-y-auto sm:overflow-x-hidden'} max-w-[100vw]`} style={{ overscrollBehavior: 'contain', overflowAnchor: 'none' }}>
+                {/* Spacer to ensure banner is visible below fixed sticky bar on mobile */}
+                <div className="h-16" style={{ overflowAnchor: 'auto', ...(isMob ? { height: mobileBarH } : {}) }} />
                 {/* Promo Banner */}
                 <div className="px-8 max-sm:px-3 max-lg:px-5">
                 {promoBanner && promoBanner.type === 'image' && promoBanner.imageUrl ? (
@@ -556,7 +735,11 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                 </div>
 
                 {/* Sticky block: view toggle + search + pills (categories view) OR search only (grid view) */}
-                <div className="sticky top-0 z-20 bg-white border-b border-slate-100 px-8 max-sm:px-3 max-lg:px-5 py-2" style={{ overflowAnchor: 'none' }}>
+                <div
+                  ref={stickyBarRef}
+                  className="catalog-sticky-bar bg-white border-b border-slate-100 px-8 max-sm:px-3 max-lg:px-5 py-2 sm:sticky sm:top-0 z-20"
+                  style={{ overflowAnchor: 'none', '--sticky-offset': hasScrolled ? (gridViewMode === 'grid' ? '12px' : '12px') : '0px' }}
+                >
                   <div className="flex items-center justify-between">
                     <div className="relative max-w-[400px] max-sm:max-w-full flex-1">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -564,10 +747,10 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                         className="w-full py-2.5 pl-9 pr-3 border border-slate-200 rounded-xl text-sm transition-colors focus:border-indigo-400 focus:outline-none" />
                     </div>
                     <div className="flex gap-1 bg-slate-100 border border-slate-200 rounded-lg p-0.5 shrink-0 ml-3">
-                      <button className={`px-3.5 py-1.5 border-none rounded-md text-xs font-medium cursor-pointer transition-all flex items-center gap-1 ${gridViewMode === 'grid' ? 'bg-white text-slate-800 shadow-sm font-semibold' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
-                        onClick={() => setGridViewMode('grid')}><LayoutGrid className="w-3.5 h-3.5" /> Grid</button>
                       <button className={`px-3.5 py-1.5 border-none rounded-md text-xs font-medium cursor-pointer transition-all flex items-center gap-1 ${gridViewMode === 'categories' ? 'bg-white text-slate-800 shadow-sm font-semibold' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
                         onClick={() => setGridViewMode('categories')}><FolderOpen className="w-3.5 h-3.5" /> Categories</button>
+                      <button className={`px-3.5 py-1.5 border-none rounded-md text-xs font-medium cursor-pointer transition-all flex items-center gap-1 ${gridViewMode === 'grid' ? 'bg-white text-slate-800 shadow-sm font-semibold' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
+                        onClick={() => setGridViewMode('grid')}><LayoutGrid className="w-3.5 h-3.5" /> Grid</button>
                     </div>
                   </div>
 
@@ -582,12 +765,16 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                               if (gridViewMode === 'categories') {
                                 setActiveSuperCatId(sc.id);
                                 const el = document.getElementById(`supercat-${sc.id}`);
-                                const scrollEl = catalogScrollRef.current;
-                                if (el && scrollEl) {
-                                  programmaticScroll.current = true;
+                                const mob = window.innerWidth <= 640;
+                                programmaticScroll.current = true;
+                                if (mob && el) {
+                                  const top = el.getBoundingClientRect().top + window.scrollY - 120;
+                                  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+                                  setTimeout(() => { programmaticScroll.current = false; lastScrollY.current = window.scrollY; }, 800);
+                                } else if (el && catalogScrollRef.current) {
                                   const scrollTop = el.offsetTop - 120;
-                                  scrollEl.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
-                                  setTimeout(() => { programmaticScroll.current = false; lastScrollY.current = scrollEl.scrollTop; }, 800);
+                                  catalogScrollRef.current.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
+                                  setTimeout(() => { programmaticScroll.current = false; lastScrollY.current = catalogScrollRef.current.scrollTop; }, 800);
                                 }
                               } else {
                                 setSelectedCategory(activeSuperCatId === sc.id ? null : sc);
@@ -612,16 +799,15 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                     onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} onCardResize={setCardSize} showPrices={showPrices} />
                 ) : (
                   <CategoryView products={filteredProducts} favorites={favorites} cart={cartItems} cardSize={cardSize}
-                    onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} />
+                    onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} onCardResize={setCardSize} />
                 )}
                 </div>
               </div>
-            </div>
           )}
 
           {/* FAVORITES */}
           {activePage === 'favs' && (
-            <div className="flex-1 overflow-y-auto p-8 max-sm:p-3">
+            <div className="flex-1 overflow-y-auto p-8 max-sm:p-3 max-sm:h-full">
               <div className="mb-6">
                 <div className="text-2xl font-bold text-slate-800 flex items-center gap-2"><Heart className="w-6 h-6" /> Favorites</div>
                 <div className="text-sm text-slate-400 mt-1">Products you&apos;ve saved for quick reordering</div>
@@ -637,7 +823,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
 
           {/* NEW ITEMS */}
           {activePage === 'newItems' && (
-            <div className="flex-1 overflow-y-auto p-8 max-sm:p-3">
+            <div className="flex-1 overflow-y-auto p-8 max-sm:p-3 max-sm:h-full">
               <div className="mb-6">
                 <div className="text-2xl font-bold text-slate-800 flex items-center gap-2"><Sparkles className="w-6 h-6" /> New Items</div>
                 <div className="text-sm text-slate-400 mt-1">Products added in the last 7 days</div>
@@ -653,7 +839,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
 
           {/* ORDER HISTORY */}
           {activePage === 'history' && (
-            <div className="flex-1 overflow-y-auto p-8 max-sm:p-3">
+            <div className="flex-1 overflow-y-auto p-8 max-sm:p-3 max-sm:h-full">
               <div className="mb-6">
                 <div className="text-2xl font-bold text-slate-800 flex items-center gap-2"><ClipboardList className="w-6 h-6" /> Order History</div>
                 <div className="flex gap-2 mt-3">
@@ -739,18 +925,73 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
         </div>
       </div>
 
+      {/* FLOATING SEARCH + PILLS BAR (mobile only, appears after scroll) */}
+      {false && showFloatingBar && activePage === 'catalog' && (
+        <div
+          className="hidden max-sm:block fixed left-0 right-0 bg-white border-b border-slate-100 px-3 pb-2 shadow-sm"
+          style={{
+            zIndex: 1105,
+            // Keep this consistently below the mobile top header to prevent overlap/cropping on iPhone.
+            top: `calc(env(safe-area-inset-top, 0px) + 3.5rem + ${mobileViewportOffsetTop}px)`,
+            paddingTop: '8px',
+            animation: 'fadeIn 0.2s ease'
+          }}
+        >
+          <div className={`flex items-center gap-2 ${gridViewMode === 'categories' ? 'mb-2' : ''}`}>
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input id="floating-catalog-search" type="text" placeholder="Search products..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} autoComplete="off"
+                onFocus={onFloatingSearchFocus}
+                onBlur={onFloatingSearchBlur}
+                className="w-full py-2 pl-9 pr-3 border border-slate-200 rounded-xl text-sm transition-colors focus:border-indigo-400 focus:outline-none" />
+            </div>
+            <div className="flex gap-1 bg-slate-100 border border-slate-200 rounded-lg p-0.5 shrink-0">
+              <button className={`px-2.5 py-1.5 border-none rounded-md text-xs font-medium cursor-pointer transition-all flex items-center gap-1 ${gridViewMode === 'grid' ? 'bg-white text-slate-800 shadow-sm font-semibold' : 'bg-transparent text-slate-500'}`}
+                onClick={() => setGridViewMode('grid')}><LayoutGrid className="w-3.5 h-3.5" /></button>
+              <button className={`px-2.5 py-1.5 border-none rounded-md text-xs font-medium cursor-pointer transition-all flex items-center gap-1 ${gridViewMode === 'categories' ? 'bg-white text-slate-800 shadow-sm font-semibold' : 'bg-transparent text-slate-500'}`}
+                onClick={() => setGridViewMode('categories')}><FolderOpen className="w-3.5 h-3.5" /></button>
+            </div>
+          </div>
+          {gridViewMode === 'categories' && superCatList.length > 0 && !selectedCategory && filteredProducts.length > 0 &&
+            superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).length > 1 && (
+            <div ref={floatingPillsRef} className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+              {superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).map(sc => (
+                <button key={sc.id}
+                  onClick={() => {
+                    setActiveSuperCatId(sc.id);
+                    const el = document.getElementById(`supercat-${sc.id}`);
+                    programmaticScroll.current = true;
+                    if (el) {
+                      const top = el.getBoundingClientRect().top + window.scrollY - 120;
+                      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+                      setTimeout(() => { programmaticScroll.current = false; lastScrollY.current = window.scrollY; }, 800);
+                    }
+                  }}
+                  className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg border text-sm font-medium cursor-pointer transition-all whitespace-nowrap shrink-0 ${
+                    activeSuperCatId === sc.id
+                      ? 'bg-indigo-500 border-indigo-500 text-white shadow-sm'
+                      : 'bg-white border-slate-200 text-slate-500'
+                  }`}>
+                  <span className="text-base">{sc.emoji}</span> {sc.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* PRODUCT SHEET */}
       {productSheetOpen && (
       <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 max-sm:items-end"
-        style={{ animation: 'fadeIn 0.2s ease' }}
-        onClick={(e) => { if (e.target === e.currentTarget) setProductSheetOpen(false); }}>
+        style={{ animation: 'fadeIn 0.2s ease', touchAction: 'none', overscrollBehavior: 'none' }}
+        onClick={(e) => { if (e.target === e.currentTarget) closeProductSheet(); }}>
         <div className="bg-white rounded-2xl w-full max-w-[500px] overflow-hidden shadow-2xl flex flex-col relative max-sm:max-w-full max-sm:rounded-t-xl max-sm:rounded-b-none max-sm:h-[75vh] max-sm:max-h-[75vh]"
           style={{ maxHeight: '85vh', animation: !sheetInteracted.current ? 'popIn 0.25s ease' : undefined, transform: `translateY(${sheetDragY}px)`, transition: sheetDragging.current ? 'none' : 'transform 0.35s cubic-bezier(.32,1,.32,1)', willChange: 'transform' }} onClick={e => e.stopPropagation()}
           onTouchStart={onSheetTouchStart} onTouchMove={onSheetTouchMove} onTouchEnd={onSheetTouchEnd}>
           <div className="shrink-0 hidden max-sm:flex justify-center items-center pt-2 pb-3">
             <div className="w-10 h-1 bg-slate-300 rounded-full" />
           </div>
-          <button onClick={() => setProductSheetOpen(false)}
+          <button onClick={closeProductSheet}
             className="absolute top-3 right-3.5 w-7 h-7 rounded-lg border border-slate-200 bg-slate-50 text-slate-400 flex items-center justify-center cursor-pointer z-10 transition-colors hover:bg-indigo-500 hover:border-indigo-500 hover:text-white">
             <X className="w-4 h-4" />
           </button>
@@ -758,9 +999,42 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
             <>
               <div ref={sheetScrollRef} className="flex-1 overflow-y-auto min-h-0" style={{ WebkitOverflowScrolling: 'touch' }}>
                 <div className="flex gap-4 p-5 max-sm:flex-col max-sm:items-center max-sm:gap-2 max-sm:p-4 max-sm:text-center">
-                  <div className="w-[180px] h-[180px] shrink-0 bg-white rounded-xl overflow-hidden border border-slate-200 max-sm:w-[150px] max-sm:h-[150px]">
-                    <img src={selectedProduct.image_url} alt={selectedProduct.name} className="w-full h-full object-contain p-2" />
-                  </div>
+                  {(() => {
+                    const images = [
+                      selectedProduct.image_url && { url: selectedProduct.image_url, label: 'Unit' },
+                      selectedProduct.bundle_image_url && { url: selectedProduct.bundle_image_url, label: 'Bundle' },
+                      selectedProduct.box_image_url && { url: selectedProduct.box_image_url, label: 'Box' },
+                    ].filter(Boolean);
+                    const idx = sheetImgIdx < images.length ? sheetImgIdx : 0;
+                    return (
+                      <div className="shrink-0 max-sm:items-center max-sm:flex max-sm:flex-col">
+                        <div className="w-[180px] h-[180px] bg-white rounded-xl overflow-hidden border border-slate-200 max-sm:w-[150px] max-sm:h-[150px] relative"
+                          onTouchStart={e => { sheetImgTouchX.current = e.touches[0].clientX; }}
+                          onTouchEnd={e => {
+                            const diff = e.changedTouches[0].clientX - sheetImgTouchX.current;
+                            if (diff > 40 && idx > 0) setSheetImgIdx(idx - 1);
+                            else if (diff < -40 && idx < images.length - 1) setSheetImgIdx(idx + 1);
+                          }}>
+                          <div className="flex transition-transform duration-300 h-full" style={{ transform: `translateX(-${idx * 100}%)` }}>
+                            {images.map((img, i) => (
+                              <img key={i} src={img.url} alt={img.label} className="w-full h-full object-contain p-2 shrink-0" />
+                            ))}
+                          </div>
+                        </div>
+                        {images.length > 1 && (
+                          <div className="flex items-center justify-center gap-1 mt-1.5">
+                            {images.map((img, i) => (
+                              <button key={i} onClick={() => setSheetImgIdx(i)}
+                                className={`w-1.5 h-1.5 rounded-full border-none cursor-pointer transition-all ${i === idx ? 'bg-indigo-500 w-3' : 'bg-slate-300'}`} />
+                            ))}
+                          </div>
+                        )}
+                        {images.length > 1 && (
+                          <div className="text-[10px] text-slate-400 text-center mt-0.5">{images[idx]?.label}</div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <div className="flex-1 min-w-0 pt-1 max-sm:w-full">
                     <div className="text-xl font-semibold text-slate-800 leading-tight mb-1.5 tracking-tight pr-10 max-sm:text-[17px] max-sm:pr-0">{selectedProduct.name}</div>
                     <div className="flex flex-wrap gap-1.5 mb-2 max-sm:justify-center">
@@ -772,6 +1046,22 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                       {selectedProduct.bags_per_case && <div className="flex justify-between py-0.5 text-xs"><span className="text-slate-400">Bags/Case</span><span className="text-slate-800 font-medium">{selectedProduct.bags_per_case}</span></div>}
                       {selectedProduct.cases_per_pallet && <div className="flex justify-between py-0.5 text-xs"><span className="text-slate-400">Cases/Pallet</span><span className="text-slate-800 font-medium">{selectedProduct.cases_per_pallet}</span></div>}
                       {selectedProduct.sku && <div className="flex justify-between py-0.5 text-xs"><span className="text-slate-400">SKU</span><span className="text-slate-800 font-medium font-mono text-[11px]">{selectedProduct.sku}</span></div>}
+                      {[
+                        { value: selectedProduct.barcode_pack, label: 'Barcode (Pack)' },
+                        { value: selectedProduct.barcode_bundle, label: 'Barcode (Bundle)' },
+                        { value: selectedProduct.barcode_box, label: 'Barcode (Box)' },
+                      ].filter(b => b.value).map(b => (
+                        <div key={b.label} className="relative group flex justify-between py-0.5 text-xs cursor-pointer">
+                          <span className="text-slate-400">{b.label}</span>
+                          <span className="text-slate-800 font-medium font-mono text-[11px] underline decoration-dotted underline-offset-2">{b.value}</span>
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block max-sm:group-active:block z-50">
+                            <div className="bg-white rounded-xl shadow-xl border border-slate-200 p-3 flex flex-col items-center gap-1">
+                              <svg ref={el => { if (el) { try { import('jsbarcode').then(m => m.default(el, b.value.replace(/\s/g, ''), { format: 'CODE128', width: 1.5, height: 50, displayValue: false, margin: 0 })); } catch {} } }} />
+                              <span className="text-[10px] text-slate-500 font-mono">{b.value}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                     <div className="flex items-center gap-1.5 mt-2.5 cursor-pointer w-fit max-sm:mx-auto" onClick={() => toggleFavorite(selectedProduct)}>
                       <Heart className={`w-4.5 h-4.5 transition-colors ${favorites.some(f => f.id === selectedProduct.id) ? 'fill-red-500 text-red-500' : 'text-slate-400'}`} />
@@ -813,7 +1103,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                 </div>
               </div>
               <div className="p-4 border-t border-slate-200 bg-white shrink-0 max-sm:p-4 max-sm:border-t-0">
-                <button onClick={() => { addToCart(selectedProduct, sheetQty, selectedUnit); setProductSheetOpen(false); }}
+                <button onClick={() => { addToCart(selectedProduct, sheetQty, selectedUnit); closeProductSheet(); }}
                   className="w-full py-3.5 bg-indigo-500 border-none rounded-xl text-white font-semibold text-[15px] cursor-pointer transition-colors hover:bg-indigo-600">
                   Add {sheetQty} {selectedUnit}{selectedUnit === 'pallets' ? ` (${sheetQty * (parseInt(selectedProduct.cases_per_pallet) || 60)} cases)` : ''} to Cart
                 </button>
@@ -824,8 +1114,8 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       </div>
       )}
 
-      <CartOverlay isOpen={cartOverlayOpen} cartItems={cartItems} onClose={() => setCartOverlayOpen(false)}
-        onRemoveItem={removeFromCart} onPlaceOrder={() => { setConfirmModalOpen(true); setCartOverlayOpen(false); }}
+      <CartOverlay isOpen={cartOverlayOpen} cartItems={cartItems} onClose={closeCartOverlay}
+        onRemoveItem={removeFromCart} onPlaceOrder={() => { setConfirmModalOpen(true); closeCartOverlay(); }}
         onClearCart={clearCart} onUpdateQty={updateCartQty} />
 
       <OrderConfirmModal isOpen={confirmModalOpen} onClose={() => setConfirmModalOpen(false)} onSubmit={submitOrder}
@@ -950,6 +1240,18 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* CART ADD TOAST */}
+      {cartToast && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[3000] pointer-events-none max-sm:top-auto max-sm:bottom-20"
+          style={{ animation: 'toastIn 0.25s ease' }}>
+          <div className="bg-slate-800 text-white px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-2 text-[13px] font-medium whitespace-nowrap">
+            <ShoppingCart className="w-3.5 h-3.5 text-indigo-300 shrink-0" />
+            <span className="truncate max-w-[200px]">{cartToast.name}</span>
+            <span className="text-indigo-300">+{cartToast.qty}</span>
           </div>
         </div>
       )}

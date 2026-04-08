@@ -20,7 +20,7 @@ export async function PUT(request, { params }) {
     if (oldProduct.rows[0]) oldImageUrl = oldProduct.rows[0].image_url;
 
     const body = await request.json();
-    const { name, weight, bags_per_case, cases_per_pallet, category_id, super_category_id, image_url, sku, is_hidden, is_oos, show_price, price } = body;
+    const { name, weight, bags_per_case, cases_per_pallet, category_id, super_category_id, image_url, box_image_url, bundle_image_url, sku, barcode_pack, barcode_bundle, barcode_box, is_hidden, is_oos, show_price, price } = body;
 
     const updateFields = [];
     const values = [];
@@ -33,7 +33,12 @@ export async function PUT(request, { params }) {
     if (category_id !== undefined) { updateFields.push(`category_id = $${paramIndex++}`); values.push(category_id); }
     if (super_category_id !== undefined) { updateFields.push(`super_category_id = $${paramIndex++}`); values.push(super_category_id); }
     if (image_url !== undefined) { updateFields.push(`image_url = $${paramIndex++}`); values.push(image_url); }
+    if (box_image_url !== undefined) { updateFields.push(`box_image_url = $${paramIndex++}`); values.push(box_image_url); }
+    if (bundle_image_url !== undefined) { updateFields.push(`bundle_image_url = $${paramIndex++}`); values.push(bundle_image_url); }
     if (sku !== undefined) { updateFields.push(`sku = $${paramIndex++}`); values.push(sku); }
+    if (barcode_pack !== undefined) { updateFields.push(`barcode_pack = $${paramIndex++}`); values.push(barcode_pack); }
+    if (barcode_bundle !== undefined) { updateFields.push(`barcode_bundle = $${paramIndex++}`); values.push(barcode_bundle); }
+    if (barcode_box !== undefined) { updateFields.push(`barcode_box = $${paramIndex++}`); values.push(barcode_box); }
     if (is_hidden !== undefined) { updateFields.push(`is_hidden = $${paramIndex++}`); values.push(is_hidden); }
     if (is_oos !== undefined) { updateFields.push(`is_oos = $${paramIndex++}`); values.push(is_oos); }
     if (show_price !== undefined) { updateFields.push(`show_price = $${paramIndex++}`); values.push(show_price); }

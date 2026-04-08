@@ -5,24 +5,29 @@
 }
 
 /* Base resets */
-html, body {
+html {
   margin: 0;
   padding: 0;
   width: 100%;
-  height: 100%;
+  height: auto;
   -webkit-text-size-adjust: 100%;
   -moz-text-size-adjust: 100%;
   text-size-adjust: 100%;
-  overscroll-behavior-y: none;
 }
 
 body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: auto;
+  min-height: 100vh;
   font-family: var(--font-sans);
   background: #f8fafc;
   color: #1e293b;
   line-height: 1.5;
-  touch-action: manipulation;
+  overflow-x: hidden;
 }
+
 
 /* Number input spinners */
 input[type=number]::-webkit-outer-spin-button,
@@ -93,6 +98,14 @@ input[type=number] {
   }
   .customer-bottom-nav {
     padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .catalog-sticky-bar {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 20 !important;
+    top: calc(3.5rem + env(safe-area-inset-top, 0px) + var(--sticky-offset, 0px)) !important;
+    transition: top 200ms ease;
   }
 }
 

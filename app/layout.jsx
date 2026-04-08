@@ -16,7 +16,8 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -31,9 +32,8 @@ export default function RootLayout({ children }) {
             var viewport = document.querySelector('meta[name="viewport"]');
             function resetZoom() {
               if (viewport) {
-                viewport.setAttribute('content', 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover');
+                viewport.setAttribute('content', 'width=device-width, initial-scale=1');
               }
-              document.body.style.zoom = 1;
               window.scrollTo(0, 0);
             }
             window.addEventListener('orientationchange', function() {
@@ -45,6 +45,10 @@ export default function RootLayout({ children }) {
                 resetZoom();
               }
             });
+            // Register service worker for PWA
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.register('/sw.js').catch(function() {});
+            }
           })();
         `}} />
       </body>

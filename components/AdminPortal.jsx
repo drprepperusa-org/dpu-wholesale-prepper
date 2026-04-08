@@ -53,12 +53,17 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
   const [newProductForm, setNewProductForm] = useState({
     name: '',
     sku: '',
+    barcode_pack: '',
+    barcode_bundle: '',
+    barcode_box: '',
     weight: '',
     bags_per_case: '',
     cases_per_pallet: '',
     price: '',
     category_id: '',
     image_url: '',
+    box_image_url: '',
+    bundle_image_url: '',
     imageFile: null,
     showPrice: true
   })
@@ -1290,6 +1295,11 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       const payload = {
         name: f.name.trim(),
         sku: f.sku ? String(f.sku).trim() : null,
+        barcode_pack: f.barcode_pack ? String(f.barcode_pack).trim() : null,
+        barcode_bundle: f.barcode_bundle ? String(f.barcode_bundle).trim() : null,
+        barcode_box: f.barcode_box ? String(f.barcode_box).trim() : null,
+        box_image_url: f.box_image_url ? String(f.box_image_url).trim() : null,
+        bundle_image_url: f.bundle_image_url ? String(f.bundle_image_url).trim() : null,
         weight: f.weight ? String(f.weight).trim() : null,
         bags_per_case: f.bags_per_case ? parseInt(f.bags_per_case) : null,
         cases_per_pallet: f.cases_per_pallet ? parseInt(f.cases_per_pallet) : null,
@@ -1331,7 +1341,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       } else if (response.ok) {
         await loadProducts()
         setActiveModal(null)
-        setNewProductForm({ name: '', sku: '', weight: '', bags_per_case: '', cases_per_pallet: '', price: '', category_id: '', image_url: '', imageFile: null, showPrice: true })
+        setNewProductForm({ name: '', sku: '', weight: '', bags_per_case: '', cases_per_pallet: '', price: '', category_id: '', image_url: '', box_image_url: '', bundle_image_url: '', imageFile: null, showPrice: true })
         setProductFormErrors({})
         showToast('Product added')
         logActivity(`Added new product: ${payload.name}`)
@@ -2859,6 +2869,33 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
           />
           {productFormErrors.sku && <div className="text-[11px] text-red-500 mt-0.5 mb-1 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> {productFormErrors.sku}</div>}
 
+          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Barcode (Pack)</label>
+          <input
+            className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400"
+            type="text"
+            placeholder="e.g. 012345678901"
+            value={newProductForm.barcode_pack}
+            onChange={e => setNewProductForm(prev => ({ ...prev, barcode_pack: e.target.value }))}
+          />
+
+          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Barcode (Bundle)</label>
+          <input
+            className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400"
+            type="text"
+            placeholder="e.g. 012345678902"
+            value={newProductForm.barcode_bundle}
+            onChange={e => setNewProductForm(prev => ({ ...prev, barcode_bundle: e.target.value }))}
+          />
+
+          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Barcode (Box)</label>
+          <input
+            className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400"
+            type="text"
+            placeholder="e.g. 012345678903"
+            value={newProductForm.barcode_box}
+            onChange={e => setNewProductForm(prev => ({ ...prev, barcode_box: e.target.value }))}
+          />
+
           <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Weight</label>
           <input className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400" type="text" placeholder="e.g. 70g" value={newProductForm.weight} onChange={e => setNewProductForm(prev => ({ ...prev, weight: e.target.value }))} />
 
@@ -2951,6 +2988,12 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
             <div className="text-[11px] text-slate-400 leading-snug">JPG, PNG, or WebP. Max 5MB. Recommended: 400x400px</div>
           </div>
 
+          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Box Image URL</label>
+          <input className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400" type="text" placeholder="URL of box packaging image" value={newProductForm.box_image_url} onChange={e => setNewProductForm(prev => ({ ...prev, box_image_url: e.target.value }))} />
+
+          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Bundle Image URL</label>
+          <input className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400" type="text" placeholder="URL of bundle packaging image" value={newProductForm.bundle_image_url} onChange={e => setNewProductForm(prev => ({ ...prev, bundle_image_url: e.target.value }))} />
+
           <div className="flex gap-2 mt-4 max-sm:mt-3">
             <button className="flex-1 py-2.5 max-sm:py-2.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-500 text-sm font-semibold cursor-pointer transition-all hover:border-indigo-300 hover:text-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed" onClick={closeModal} disabled={isSavingProduct}>Cancel</button>
             <button className="flex-1 py-2.5 max-sm:py-2.5 rounded-lg bg-indigo-500 border-none text-white text-sm font-semibold cursor-pointer transition-all hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed" onClick={saveNewProduct} disabled={isSavingProduct || !isProductFormValid}>
@@ -2977,6 +3020,18 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
               <div>
                 <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">SKU</label>
                 <input type="text" value={editingProduct.sku || ''} onChange={e => setEditingProduct(prev => ({ ...prev, sku: e.target.value }))} className="w-full py-[9px] px-3 border-[1.5px] border-slate-200 rounded-[9px] text-[13px] max-sm:!text-sm bg-slate-50 text-slate-800 outline-none transition-colors box-border focus:border-indigo-400" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">Barcode (Pack)</label>
+                <input type="text" value={editingProduct.barcode_pack || ''} onChange={e => setEditingProduct(prev => ({ ...prev, barcode_pack: e.target.value }))} className="w-full py-[9px] px-3 border-[1.5px] border-slate-200 rounded-[9px] text-[13px] max-sm:!text-sm bg-slate-50 text-slate-800 outline-none transition-colors box-border focus:border-indigo-400" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">Barcode (Bundle)</label>
+                <input type="text" value={editingProduct.barcode_bundle || ''} onChange={e => setEditingProduct(prev => ({ ...prev, barcode_bundle: e.target.value }))} className="w-full py-[9px] px-3 border-[1.5px] border-slate-200 rounded-[9px] text-[13px] max-sm:!text-sm bg-slate-50 text-slate-800 outline-none transition-colors box-border focus:border-indigo-400" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">Barcode (Box)</label>
+                <input type="text" value={editingProduct.barcode_box || ''} onChange={e => setEditingProduct(prev => ({ ...prev, barcode_box: e.target.value }))} className="w-full py-[9px] px-3 border-[1.5px] border-slate-200 rounded-[9px] text-[13px] max-sm:!text-sm bg-slate-50 text-slate-800 outline-none transition-colors box-border focus:border-indigo-400" />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">Weight</label>
@@ -3022,27 +3077,59 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                   <label htmlFor="editShowPrice" className="text-[13px] text-slate-500 cursor-pointer select-none">Show price on cards</label>
                 </div>
               </div>
-              <div className="col-span-full max-sm:col-span-1">
-                <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">Image URL</label>
-                <div className="flex gap-3 max-sm:flex-col max-sm:gap-2 items-start mb-1">
-                  <div className="w-[72px] h-[72px] max-sm:w-[60px] max-sm:h-[60px] rounded-xl border-[1.5px] border-slate-200 bg-slate-50 flex items-center justify-center text-[22px] overflow-hidden flex-shrink-0">
-                    {editingProduct.image_url ? (
-                      <img src={editingProduct.image_url} alt="Preview" className="w-full h-full object-cover rounded-[10px]" />
-                    ) : (
-                      <Camera className="w-6 h-6 text-slate-300" />
-                    )}
-                  </div>
-                  <div className="flex-1 flex flex-col gap-1.5">
-                    <input
-                      className="w-full py-2 px-[11px] border-[1.5px] border-slate-200 rounded-lg text-[13px] bg-slate-50 text-slate-800 outline-none box-border focus:border-indigo-400"
-                      type="text"
-                      placeholder="Image URL"
-                      value={editingProduct.image_url || ''}
-                      onChange={e => setEditingProduct(prev => ({ ...prev, image_url: e.target.value }))}
-                    />
+              {[
+                { key: 'image_url', label: 'Product Image', Icon: Camera },
+                { key: 'box_image_url', label: 'Box Image', Icon: Package },
+                { key: 'bundle_image_url', label: 'Bundle Image', Icon: Package },
+              ].map(imgField => (
+                <div key={imgField.key} className="col-span-full max-sm:col-span-1">
+                  <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">{imgField.label}</label>
+                  <div className="flex gap-3 max-sm:flex-col max-sm:gap-2 items-start mb-1">
+                    <div className="w-[72px] h-[72px] max-sm:w-[60px] max-sm:h-[60px] rounded-xl border-[1.5px] border-slate-200 bg-slate-50 flex items-center justify-center text-[22px] overflow-hidden flex-shrink-0">
+                      {editingProduct[imgField.key] ? (
+                        <img src={editingProduct[imgField.key]} alt={imgField.label} className="w-full h-full object-cover rounded-[10px]" />
+                      ) : (
+                        <imgField.Icon className="w-6 h-6 text-slate-300" />
+                      )}
+                    </div>
+                    <div className="flex-1 flex flex-col gap-1.5">
+                      <input
+                        className="w-full py-2 px-[11px] border-[1.5px] border-slate-200 rounded-lg text-[13px] bg-slate-50 text-slate-800 outline-none box-border focus:border-indigo-400"
+                        type="text"
+                        placeholder={`${imgField.label} URL`}
+                        value={editingProduct[imgField.key] || ''}
+                        onChange={e => setEditingProduct(prev => ({ ...prev, [imgField.key]: e.target.value }))}
+                      />
+                      <div className="flex gap-1.5">
+                        <label className="px-3 py-1.5 rounded-md text-xs font-semibold border-none cursor-pointer transition-all bg-indigo-50 text-indigo-500 hover:bg-indigo-100 flex items-center gap-1">
+                          <Camera className="w-3 h-3" /> Upload
+                          <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            if (file.size > 5 * 1024 * 1024) { showToast('Image must be under 5MB'); return; }
+                            const formData = new FormData();
+                            formData.append('image', file);
+                            const token = localStorage.getItem('token');
+                            try {
+                              const res = await fetch('/api/products/upload-image', { method: 'POST', headers: token ? { 'Authorization': `Bearer ${token}` } : {}, body: formData });
+                              const data = await res.json();
+                              if (data.url) { setEditingProduct(prev => ({ ...prev, [imgField.key]: data.url })); showToast(`${imgField.label} uploaded`); }
+                              else { showToast('Upload failed'); }
+                            } catch { showToast('Upload failed'); }
+                            e.target.value = '';
+                          }} />
+                        </label>
+                        {editingProduct[imgField.key] && (
+                          <button type="button" className="px-3 py-1.5 rounded-md text-xs font-semibold border-none cursor-pointer transition-all bg-red-50 text-red-500 hover:bg-red-100 flex items-center gap-1"
+                            onClick={() => setEditingProduct(prev => ({ ...prev, [imgField.key]: '' }))}>
+                            <X className="w-3 h-3" /> Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
+              ))}
             </div>
           )}
           <div className="flex gap-2.5 mt-5 max-sm:mt-3 justify-end max-sm:flex-row">

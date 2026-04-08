@@ -8,7 +8,8 @@ function useIsMobile() {
   return m
 }
 
-function CategoryView({ products, favorites, cart, onProductSelected, onAddToCart, onToggleFavorite, cardSize }) {
+function CategoryView({ products, favorites, cart, onProductSelected, onAddToCart, onToggleFavorite, cardSize, onCardResize }) {
+  const firstCardRendered = React.useRef(false);
   const isMobile = useIsMobile()
   const [hierarchy, setHierarchy] = useState([])
   const [loading, setLoading] = useState(true)
@@ -50,6 +51,7 @@ function CategoryView({ products, favorites, cart, onProductSelected, onAddToCar
   if (loading) return <div className="p-10 text-center text-base text-slate-400">Loading categories...</div>
   if (error) return <div className="p-10 text-center text-base text-red-500">{error}</div>
 
+  firstCardRendered.current = false;
   return (
     <div className="w-full p-5">
       {hierarchy.map(superCat => {
@@ -73,10 +75,15 @@ function CategoryView({ products, favorites, cart, onProductSelected, onAddToCar
                   </span>
                 </div>
                 <div style={isMobile ? { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' } : { display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${148 * (cardSize || 1)}px, 1fr))`, gap: `${10 * (cardSize || 1)}px` }}>
-                  {category.products.map(product => (
-                    <ProductCard key={product.id} product={product} isFavorited={isFavorited(product.id)} inCart={isInCart(product.id)}
-                      onProductSelected={onProductSelected} onAddToCart={onAddToCart} onToggleFavorite={onToggleFavorite} cardSize={isMobile ? 1 : cardSize} />
-                  ))}
+                  {category.products.map(product => {
+                    const isFirst = !firstCardRendered.current;
+                    if (isFirst) firstCardRendered.current = true;
+                    return (
+                      <ProductCard key={product.id} product={product} isFavorited={isFavorited(product.id)} inCart={isInCart(product.id)}
+                        isFirst={isFirst} onProductSelected={onProductSelected} onAddToCart={onAddToCart} onToggleFavorite={onToggleFavorite}
+                        cardSize={isMobile ? 1 : cardSize} onCardResize={onCardResize} />
+                    );
+                  })}
                 </div>
               </div>
             ))}
