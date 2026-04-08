@@ -708,7 +708,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
             try {
               const parsed = JSON.parse(data.settings.promo_banner)
               setPromoBanner(prev => ({ ...prev, ...parsed, type: parsed.type || 'text' }))
-            } catch(e) { console.error('Banner parse error:', e) }
+            } catch (e) { console.error('Banner parse error:', e) }
           }
         }
       }
@@ -782,7 +782,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
   const showPage = useCallback((page) => {
     setActivePage(page)
     setSidebarOpen(false)
-    try { localStorage.setItem('admin_active_page', page) } catch(e) {}
+    try { localStorage.setItem('admin_active_page', page) } catch (e) { }
   }, [])
 
   const toggleSidebar = useCallback(() => {
@@ -1765,7 +1765,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
   }, [importExcelFile, importImageFiles, showToast])
 
   useEffect(() => {
-    try { localStorage.setItem('admin_views_zoom', String(viewsZoom)); } catch(e) {}
+    try { localStorage.setItem('admin_views_zoom', String(viewsZoom)); } catch (e) { }
   }, [viewsZoom])
 
   const clearActivityLog = useCallback(() => {
@@ -2135,8 +2135,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                               </label>
                               <div className="flex gap-1 flex-wrap items-center">
                                 {prod.is_hidden && <div className="px-[7px] py-0.5 rounded-full text-[9px] font-semibold tracking-wide uppercase bg-slate-50 text-slate-400 border border-slate-200">Hidden</div>}
-                                {prod.is_oos && <div className="px-[7px] py-0.5 rounded-full text-[9px] font-semibold tracking-wide uppercase bg-amber-100 text-amber-600 border border-amber-200">OOS</div>}
-                                {!prod.is_hidden && <div className="px-[7px] py-0.5 rounded-full text-[9px] font-semibold tracking-wide uppercase bg-emerald-100 text-emerald-600 border border-emerald-200">Visible</div>}
+                                <div className={`px-[7px] py-0.5 rounded-full text-[9px] font-semibold tracking-wide uppercase cursor-pointer select-none transition-all ${prod.is_oos ? 'bg-red-100 text-red-600 border border-red-200 hover:bg-red-200' : 'bg-emerald-100 text-emerald-600 border border-emerald-200 hover:bg-emerald-200'}`} onClick={(e) => { e.stopPropagation(); toggleOosStatus(prod); }}>{prod.is_oos ? 'OOS: YES' : 'IN STOCK'}</div>
                               </div>
                             </div>
                             <img src={prod.image_url} className="w-20 h-20 max-sm:h-[100px] object-contain rounded-lg bg-white block mx-auto mb-2.5 border border-slate-100" alt={prod.name} />
@@ -2150,7 +2149,6 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                                   {isDeletingProduct === prod.id ? <MoreHorizontal className="w-3 h-3 inline animate-pulse" /> : <Trash2 className="w-2.5 h-2.5 inline -mt-px" />}
                                 </button>
                                 <button className="flex-1 min-w-[46px] py-[5px] px-[3px] rounded-md border border-slate-200 bg-transparent text-slate-500 text-[10px] max-sm:text-[9px] font-medium cursor-pointer transition-all text-center whitespace-nowrap hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50" onClick={() => toggleVisibility(prod)} title="Toggle visibility" disabled={isDeletingProduct === prod.id}>{prod.is_hidden ? <Eye className="w-2.5 h-2.5 inline -mt-px" /> : <Ban className="w-2.5 h-2.5 inline -mt-px" />}</button>
-                                <button className={`flex-1 min-w-[46px] py-[5px] px-[3px] rounded-md border text-[10px] max-sm:text-[9px] font-medium cursor-pointer transition-all text-center whitespace-nowrap ${prod.is_oos ? 'border-amber-200 text-amber-600 bg-amber-50' : 'border-slate-200 bg-transparent text-slate-500 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50'}`} onClick={() => toggleOosStatus(prod)} title="Toggle out of stock" disabled={isDeletingProduct === prod.id}>{prod.is_oos ? <AlertTriangle className="w-2.5 h-2.5 inline -mt-px" /> : <Check className="w-2.5 h-2.5 inline -mt-px" />}</button>
                               </div>
                             </div>
                           </div>
