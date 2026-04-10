@@ -3288,52 +3288,65 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
             <label htmlFor="showPrice" className="text-[13px] text-slate-500 cursor-pointer select-none">Show price on product cards</label>
           </div>
 
-          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Product Picture</label>
-          <div className="flex flex-col gap-2">
-            <input
-              type="file"
-              ref={imageFileInputRef}
-              accept="image/jpeg,image/png,image/webp"
-              onChange={handleImageSelect}
-              style={{ display: 'none' }}
-            />
-            <div
-              className={`border-2 border-dashed rounded-lg p-6 cursor-pointer transition-all min-h-[140px] flex items-center justify-center ${isDraggingImage ? 'border-indigo-500 bg-indigo-50' : newProductForm.imageFile ? 'border-slate-200 bg-slate-50' : 'border-slate-200 bg-slate-50 hover:border-indigo-500 hover:bg-indigo-50/50'}`}
-              onDragOver={(e) => { e.preventDefault(); setIsDraggingImage(true); }}
-              onDragLeave={(e) => { e.preventDefault(); setIsDraggingImage(false); }}
-              onDrop={handleImageDrop}
-              onClick={() => imageFileInputRef.current?.click()}
-            >
-              {!newProductForm.imageFile && !newProductForm.image_url ? (
-                <div className="text-center flex flex-col items-center gap-2">
-                  <Camera className="w-9 h-9 text-slate-300" />
-                  <div className="flex flex-col gap-0.5">
-                    <strong className="text-slate-800 text-sm">Drag & drop image here</strong>
-                    <span className="text-slate-400 text-xs">or click to select</span>
-                  </div>
+          {[
+            { key: 'image_url', label: 'Product Image', Icon: Camera },
+            { key: 'box_image_url', label: 'Box Image', Icon: Package },
+            { key: 'bundle_image_url', label: 'Bundle Image', Icon: Package },
+          ].map(imgField => (
+            <div key={imgField.key} className="mt-3">
+              <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">{imgField.label}</label>
+              <div className="flex gap-3 max-sm:flex-col max-sm:gap-2 items-start mb-1">
+                <div className="w-[72px] h-[72px] max-sm:w-[60px] max-sm:h-[60px] rounded-xl border-[1.5px] border-slate-200 bg-slate-50 flex items-center justify-center text-[22px] overflow-hidden flex-shrink-0">
+                  {newProductForm[imgField.key] ? (
+                    <img src={newProductForm[imgField.key]} alt={imgField.label} className="w-full h-full object-cover rounded-[10px]" />
+                  ) : (
+                    <imgField.Icon className="w-6 h-6 text-slate-300" />
+                  )}
                 </div>
-              ) : (
-                <div className="flex items-center gap-3 w-full">
-                  <img
-                    src={newProductForm.imageFile ? getImagePreview() : newProductForm.image_url}
-                    alt="Preview"
-                    className="w-20 h-20 object-cover rounded-md"
+                <div className="flex-1 flex flex-col gap-1.5 w-full">
+                  <input
+                    className="w-full py-2 px-[11px] border-[1.5px] border-slate-200 rounded-lg text-[13px] bg-slate-50 text-slate-800 outline-none box-border focus:border-indigo-400"
+                    type="text"
+                    placeholder={`${imgField.label} URL`}
+                    value={newProductForm[imgField.key] || ''}
+                    onChange={e => setNewProductForm(prev => ({ ...prev, [imgField.key]: e.target.value }))}
                   />
-                  <div className="flex gap-2 flex-col">
-                    <button type="button" className="px-3 py-1.5 rounded-md text-xs font-semibold border-none cursor-pointer transition-all bg-slate-200 text-slate-800 hover:bg-slate-300" onClick={(e) => { e.stopPropagation(); imageFileInputRef.current?.click(); }}><FolderOpen className="w-3 h-3 inline mr-1 -mt-px" /> Change</button>
-                    <button type="button" className="px-3 py-1.5 rounded-md text-xs font-semibold border-none cursor-pointer transition-all bg-red-100 text-red-500 hover:bg-red-200" onClick={(e) => { e.stopPropagation(); clearImage(); }}><X className="w-3 h-3 inline mr-0.5 -mt-px" /> Remove</button>
+                  <div className="flex gap-1.5 flex-wrap">
+                    <label className="px-3 py-1.5 rounded-md text-xs font-semibold border-none cursor-pointer transition-all bg-indigo-50 text-indigo-500 hover:bg-indigo-100 flex items-center gap-1">
+                      <Camera className="w-3 h-3" /> Upload
+                      <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (file.size > 5 * 1024 * 1024) { showToast('Image must be under 5MB'); return; }
+                        const formData = new FormData();
+                        formData.append('image', file);
+                        const token = localStorage.getItem('token');
+                        try {
+                          const res = await fetch('/api/products/upload-image', { method: 'POST', headers: token ? { 'Authorization': `Bearer ${token}` } : {}, body: formData });
+                          const data = await res.json();
+                          if (data.url) { setNewProductForm(prev => ({ ...prev, [imgField.key]: data.url })); showToast(`${imgField.label} uploaded`); }
+                          else { showToast('Upload failed'); }
+                        } catch { showToast('Upload failed'); }
+                        e.target.value = '';
+                      }} />
+                    </label>
+                    {newProductForm[imgField.key] && (
+                      <button type="button" className="px-3 py-1.5 rounded-md text-xs font-semibold border-none cursor-pointer transition-all bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1"
+                        onClick={() => setCropState({ open: true, imageUrl: newProductForm[imgField.key], fieldKey: imgField.key, source: 'new', zoom: 1, offsetX: 0, offsetY: 0 })}>
+                        <Crop className="w-3 h-3" /> Crop
+                      </button>
+                    )}
+                    {newProductForm[imgField.key] && (
+                      <button type="button" className="px-3 py-1.5 rounded-md text-xs font-semibold border-none cursor-pointer transition-all bg-red-50 text-red-500 hover:bg-red-100 flex items-center gap-1"
+                        onClick={() => setNewProductForm(prev => ({ ...prev, [imgField.key]: '' }))}>
+                        <X className="w-3 h-3" /> Remove
+                      </button>
+                    )}
                   </div>
                 </div>
-              )}
+              </div>
             </div>
-            <div className="text-[11px] text-slate-400 leading-snug">JPG, PNG, or WebP. Max 5MB. Recommended: 400x400px</div>
-          </div>
-
-          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Box Image URL</label>
-          <input className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400" type="text" placeholder="URL of box packaging image" value={newProductForm.box_image_url} onChange={e => setNewProductForm(prev => ({ ...prev, box_image_url: e.target.value }))} />
-
-          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Bundle Image URL</label>
-          <input className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400" type="text" placeholder="URL of bundle packaging image" value={newProductForm.bundle_image_url} onChange={e => setNewProductForm(prev => ({ ...prev, bundle_image_url: e.target.value }))} />
+          ))}
 
           <div className="flex gap-2 mt-4 max-sm:mt-3">
             <button className="flex-1 py-2.5 max-sm:py-2.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-500 text-sm font-semibold cursor-pointer transition-all hover:border-indigo-300 hover:text-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed" onClick={closeModal} disabled={isSavingProduct}>Cancel</button>
@@ -3585,7 +3598,11 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                     const res = await fetch('/api/products/upload-image', { method: 'POST', headers: token ? { 'Authorization': `Bearer ${token}` } : {}, body: fd });
                     const data = await res.json();
                     if (data.url) {
-                      setEditingProduct(prev => ({ ...prev, [cropState.fieldKey]: data.url }));
+                      if (cropState.source === 'new') {
+                        setNewProductForm(prev => ({ ...prev, [cropState.fieldKey]: data.url }));
+                      } else {
+                        setEditingProduct(prev => ({ ...prev, [cropState.fieldKey]: data.url }));
+                      }
                       setCropState(prev => ({ ...prev, open: false }));
                       showToast('Image cropped & saved');
                     } else { showToast('Crop failed'); }
