@@ -69,6 +69,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
     showPrice: true
   })
   const [isDraggingImage, setIsDraggingImage] = useState(false)
+  const [draggingEditField, setDraggingEditField] = useState(null)
   const [productFormErrors, setProductFormErrors] = useState({})
   const [editProductErrors, setEditProductErrors] = useState({})
   const [editingProduct, setEditingProduct] = useState(null)
@@ -680,7 +681,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       const needsInit = prods.length > 1 && prods.filter(p => !p.sort_order && p.sort_order !== 0).length > prods.length * 0.5
       if (needsInit) {
         const t = localStorage.getItem('token')
-        fetch('/api/admin/reorder-products', { method: 'PUT', headers: t ? { 'Authorization': `Bearer ${t}` } : {} }).catch(() => {})
+        fetch('/api/admin/reorder-products', { method: 'PUT', headers: t ? { 'Authorization': `Bearer ${t}` } : {} }).catch(() => { })
       }
     } catch (e) {
       console.error('Failed to load products:', e)
@@ -1899,7 +1900,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
               try {
                 const imgRes = await fetch(img.url)
                 if (imgRes.ok) { zip.file(img.name, await imgRes.blob()); downloaded++ }
-              } catch {}
+              } catch { }
             }))
           }
           if (downloaded > 0) {
@@ -2343,91 +2344,91 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                           const isDropTarget = canDropHere && dragOverProdId === prod.id
 
                           return (
-                          <div key={prod.id}
-                            draggable={!isReorderingProducts}
-                            onDragStart={(e) => {
-                              e.dataTransfer.effectAllowed = 'move'
-                              e.dataTransfer.setData('text/plain', String(prod.id))
-                              dragProdRef.current = prod.id
-                              dragOverProdRef.current = null
-                              setDragProdCategoryKey(productCategoryKey)
-                              setDragProdId(prod.id)
-                            }}
-                            onDragEnter={(e) => {
-                              if (!dragProdRef.current || dragProdCategoryKey !== productCategoryKey || dragProdRef.current === prod.id) return
-                              e.preventDefault()
-                              e.stopPropagation()
-                              dragOverProdRef.current = prod.id
-                              setDragOverProdId(prod.id)
-                              // Live reorder: move the dragged card to the hovered position
-                              setProducts(prev => {
-                                const copy = [...prev]
-                                const fromIdx = copy.findIndex(p => p.id === dragProdRef.current)
-                                const toIdx = copy.findIndex(p => p.id === prod.id)
-                                if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return prev
-                                const [moved] = copy.splice(fromIdx, 1)
-                                copy.splice(toIdx, 0, moved)
-                                // Capture the new order for this category to save on drop
-                                const source = copy[toIdx]
-                                const key = `${source.super_category_id || ''}:${source.category_id || ''}`
-                                pendingSaveRef.current = copy.filter(p => `${p.super_category_id || ''}:${p.category_id || ''}` === key).map(p => p.id)
-                                return copy
-                              })
-                            }}
-                            onDragOver={(e) => {
-                              if (!dragProdRef.current || dragProdCategoryKey !== productCategoryKey || dragProdRef.current === prod.id) return
-                              e.preventDefault()
-                              e.stopPropagation()
-                              e.dataTransfer.dropEffect = 'move'
-                              dragOverProdRef.current = prod.id
-                              if (dragOverProdId !== prod.id) setDragOverProdId(prod.id)
-                            }}
-                            onDragEnd={() => {
-                              // onDragEnd always fires — if pendingSaveRef still has data, onDrop didn't fire, so save here
-                              if (pendingSaveRef.current) {
+                            <div key={prod.id}
+                              draggable={!isReorderingProducts}
+                              onDragStart={(e) => {
+                                e.dataTransfer.effectAllowed = 'move'
+                                e.dataTransfer.setData('text/plain', String(prod.id))
+                                dragProdRef.current = prod.id
+                                dragOverProdRef.current = null
+                                setDragProdCategoryKey(productCategoryKey)
+                                setDragProdId(prod.id)
+                              }}
+                              onDragEnter={(e) => {
+                                if (!dragProdRef.current || dragProdCategoryKey !== productCategoryKey || dragProdRef.current === prod.id) return
+                                e.preventDefault()
+                                e.stopPropagation()
+                                dragOverProdRef.current = prod.id
+                                setDragOverProdId(prod.id)
+                                // Live reorder: move the dragged card to the hovered position
+                                setProducts(prev => {
+                                  const copy = [...prev]
+                                  const fromIdx = copy.findIndex(p => p.id === dragProdRef.current)
+                                  const toIdx = copy.findIndex(p => p.id === prod.id)
+                                  if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return prev
+                                  const [moved] = copy.splice(fromIdx, 1)
+                                  copy.splice(toIdx, 0, moved)
+                                  // Capture the new order for this category to save on drop
+                                  const source = copy[toIdx]
+                                  const key = `${source.super_category_id || ''}:${source.category_id || ''}`
+                                  pendingSaveRef.current = copy.filter(p => `${p.super_category_id || ''}:${p.category_id || ''}` === key).map(p => p.id)
+                                  return copy
+                                })
+                              }}
+                              onDragOver={(e) => {
+                                if (!dragProdRef.current || dragProdCategoryKey !== productCategoryKey || dragProdRef.current === prod.id) return
+                                e.preventDefault()
+                                e.stopPropagation()
+                                e.dataTransfer.dropEffect = 'move'
+                                dragOverProdRef.current = prod.id
+                                if (dragOverProdId !== prod.id) setDragOverProdId(prod.id)
+                              }}
+                              onDragEnd={() => {
+                                // onDragEnd always fires — if pendingSaveRef still has data, onDrop didn't fire, so save here
+                                if (pendingSaveRef.current) {
+                                  handleProductDrop()
+                                } else {
+                                  resetProductDragState()
+                                }
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
                                 handleProductDrop()
-                              } else {
-                                resetProductDragState()
-                              }
-                            }}
-                            onDrop={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              handleProductDrop()
-                            }}
-                            className={`bg-white border-[1.5px] rounded-xl p-3 max-sm:p-2 relative shadow-sm hover:border-indigo-300 hover:shadow-md ${prod.is_hidden ? 'opacity-50 border-dashed border-slate-300 bg-slate-50' : 'border-slate-200'} ${prod.is_oos ? '!border-amber-300' : ''} ${selectedProducts[prod.id] ? 'outline-2 outline-indigo-500 outline-offset-[-2px] !bg-indigo-50' : ''} ${isDragged ? 'opacity-40 scale-95 !border-indigo-400 !bg-indigo-50 shadow-lg' : ''}`}
-                            style={{ transition: isDragged ? 'none' : 'transform 150ms ease, opacity 150ms ease' }}>
-                            <div className="absolute right-2 top-2 text-[9px] font-semibold text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md">
-                              #{index + 1}
-                            </div>
-                            <div className="flex items-center gap-2 mb-2 max-sm:gap-1 max-sm:mb-1">
-                              <div className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 flex-shrink-0" title="Drag to reorder">
-                                <GripVertical className="w-3.5 h-3.5" />
+                              }}
+                              className={`bg-white border-[1.5px] rounded-xl p-3 max-sm:p-2 relative shadow-sm hover:border-indigo-300 hover:shadow-md ${prod.is_hidden ? 'opacity-50 border-dashed border-slate-300 bg-slate-50' : 'border-slate-200'} ${prod.is_oos ? '!border-amber-300' : ''} ${selectedProducts[prod.id] ? 'outline-2 outline-indigo-500 outline-offset-[-2px] !bg-indigo-50' : ''} ${isDragged ? 'opacity-40 scale-95 !border-indigo-400 !bg-indigo-50 shadow-lg' : ''}`}
+                              style={{ transition: isDragged ? 'none' : 'transform 150ms ease, opacity 150ms ease' }}>
+                              <div className="absolute right-2 top-2 text-[9px] font-semibold text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md">
+                                #{index + 1}
                               </div>
-                              <label className="flex items-center cursor-pointer flex-shrink-0 m-0 p-0 leading-none">
-                                <input type="checkbox" checked={!!selectedProducts[prod.id]} onChange={() => toggleProductSelect(prod.id)} className="w-4 h-4 cursor-pointer accent-indigo-500 m-0" />
-                              </label>
-                              <div className="flex gap-1 flex-wrap items-center">
-                                {prod.is_hidden && <div className="px-[7px] py-0.5 rounded-full text-[9px] font-semibold tracking-wide uppercase bg-slate-50 text-slate-400 border border-slate-200">Hidden</div>}
-                                <div className={`px-[7px] py-0.5 rounded-full text-[9px] font-semibold tracking-wide uppercase cursor-pointer select-none transition-all ${prod.is_oos ? 'bg-red-100 text-red-600 border border-red-200 hover:bg-red-200' : 'bg-emerald-100 text-emerald-600 border border-emerald-200 hover:bg-emerald-200'}`} onClick={(e) => { e.stopPropagation(); toggleOosStatus(prod); }}>{prod.is_oos ? 'OOS: YES' : 'IN STOCK'}</div>
+                              <div className="flex items-center gap-2 mb-2 max-sm:gap-1 max-sm:mb-1">
+                                <div className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 flex-shrink-0" title="Drag to reorder">
+                                  <GripVertical className="w-3.5 h-3.5" />
+                                </div>
+                                <label className="flex items-center cursor-pointer flex-shrink-0 m-0 p-0 leading-none">
+                                  <input type="checkbox" checked={!!selectedProducts[prod.id]} onChange={() => toggleProductSelect(prod.id)} className="w-4 h-4 cursor-pointer accent-indigo-500 m-0" />
+                                </label>
+                                <div className="flex gap-1 flex-wrap items-center">
+                                  {prod.is_hidden && <div className="px-[7px] py-0.5 rounded-full text-[9px] font-semibold tracking-wide uppercase bg-slate-50 text-slate-400 border border-slate-200">Hidden</div>}
+                                  <div className={`px-[7px] py-0.5 rounded-full text-[9px] font-semibold tracking-wide uppercase cursor-pointer select-none transition-all ${prod.is_oos ? 'bg-red-100 text-red-600 border border-red-200 hover:bg-red-200' : 'bg-emerald-100 text-emerald-600 border border-emerald-200 hover:bg-emerald-200'}`} onClick={(e) => { e.stopPropagation(); toggleOosStatus(prod); }}>{prod.is_oos ? 'OOS: YES' : 'IN STOCK'}</div>
+                                </div>
                               </div>
-                            </div>
-                            <div className="w-full h-20 max-sm:h-[100px] rounded-lg bg-white mb-2.5 border border-slate-100 p-1 overflow-hidden flex items-center justify-center">
-                              <img src={prod.image_url} className="max-w-full max-h-full object-contain" style={{ transform: 'scale(1.08)' }} alt={prod.name} />
-                            </div>
-                            <div className="flex-1 flex flex-col gap-1.5">
-                              <div className="text-[11px] max-sm:text-xs text-slate-800 font-medium leading-snug h-[30px] overflow-hidden mb-0.5 text-center">{prod.name}</div>
-                              <div className="text-[10px] max-sm:text-[9px] text-slate-400 mb-0.5 text-center">{prod.category}</div>
-                              <div className="text-[10px] max-sm:text-[9px] text-slate-300 font-mono mb-2.5 text-center">{prod.sku || 'N/A'}</div>
-                              <div className="flex gap-[5px] max-sm:gap-[3px] flex-wrap">
-                                <button className="flex-1 min-w-[46px] py-[5px] px-[3px] rounded-md border border-slate-200 bg-transparent text-slate-500 text-[10px] max-sm:text-[9px] font-medium cursor-pointer transition-all text-center whitespace-nowrap hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50" onClick={() => editProduct(prod)} disabled={isDeletingProduct === prod.id}><Pencil className="w-2.5 h-2.5 inline -mt-px" /></button>
-                                <button className="flex-1 min-w-[46px] py-[5px] px-[3px] rounded-md border border-slate-200 bg-transparent text-slate-500 text-[10px] max-sm:text-[9px] font-medium cursor-pointer transition-all text-center whitespace-nowrap hover:border-red-300 hover:text-red-500 hover:bg-red-50" onClick={() => deleteProduct(prod.id)} disabled={isDeletingProduct === prod.id}>
-                                  {isDeletingProduct === prod.id ? <MoreHorizontal className="w-3 h-3 inline animate-pulse" /> : <Trash2 className="w-2.5 h-2.5 inline -mt-px" />}
-                                </button>
-                                <button className="flex-1 min-w-[46px] py-[5px] px-[3px] rounded-md border border-slate-200 bg-transparent text-slate-500 text-[10px] max-sm:text-[9px] font-medium cursor-pointer transition-all text-center whitespace-nowrap hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50" onClick={() => toggleVisibility(prod)} title="Toggle visibility" disabled={isDeletingProduct === prod.id}>{prod.is_hidden ? <Eye className="w-2.5 h-2.5 inline -mt-px" /> : <Ban className="w-2.5 h-2.5 inline -mt-px" />}</button>
+                              <div className="w-full h-20 max-sm:h-[100px] rounded-lg bg-white mb-2.5 border border-slate-100 p-1 overflow-hidden flex items-center justify-center">
+                                <img src={prod.image_url} className="max-w-full max-h-full object-contain" style={{ transform: 'scale(1.08)' }} alt={prod.name} />
+                              </div>
+                              <div className="flex-1 flex flex-col gap-1.5">
+                                <div className="text-[11px] max-sm:text-xs text-slate-800 font-medium leading-snug h-[30px] overflow-hidden mb-0.5 text-center">{prod.name}</div>
+                                <div className="text-[10px] max-sm:text-[9px] text-slate-400 mb-0.5 text-center">{prod.category}</div>
+                                <div className="text-[10px] max-sm:text-[9px] text-slate-300 font-mono mb-2.5 text-center">{prod.sku || 'N/A'}</div>
+                                <div className="flex gap-[5px] max-sm:gap-[3px] flex-wrap">
+                                  <button className="flex-1 min-w-[46px] py-[5px] px-[3px] rounded-md border border-slate-200 bg-transparent text-slate-500 text-[10px] max-sm:text-[9px] font-medium cursor-pointer transition-all text-center whitespace-nowrap hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50" onClick={() => editProduct(prod)} disabled={isDeletingProduct === prod.id}><Pencil className="w-2.5 h-2.5 inline -mt-px" /></button>
+                                  <button className="flex-1 min-w-[46px] py-[5px] px-[3px] rounded-md border border-slate-200 bg-transparent text-slate-500 text-[10px] max-sm:text-[9px] font-medium cursor-pointer transition-all text-center whitespace-nowrap hover:border-red-300 hover:text-red-500 hover:bg-red-50" onClick={() => deleteProduct(prod.id)} disabled={isDeletingProduct === prod.id}>
+                                    {isDeletingProduct === prod.id ? <MoreHorizontal className="w-3 h-3 inline animate-pulse" /> : <Trash2 className="w-2.5 h-2.5 inline -mt-px" />}
+                                  </button>
+                                  <button className="flex-1 min-w-[46px] py-[5px] px-[3px] rounded-md border border-slate-200 bg-transparent text-slate-500 text-[10px] max-sm:text-[9px] font-medium cursor-pointer transition-all text-center whitespace-nowrap hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50" onClick={() => toggleVisibility(prod)} title="Toggle visibility" disabled={isDeletingProduct === prod.id}>{prod.is_hidden ? <Eye className="w-2.5 h-2.5 inline -mt-px" /> : <Ban className="w-2.5 h-2.5 inline -mt-px" />}</button>
+                                </div>
                               </div>
                             </div>
-                          </div>
                           )
                         })}
                       </div>
@@ -3410,15 +3411,38 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                 { key: 'image_url', label: 'Product Image', Icon: Camera },
                 { key: 'box_image_url', label: 'Box Image', Icon: Package },
                 { key: 'bundle_image_url', label: 'Bundle Image', Icon: Package },
-              ].map(imgField => (
+              ].map(imgField => {
+                const uploadEditImage = async (file) => {
+                  if (!file) return;
+                  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { showToast('Only JPG, PNG, or WebP images are allowed'); return; }
+                  if (file.size > 5 * 1024 * 1024) { showToast('Image must be under 5MB'); return; }
+                  const formData = new FormData();
+                  formData.append('image', file);
+                  const token = localStorage.getItem('token');
+                  try {
+                    const res = await fetch('/api/products/upload-image', { method: 'POST', headers: token ? { 'Authorization': `Bearer ${token}` } : {}, body: formData });
+                    const data = await res.json();
+                    if (data.url) { setEditingProduct(prev => ({ ...prev, [imgField.key]: data.url })); showToast(`${imgField.label} uploaded`); }
+                    else { showToast('Upload failed'); }
+                  } catch { showToast('Upload failed'); }
+                };
+                const isDragActive = draggingEditField === imgField.key;
+                return (
                 <div key={imgField.key} className="col-span-full max-sm:col-span-1">
                   <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">{imgField.label}</label>
                   <div className="flex gap-3 max-sm:flex-col max-sm:gap-2 items-start mb-1">
-                    <div className="w-[72px] h-[72px] max-sm:w-[60px] max-sm:h-[60px] rounded-xl border-[1.5px] border-slate-200 bg-slate-50 flex items-center justify-center text-[22px] overflow-hidden flex-shrink-0">
+                    <div
+                      className={`w-[72px] h-[72px] max-sm:w-[60px] max-sm:h-[60px] rounded-xl border-[1.5px] border-dashed flex items-center justify-center text-[22px] overflow-hidden flex-shrink-0 transition-colors ${isDragActive ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 bg-slate-50'}`}
+                      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDraggingEditField(imgField.key); }}
+                      onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDraggingEditField(imgField.key); }}
+                      onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDraggingEditField(null); }}
+                      onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setDraggingEditField(null); const file = e.dataTransfer.files?.[0]; if (file) uploadEditImage(file); }}
+                      title="Drag & drop image here"
+                    >
                       {editingProduct[imgField.key] ? (
-                        <img src={editingProduct[imgField.key]} alt={imgField.label} className="w-full h-full object-cover rounded-[10px]" />
+                        <img src={editingProduct[imgField.key]} alt={imgField.label} className="w-full h-full object-cover rounded-[10px] pointer-events-none" />
                       ) : (
-                        <imgField.Icon className="w-6 h-6 text-slate-300" />
+                        <imgField.Icon className={`w-6 h-6 pointer-events-none ${isDragActive ? 'text-indigo-500' : 'text-slate-300'}`} />
                       )}
                     </div>
                     <div className="flex-1 flex flex-col gap-1.5">
@@ -3434,17 +3458,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                           <Camera className="w-3 h-3" /> Upload
                           <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={async (e) => {
                             const file = e.target.files?.[0];
-                            if (!file) return;
-                            if (file.size > 5 * 1024 * 1024) { showToast('Image must be under 5MB'); return; }
-                            const formData = new FormData();
-                            formData.append('image', file);
-                            const token = localStorage.getItem('token');
-                            try {
-                              const res = await fetch('/api/products/upload-image', { method: 'POST', headers: token ? { 'Authorization': `Bearer ${token}` } : {}, body: formData });
-                              const data = await res.json();
-                              if (data.url) { setEditingProduct(prev => ({ ...prev, [imgField.key]: data.url })); showToast(`${imgField.label} uploaded`); }
-                              else { showToast('Upload failed'); }
-                            } catch { showToast('Upload failed'); }
+                            await uploadEditImage(file);
                             e.target.value = '';
                           }} />
                         </label>
@@ -3464,7 +3478,8 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
           <div className="flex gap-2.5 mt-5 max-sm:mt-3 justify-end max-sm:flex-row">

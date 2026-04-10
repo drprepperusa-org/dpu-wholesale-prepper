@@ -184,28 +184,28 @@ function Login({ onLogin }) {
 
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Company Name <span className="text-red-500">*</span></label>
-              <input type="text" value={reg.companyName} onChange={(e) => setReg({...reg, companyName: e.target.value})}
+              <input type="text" value={reg.companyName} onChange={(e) => setReg({ ...reg, companyName: e.target.value })}
                 placeholder="e.g. Happy Snacks Co." disabled={loading}
                 className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400 focus:bg-white disabled:opacity-60" />
             </div>
 
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Contact Name <span className="text-red-500">*</span></label>
-              <input type="text" value={reg.contactName} onChange={(e) => setReg({...reg, contactName: e.target.value})}
+              <input type="text" value={reg.contactName} onChange={(e) => setReg({ ...reg, contactName: e.target.value })}
                 placeholder="John Smith" disabled={loading}
                 className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400 focus:bg-white disabled:opacity-60" />
             </div>
 
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Email <span className="text-red-500">*</span></label>
-              <input type="email" name="reg-email" autoComplete="email" value={reg.email} onChange={(e) => setReg({...reg, email: e.target.value})}
+              <input type="email" name="reg-email" autoComplete="email" value={reg.email} onChange={(e) => setReg({ ...reg, email: e.target.value })}
                 placeholder="buyer@company.com" disabled={loading}
                 className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400 focus:bg-white disabled:opacity-60" />
             </div>
 
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Phone</label>
-              <input type="tel" name="reg-phone" autoComplete="tel" value={reg.phone} onChange={(e) => setReg({...reg, phone: e.target.value})}
+              <input type="tel" name="reg-phone" autoComplete="tel" value={reg.phone} onChange={(e) => setReg({ ...reg, phone: e.target.value })}
                 placeholder="(555) 000-0000" disabled={loading}
                 className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400 focus:bg-white disabled:opacity-60" />
             </div>
@@ -213,7 +213,7 @@ function Login({ onLogin }) {
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Password <span className="text-red-500">*</span></label>
               <div className="relative">
-                <input type={showPassword ? 'text' : 'password'} value={reg.password} onChange={(e) => setReg({...reg, password: e.target.value})}
+                <input type={showPassword ? 'text' : 'password'} value={reg.password} onChange={(e) => setReg({ ...reg, password: e.target.value })}
                   placeholder="Min 8 characters" disabled={loading} autoComplete="new-password"
                   className="w-full px-3 py-2.5 pr-10 border border-slate-200 rounded-lg text-sm text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400 focus:bg-white disabled:opacity-60" />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} tabIndex="-1"
@@ -233,7 +233,7 @@ function Login({ onLogin }) {
 
             <div className="flex flex-col gap-1.5">
               <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Confirm Password <span className="text-red-500">*</span></label>
-              <input type={showPassword ? 'text' : 'password'} value={reg.confirmPassword} onChange={(e) => setReg({...reg, confirmPassword: e.target.value})}
+              <input type={showPassword ? 'text' : 'password'} value={reg.confirmPassword} onChange={(e) => setReg({ ...reg, confirmPassword: e.target.value })}
                 placeholder="Repeat password" onKeyUp={(e) => e.key === 'Enter' && handleRegister()} disabled={loading} autoComplete="new-password"
                 className="px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-slate-800 bg-slate-50 outline-none transition-colors focus:border-indigo-400 focus:bg-white disabled:opacity-60" />
               {reg.confirmPassword && reg.password !== reg.confirmPassword && (
