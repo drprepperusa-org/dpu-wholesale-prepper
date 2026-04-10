@@ -466,10 +466,11 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   const [cartToast, setCartToast] = useState(null);
   const cartToastTimer = React.useRef(null);
   const addToCart = (product, qty = 1, unit = 'cases') => {
+    const cartKey = `${product.id}_${unit}`;
     setCartItems(prev => {
-      const existing = prev.find(item => item.id === product.id);
-      if (existing) return prev.map(item => item.id === product.id ? { ...item, qty: item.qty + qty, unit } : item);
-      return [...prev, { ...product, qty, unit }];
+      const existing = prev.find(item => item.cartKey === cartKey);
+      if (existing) return prev.map(item => item.cartKey === cartKey ? { ...item, qty: item.qty + qty } : item);
+      return [...prev, { ...product, qty, unit, cartKey }];
     });
     if (cartToastTimer.current) clearTimeout(cartToastTimer.current);
     setCartToast({ name: product.name, qty, unit });
@@ -516,8 +517,8 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
 
   const getInitials = () => { const s = currentUser?.companyName || currentUser?.email || 'User'; const p = s.split(/[\s@]/).filter(p => p); return p.length >= 2 ? (p[0][0] + p[1][0]).toUpperCase() : s.substring(0, 2).toUpperCase(); };
   const getDisplayName = () => currentUser?.companyName || currentUser?.email || 'User';
-  const removeFromCart = (productId) => setCartItems(prev => prev.filter(item => item.id !== productId));
-  const updateCartQty = (productId, newQty) => { if (newQty <= 0) { removeFromCart(productId); return; } setCartItems(prev => prev.map(item => item.id === productId ? { ...item, qty: newQty } : item)); };
+  const removeFromCart = (cartKey) => setCartItems(prev => prev.filter(item => (item.cartKey || item.id) !== cartKey));
+  const updateCartQty = (cartKey, newQty) => { if (newQty <= 0) { removeFromCart(cartKey); return; } setCartItems(prev => prev.map(item => (item.cartKey || item.id) === cartKey ? { ...item, qty: newQty } : item)); };
   const clearCart = () => { if (window.confirm('Clear all items from cart?')) setCartItems([]); };
 
   const submitOrder = async () => {
@@ -890,7 +891,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
           <div className="flex-1 overflow-y-auto p-2.5">
             {cartItems.length === 0 ? <div className="text-center py-10 text-slate-400 text-sm">Your cart is empty</div> :
               cartItems.map(item => (
-                <div key={item.id} className="flex flex-col gap-1.5 p-3 border-b border-slate-200 relative">
+                <div key={item.cartKey || item.id} className="flex flex-col gap-1.5 p-3 border-b border-slate-200 relative">
                   <div className="flex gap-2.5 items-start">
                     {item.image_url && <img src={item.image_url} alt="" className="w-[60px] h-[60px] object-contain rounded-md bg-white shrink-0 border border-slate-200" />}
                     <div className="flex-1 min-w-0">
@@ -898,16 +899,16 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                       <div className="text-[11px] text-slate-400 mb-0.5">{item.weight}{item.bags_per_case ? ` · ${item.bags_per_case} bags/case` : ''}</div>
                       {showPrices && <div className="text-[13px] font-semibold text-indigo-500">${parseFloat(item.price || 0).toFixed(2)}/case</div>}
                     </div>
-                    <button onClick={() => removeFromCart(item.id)} className="bg-transparent border-none cursor-pointer text-slate-400 text-sm p-1 hover:text-red-500"><X className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => removeFromCart(item.cartKey || item.id)} className="bg-transparent border-none cursor-pointer text-slate-400 text-sm p-1 hover:text-red-500"><X className="w-3.5 h-3.5" /></button>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1">
                       <button className="w-6 h-6 border border-slate-200 bg-white rounded text-slate-700 cursor-pointer flex items-center justify-center hover:border-indigo-400 hover:text-indigo-500"
-                        onClick={() => updateCartQty(item.id, Math.max(1, item.qty - 1))}><Minus className="w-3 h-3" /></button>
+                        onClick={() => updateCartQty(item.cartKey || item.id, Math.max(1, item.qty - 1))}><Minus className="w-3 h-3" /></button>
                       <input type="number" className="w-10 h-6 text-center border border-slate-200 rounded text-xs" value={item.qty} min="1"
-                        onChange={e => updateCartQty(item.id, Math.max(1, parseInt(e.target.value) || 1))} />
+                        onChange={e => updateCartQty(item.cartKey || item.id, Math.max(1, parseInt(e.target.value) || 1))} />
                       <button className="w-6 h-6 border border-slate-200 bg-white rounded text-slate-700 cursor-pointer flex items-center justify-center hover:border-indigo-400 hover:text-indigo-500"
-                        onClick={() => updateCartQty(item.id, item.qty + 1)}><Plus className="w-3 h-3" /></button>
+                        onClick={() => updateCartQty(item.cartKey || item.id, item.qty + 1)}><Plus className="w-3 h-3" /></button>
                       <span className="text-[11px] text-slate-400 ml-1">{item.unit || 'cases'}</span>
                     </div>
                     {showPrices && <div className="text-xs font-semibold text-slate-800">${(parseFloat(item.price || 0) * (item.unit === 'pallets' ? item.qty * (parseInt(item.cases_per_pallet) || 60) : item.qty)).toFixed(2)}</div>}

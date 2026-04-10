@@ -160,6 +160,8 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
   const [activityTypeFilter, setActivityTypeFilter] = useState('all')
   const [orderFilter, setOrderFilter] = useState('all')
   const [expandedOrderId, setExpandedOrderId] = useState(null)
+  const [editingOrderId, setEditingOrderId] = useState(null)
+  const [editingOrderItems, setEditingOrderItems] = useState([])
   const [catReorderStatus, setCatReorderStatus] = useState('')
 
   // Pagination
@@ -1710,6 +1712,70 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
     }
   }, [showToast, logActivity])
 
+  const deleteOrder = useCallback(async (orderId) => {
+    if (!window.confirm('Are you sure you want to delete this order? This cannot be undone.')) return
+    try {
+      const response = await fetch(`/api/orders/${orderId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      })
+      if (response.ok) {
+        setOrders(prev => prev.filter(o => o.id !== orderId))
+        setExpandedOrderId(null)
+        showToast('Order deleted')
+      } else {
+        showToast('Failed to delete order', 'error')
+      }
+    } catch (e) {
+      console.error('Delete order error:', e)
+      showToast('Error deleting order', 'error')
+    }
+  }, [showToast])
+
+  const startEditOrder = useCallback((order) => {
+    setEditingOrderId(order.id)
+    setEditingOrderItems((order.items || []).map(i => ({ ...i })))
+  }, [])
+
+  const saveEditOrder = useCallback(async (orderId) => {
+    try {
+      const response = await fetch(`/api/orders/${orderId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify({ items: editingOrderItems })
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setOrders(prev => prev.map(o => {
+          if (o.id !== orderId) return o
+          const newItems = editingOrderItems
+          const amount = newItems.reduce((sum, i) => {
+            const price = parseFloat(i.price || 0)
+            const qty = i.qty || 0
+            const cases = i.unit === 'pallets' ? qty * (parseInt(i.cases_per_pallet) || 60) : qty
+            return sum + price * cases
+          }, 0).toFixed(2)
+          return { ...o, items: newItems, cases: data.totalCases, skus: newItems.length, amount }
+        }))
+        setEditingOrderId(null)
+        showToast('Order updated')
+      } else {
+        showToast('Failed to update order', 'error')
+      }
+    } catch (e) {
+      console.error('Save order error:', e)
+      showToast('Error saving order', 'error')
+    }
+  }, [editingOrderItems, showToast])
+
+  const removeEditOrderItem = useCallback((idx) => {
+    setEditingOrderItems(prev => prev.filter((_, i) => i !== idx))
+  }, [])
+
+  const updateEditOrderItem = useCallback((idx, field, value) => {
+    setEditingOrderItems(prev => prev.map((item, i) => i === idx ? { ...item, [field]: value } : item))
+  }, [])
+
   // ==================== SETTINGS ====================
 
   const toggleRegistration = useCallback(async () => {
@@ -2592,20 +2658,64 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                         </div>
                         <div className="flex flex-col gap-1.5">
                           <div className="text-xs max-sm:text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1"><Package className="w-3 h-3 inline mr-1 -mt-px" /> Order Items</div>
-                          {order.items?.map((item, idx) => (
-                            <div key={idx} className="flex items-center gap-2 text-xs max-sm:text-[11px] py-1 border-b border-slate-100 last:border-b-0 flex-wrap max-sm:gap-1">
-                              <span className="flex-1 text-slate-800 font-medium min-w-0 overflow-hidden text-ellipsis whitespace-nowrap max-sm:whitespace-normal max-sm:text-xs">{item.name}</span>
-                              <span className="text-slate-400 text-[11px]">{item.sku || ''}</span>
-                              <span className="text-slate-500 whitespace-nowrap">{item.qty} {item.unit === 'pallets' ? `pallets (${item.qty * (parseInt(item.cases_per_pallet) || 60)} cs)` : 'cases'}</span>
-                              <span className="text-slate-400 whitespace-nowrap">${parseFloat(item.price || 0).toFixed(2)}</span>
-                              <span className="text-slate-800 font-semibold whitespace-nowrap min-w-[60px] max-sm:min-w-0 text-right">${(parseFloat(item.price || 0) * (item.unit === 'pallets' ? (item.qty || 0) * (parseInt(item.cases_per_pallet) || 60) : (item.qty || 0))).toFixed(2)}</span>
-                            </div>
-                          ))}
-                          <div className="flex justify-between pt-2 mt-1 border-t border-slate-200 text-sm max-sm:text-[13px] font-bold text-indigo-500">
-                            <span>Total</span>
-                            <span>${order.amount || '0.00'}</span>
-                          </div>
+                          {editingOrderId === order.id ? (
+                            <>
+                              {editingOrderItems.map((item, idx) => (
+                                <div key={idx} className="flex items-center gap-2 text-xs max-sm:text-[11px] py-1.5 border-b border-slate-100 last:border-b-0 flex-wrap max-sm:gap-1">
+                                  <span className="flex-1 text-slate-800 font-medium min-w-0 overflow-hidden text-ellipsis whitespace-nowrap max-sm:whitespace-normal max-sm:text-xs">{item.name}</span>
+                                  <input type="number" min="1" value={item.qty} onChange={(e) => updateEditOrderItem(idx, 'qty', parseInt(e.target.value) || 1)}
+                                    className="w-14 border border-slate-200 rounded px-1.5 py-0.5 text-xs text-center bg-white focus:outline-none focus:border-indigo-400" />
+                                  <select value={item.unit || 'cases'} onChange={(e) => updateEditOrderItem(idx, 'unit', e.target.value)}
+                                    className="border border-slate-200 rounded px-1 py-0.5 text-xs bg-white focus:outline-none focus:border-indigo-400">
+                                    <option value="cases">cases</option>
+                                    <option value="pallets">pallets</option>
+                                  </select>
+                                  <button onClick={() => removeEditOrderItem(idx)} className="w-5 h-5 rounded bg-red-50 text-red-400 border-none cursor-pointer flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors">
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ))}
+                              <div className="flex gap-2 pt-2 mt-1">
+                                <button onClick={() => saveEditOrder(order.id)}
+                                  className="px-3 py-1.5 rounded-lg bg-indigo-500 text-white text-[11px] font-semibold border-none cursor-pointer hover:bg-indigo-600 transition-colors flex items-center gap-1">
+                                  <Check className="w-3 h-3" /> Save
+                                </button>
+                                <button onClick={() => setEditingOrderId(null)}
+                                  className="px-3 py-1.5 rounded-lg bg-slate-200 text-slate-600 text-[11px] font-semibold border-none cursor-pointer hover:bg-slate-300 transition-colors">
+                                  Cancel
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              {order.items?.map((item, idx) => (
+                                <div key={idx} className="flex items-center gap-2 text-xs max-sm:text-[11px] py-1 border-b border-slate-100 last:border-b-0 flex-wrap max-sm:gap-1">
+                                  <span className="flex-1 text-slate-800 font-medium min-w-0 overflow-hidden text-ellipsis whitespace-nowrap max-sm:whitespace-normal max-sm:text-xs">{item.name}</span>
+                                  <span className="text-slate-400 text-[11px]">{item.sku || ''}</span>
+                                  <span className="text-slate-500 whitespace-nowrap">{item.qty} {item.unit === 'pallets' ? `pallets (${item.qty * (parseInt(item.cases_per_pallet) || 60)} cs)` : 'cases'}</span>
+                                  <span className="text-slate-400 whitespace-nowrap">${parseFloat(item.price || 0).toFixed(2)}</span>
+                                  <span className="text-slate-800 font-semibold whitespace-nowrap min-w-[60px] max-sm:min-w-0 text-right">${(parseFloat(item.price || 0) * (item.unit === 'pallets' ? (item.qty || 0) * (parseInt(item.cases_per_pallet) || 60) : (item.qty || 0))).toFixed(2)}</span>
+                                </div>
+                              ))}
+                              <div className="flex justify-between pt-2 mt-1 border-t border-slate-200 text-sm max-sm:text-[13px] font-bold text-indigo-500">
+                                <span>Total</span>
+                                <span>${order.amount || '0.00'}</span>
+                              </div>
+                            </>
+                          )}
                         </div>
+                      </div>
+                      <div className="flex gap-2 mt-4 pt-3 border-t border-slate-200">
+                        {editingOrderId !== order.id && (
+                          <button onClick={() => startEditOrder(order)}
+                            className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-600 text-[11px] font-semibold cursor-pointer hover:border-indigo-300 hover:text-indigo-500 transition-colors flex items-center gap-1">
+                            <Pencil className="w-3 h-3" /> Edit Items
+                          </button>
+                        )}
+                        <button onClick={() => deleteOrder(order.id)}
+                          className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-red-400 text-[11px] font-semibold cursor-pointer hover:bg-red-500 hover:text-white hover:border-red-500 transition-colors flex items-center gap-1">
+                          <Trash2 className="w-3 h-3" /> Delete Order
+                        </button>
                       </div>
                     </div>
                   )}
