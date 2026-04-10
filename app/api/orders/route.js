@@ -42,19 +42,24 @@ export async function GET(request) {
     const orders = [];
     for (const order of result.rows) {
       const itemsResult = await pool.query(`
-        SELECT oi.product_id, oi.qty, oi.unit, p.name, p.sku, p.price
+        SELECT oi.product_id, oi.qty, oi.unit, p.name, p.sku, p.price, p.cases_per_pallet
         FROM order_items oi
         JOIN products p ON oi.product_id = p.id
         WHERE oi.order_id = $1
         ORDER BY oi.id
       `, [order.id]);
 
+      const computedCases = itemsResult.rows.reduce((s, i) => {
+        const cpp = parseInt(i.cases_per_pallet) || 60;
+        return s + ((i.unit === 'pallets') ? i.qty * cpp : i.qty);
+      }, 0);
+
       orders.push({
         ...order,
         customer_name: order.company_name,
         items: itemsResult.rows,
         skus: itemsResult.rows.length,
-        cases: order.total_cases || itemsResult.rows.reduce((s, i) => s + i.qty, 0)
+        cases: order.total_cases || computedCases
       });
     }
 
@@ -82,7 +87,10 @@ export async function POST(request) {
     }
 
     const orderId = uuidv4();
-    const totalCases = items.reduce((sum, item) => sum + (item.qty || 0), 0);
+    const totalCases = items.reduce((sum, item) => {
+      const qty = item.qty || 0;
+      return sum + (item.unit === 'pallets' ? qty * (parseInt(item.cases_per_pallet) || 60) : qty);
+    }, 0);
 
     const client = await pool.connect();
     try {

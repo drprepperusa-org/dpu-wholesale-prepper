@@ -752,7 +752,12 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
         customer_name: o.customer_name || o.company_name || 'Unknown',
         cases: o.cases || o.total_cases || 0,
         skus: o.skus || o.items?.length || 0,
-        amount: o.items ? o.items.reduce((sum, i) => sum + (parseFloat(i.price || 0) * (i.qty || 0)), 0).toFixed(2) : '0.00'
+        amount: o.items ? o.items.reduce((sum, i) => {
+          const price = parseFloat(i.price || 0)
+          const qty = i.qty || 0
+          const cases = i.unit === 'pallets' ? qty * (parseInt(i.cases_per_pallet) || 60) : qty
+          return sum + price * cases
+        }, 0).toFixed(2) : '0.00'
       })))
     } catch (e) {
       console.error('Failed to load orders:', e)
@@ -2591,9 +2596,9 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                             <div key={idx} className="flex items-center gap-2 text-xs max-sm:text-[11px] py-1 border-b border-slate-100 last:border-b-0 flex-wrap max-sm:gap-1">
                               <span className="flex-1 text-slate-800 font-medium min-w-0 overflow-hidden text-ellipsis whitespace-nowrap max-sm:whitespace-normal max-sm:text-xs">{item.name}</span>
                               <span className="text-slate-400 text-[11px]">{item.sku || ''}</span>
-                              <span className="text-slate-500 whitespace-nowrap">{item.qty} cases</span>
+                              <span className="text-slate-500 whitespace-nowrap">{item.qty} {item.unit === 'pallets' ? `pallets (${item.qty * (parseInt(item.cases_per_pallet) || 60)} cs)` : 'cases'}</span>
                               <span className="text-slate-400 whitespace-nowrap">${parseFloat(item.price || 0).toFixed(2)}</span>
-                              <span className="text-slate-800 font-semibold whitespace-nowrap min-w-[60px] max-sm:min-w-0 text-right">${(parseFloat(item.price || 0) * (item.qty || 0)).toFixed(2)}</span>
+                              <span className="text-slate-800 font-semibold whitespace-nowrap min-w-[60px] max-sm:min-w-0 text-right">${(parseFloat(item.price || 0) * (item.unit === 'pallets' ? (item.qty || 0) * (parseInt(item.cases_per_pallet) || 60) : (item.qty || 0))).toFixed(2)}</span>
                             </div>
                           ))}
                           <div className="flex justify-between pt-2 mt-1 border-t border-slate-200 text-sm max-sm:text-[13px] font-bold text-indigo-500">
