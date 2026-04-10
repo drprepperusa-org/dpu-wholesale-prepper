@@ -228,7 +228,21 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
   const groupedProducts = useMemo(() => {
     let filtered = products
 
-    // Apply current filter
+    // Apply stock filter
+    if (stockFilter === 'in-stock') {
+      filtered = filtered.filter(p => !p.is_oos)
+    } else if (stockFilter === 'oos') {
+      filtered = filtered.filter(p => p.is_oos)
+    }
+
+    // Apply visibility filter
+    if (visibilityFilter === 'visible') {
+      filtered = filtered.filter(p => !p.is_hidden)
+    } else if (visibilityFilter === 'hidden') {
+      filtered = filtered.filter(p => p.is_hidden)
+    }
+
+    // Apply current filter (sidebar)
     if (currentFilter === 'hidden') {
       filtered = filtered.filter(p => p.is_hidden)
     } else if (currentFilter === 'oos') {
@@ -262,7 +276,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       grouped[superCatKey].total++
     })
     return grouped
-  }, [products, currentFilter, searchQuery])
+  }, [products, currentFilter, stockFilter, visibilityFilter, searchQuery])
 
   const filteredCustomers = useMemo(() => {
     if (!custSearchQuery) return customers
@@ -945,11 +959,12 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
     setPaginationPage(1)
   }, [])
 
-  // Reload when filters change
+  // Reload only when server-side filter (superCatFilter) changes
+  // stockFilter and visibilityFilter are client-side for instant response
   useEffect(() => {
     loadProducts(1)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibilityFilter, stockFilter, superCatFilter])
+  }, [superCatFilter])
 
   // ==================== BULK SELECTION ====================
 
@@ -1140,8 +1155,10 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
   }, [loadProductsWithScrollPreserve, showToast, logActivity])
 
   const toggleVisibility = useCallback(async (product) => {
+    const newHiddenStatus = !product.is_hidden
+    // Optimistic update
+    setProducts(prev => prev.map(p => p.id === product.id ? { ...p, is_hidden: newHiddenStatus } : p))
     try {
-      const newHiddenStatus = !product.is_hidden
       const token = localStorage.getItem('token')
       const response = await fetch(`/api/products/${product.id}`, {
         method: 'PUT',
@@ -1153,19 +1170,22 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       })
 
       if (response.ok) {
-        await loadProductsWithScrollPreserve()
         showToast('Product visibility toggled')
         logActivity(`${newHiddenStatus ? 'Hidden' : 'Unhidden'}: ${product.name}`)
       } else {
+        // Revert on failure
+        setProducts(prev => prev.map(p => p.id === product.id ? { ...p, is_hidden: product.is_hidden } : p))
         const errorData = await response.json().catch(() => ({}))
         console.error('Visibility toggle failed:', response.status, errorData)
         showErrorToast(`Failed to update (${response.status})`, () => toggleVisibility(product))
       }
     } catch (e) {
+      // Revert on failure
+      setProducts(prev => prev.map(p => p.id === product.id ? { ...p, is_hidden: product.is_hidden } : p))
       console.error('Visibility toggle error:', e)
       showErrorToast('Failed to update visibility', () => toggleVisibility(product))
     }
-  }, [loadProductsWithScrollPreserve, showToast, showErrorToast, logActivity])
+  }, [showToast, showErrorToast, logActivity])
 
   const toggleCategoryVisibility = useCallback(async (categoryName) => {
     try {
@@ -1222,8 +1242,10 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
   }, [loadProducts, showToast, showErrorToast])
 
   const toggleOosStatus = useCallback(async (product) => {
+    const newOosStatus = !product.is_oos
+    // Optimistic update
+    setProducts(prev => prev.map(p => p.id === product.id ? { ...p, is_oos: newOosStatus } : p))
     try {
-      const newOosStatus = !product.is_oos
       const token = localStorage.getItem('token')
       const response = await fetch(`/api/products/${product.id}`, {
         method: 'PUT',
@@ -1235,19 +1257,22 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       })
 
       if (response.ok) {
-        await loadProductsWithScrollPreserve()
         showToast(newOosStatus ? 'Out of Stock' : 'In Stock')
         logActivity(`Stock status updated: ${product.name} -> ${newOosStatus ? 'OOS' : 'In Stock'}`)
       } else {
+        // Revert on failure
+        setProducts(prev => prev.map(p => p.id === product.id ? { ...p, is_oos: product.is_oos } : p))
         const errorData = await response.json().catch(() => ({}))
         console.error('OOS toggle failed:', response.status, errorData)
         showToast(`Failed to update (${response.status})`)
       }
     } catch (e) {
+      // Revert on failure
+      setProducts(prev => prev.map(p => p.id === product.id ? { ...p, is_oos: product.is_oos } : p))
       console.error('OOS toggle error:', e)
       showToast('Failed to update stock status')
     }
-  }, [loadProductsWithScrollPreserve, showToast, logActivity])
+  }, [showToast, logActivity])
 
   // ==================== IMAGE HANDLING ====================
 
@@ -3072,15 +3097,6 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
               </div>
               <button className={`w-9 h-5 rounded-full border-none cursor-pointer relative transition-colors flex-shrink-0 ${registrationEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`} onClick={toggleRegistration}>
                 <span className={`absolute top-[3px] w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-[left] ${registrationEnabled ? 'left-[19px]' : 'left-[3px]'}`}></span>
-              </button>
-            </div>
-            <div className="flex items-center max-sm:flex-col max-sm:items-start gap-5 max-sm:gap-2 px-5 max-sm:px-3.5 py-4">
-              <div className="flex-1">
-                <div className="text-sm font-medium text-slate-800 mb-0.5">Show prices to customers</div>
-                <div className="text-xs text-slate-400 leading-relaxed">When disabled, product prices will be hidden from all customer accounts site-wide.</div>
-              </div>
-              <button className={`w-9 h-5 rounded-full border-none cursor-pointer relative transition-colors flex-shrink-0 ${priceVisibility ? 'bg-emerald-500' : 'bg-slate-300'}`} onClick={togglePriceVisibility}>
-                <span className={`absolute top-[3px] w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-[left] ${priceVisibility ? 'left-[19px]' : 'left-[3px]'}`}></span>
               </button>
             </div>
             {pendingRegistrations.filter(r => r.status === 'pending').length > 0 && (

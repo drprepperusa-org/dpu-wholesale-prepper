@@ -99,13 +99,13 @@ function ProductCard({ product, isFavorited, inCart, isFirst, onProductSelected,
         />
       </div>
 
-<div className="text-slate-800 font-semibold leading-tight overflow-hidden cursor-pointer text-center"
+<div className="text-slate-800 font-semibold leading-tight overflow-hidden cursor-pointer text-center max-sm:!text-[14px] max-sm:!leading-[17px] max-sm:!h-[34px]"
         style={{ fontSize: `${12 * scale}px`, height: `${32 * scale}px`, marginBottom: `${4 * scale}px` }}
         onClick={() => onProductSelected(product)}>
         {product.name}
       </div>
 
-      <div className="text-slate-400 leading-snug text-center"
+      <div className="text-slate-400 leading-snug text-center max-sm:!text-[12px]"
         style={{ fontSize: `${10 * scale}px`, marginBottom: `${8 * scale}px` }}>
         {product.weight && <div>{product.weight}</div>}
         {product.bags_per_case && <div>{product.bags_per_case} bags/case</div>}

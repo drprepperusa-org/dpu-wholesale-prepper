@@ -1,5 +1,6 @@
 'use client';
 import React, { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Minus, Plus, ShoppingCart, ArrowRight } from 'lucide-react'
 
 function CartItem({ item, isLoading, onRemove, onUpdateQty, showPrices = true }) {
@@ -74,12 +75,15 @@ function CartOverlay({ isOpen, cartItems = [], onClose, onRemoveItem, onPlaceOrd
   const onTouchStart = (e) => {
     dragStart.current = e.touches[0].clientY
     dragging.current = true
+    // Only allow drag-to-close if scroll list is at the top
     canDrag.current = !scrollRef.current || scrollRef.current.scrollTop <= 0
   }
   const onTouchMove = (e) => {
     if (!dragging.current) return
     const diff = e.touches[0].clientY - dragStart.current
+    // Upward drag: let the inner list scroll, disable drag
     if (diff < 0) { canDrag.current = false; setDragY(0); return }
+    // Re-enable drag once list scrolls back to top
     if (!canDrag.current && scrollRef.current && scrollRef.current.scrollTop <= 0) {
       canDrag.current = true
       dragStart.current = e.touches[0].clientY
@@ -120,10 +124,11 @@ function CartOverlay({ isOpen, cartItems = [], onClose, onRemoveItem, onPlaceOrd
 
   const handleUpdateQty = (itemId, newQty) => { if (onUpdateQty) onUpdateQty(itemId, newQty) }
 
-  return (
+  if (typeof document === 'undefined') return null;
+  return createPortal(
     <div className={`fixed inset-0 z-[10000] flex items-end justify-center transition-colors duration-300
       ${isOpen ? 'bg-black/40' : 'bg-transparent'}`}
-      style={{ pointerEvents: isOpen ? 'auto' : 'none', touchAction: isOpen ? 'none' : 'auto', overscrollBehavior: 'none' }}
+      style={{ pointerEvents: isOpen ? 'auto' : 'none', overscrollBehavior: 'none', touchAction: isOpen ? 'none' : 'auto' }}
       onClick={onClose}>
       <div className={`bg-white rounded-t-2xl w-full max-w-[900px] overflow-hidden shadow-2xl flex flex-col
         max-sm:max-w-full max-sm:rounded-t-xl max-sm:h-[75vh] max-sm:max-h-[75vh]
@@ -147,7 +152,7 @@ function CartOverlay({ isOpen, cartItems = [], onClose, onRemoveItem, onPlaceOrd
         </div>
 
         {/* Items */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-2.5 flex flex-col gap-1.5 max-sm:p-2 max-sm:gap-1">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-2.5 flex flex-col gap-1.5 max-sm:p-2 max-sm:gap-1" style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}>
           {cartItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-slate-400">
               <ShoppingCart className="w-12 h-12 mb-3.5 opacity-40" />
@@ -182,7 +187,8 @@ function CartOverlay({ isOpen, cartItems = [], onClose, onRemoveItem, onPlaceOrd
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 

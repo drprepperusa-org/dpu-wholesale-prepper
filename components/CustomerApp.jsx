@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import CartOverlay from './CartOverlay';
 import CategorySidebar from './CategorySidebar';
 import CategoryView from './CategoryView';
@@ -35,21 +36,13 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
     sheetDragStart.current = e.touches[0].clientY;
     sheetDragging.current = true;
     sheetInteracted.current = true;
-    // Only allow drag if inner scroll is at top
-    sheetCanDrag.current = !sheetScrollRef.current || sheetScrollRef.current.scrollTop <= 0;
   };
   const onSheetTouchMove = (e) => {
     if (!sheetDragging.current) return;
     const diff = e.touches[0].clientY - sheetDragStart.current;
-    // If scrolling up, disable drag for this gesture
-    if (diff < 0) { sheetCanDrag.current = false; setSheetDragY(0); return; }
-    // Re-check scroll position if not yet allowed
-    if (!sheetCanDrag.current && sheetScrollRef.current && sheetScrollRef.current.scrollTop <= 0) {
-      sheetCanDrag.current = true;
-      sheetDragStart.current = e.touches[0].clientY;
-      return;
-    }
-    if (sheetCanDrag.current && diff > 0) setSheetDragY(diff);
+    // Only track downward drag
+    if (diff > 0) setSheetDragY(diff);
+    else setSheetDragY(0);
   };
   const onSheetTouchEnd = () => {
     sheetDragging.current = false;
@@ -78,7 +71,6 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   const stickyBarRef = React.useRef(null);
   const [mobileBarH, setMobileBarH] = useState(0);
   const [isMob, setIsMob] = useState(false);
-  const [hasScrolled, setHasScrolled] = useState(false);
   const [cartItems, setCartItems] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [products, setProducts] = useState([]);
@@ -221,18 +213,19 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
     if (products.length === 0) { const timer = setTimeout(() => loadProducts(), 500); return () => clearTimeout(timer); }
   }, [products.length]);
 
-  // Lock body scroll when any popup is open or catalog is loading to prevent pull-to-refresh / shift
+  // Lock catalog scroll when any popup is open
   const savedScrollY = React.useRef(0);
   useEffect(() => {
     const anyOpen = productSheetOpen || cartOverlayOpen || confirmModalOpen || !!acctModal;
-    if (anyOpen) {
-      document.body.style.overflow = 'hidden';
-      document.documentElement.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-      document.documentElement.style.overflow = '';
+    const scrollEl = catalogScrollRef.current;
+    if (anyOpen && scrollEl) {
+      savedScrollY.current = scrollEl.scrollTop;
+      scrollEl.style.overflow = 'hidden';
+    } else if (scrollEl) {
+      scrollEl.style.overflow = '';
+      // Restore scroll position after overflow is re-enabled
+      requestAnimationFrame(() => { if (scrollEl) scrollEl.scrollTop = savedScrollY.current; });
     }
-    return () => { document.body.style.overflow = ''; document.documentElement.style.overflow = ''; };
   }, [productSheetOpen, cartOverlayOpen, confirmModalOpen, acctModal]);
 
   // Keep floating bar off outside mobile catalog
@@ -299,8 +292,10 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
 
   // Reset scroll to top after products load if user was near top
   useEffect(() => {
-    if (products.length > 0 && activePage === 'catalog' && catalogScrollRef.current) {
-      if (catalogScrollRef.current.scrollTop < 200) catalogScrollRef.current.scrollTop = 0;
+    if (products.length > 0 && activePage === 'catalog') {
+      const mob = window.innerWidth <= 640;
+      const pos = mob ? window.scrollY : (catalogScrollRef.current?.scrollTop || 0);
+      if (pos < 200) { if (mob) window.scrollTo(0, 0); else if (catalogScrollRef.current) catalogScrollRef.current.scrollTop = 0; }
     }
   }, [products.length]);
 
@@ -315,7 +310,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   useEffect(() => {
     if (activePage === 'catalog') {
       if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
-      const reset = () => { if (catalogScrollRef.current) catalogScrollRef.current.scrollTop = 0; };
+      const reset = () => { if (window.innerWidth <= 640) window.scrollTo(0, 0); else if (catalogScrollRef.current) catalogScrollRef.current.scrollTop = 0; };
       reset();
       requestAnimationFrame(reset);
       const t1 = setTimeout(reset, 50);
@@ -349,21 +344,14 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
     if (!scrollEl) return;
     const handleScroll = () => {
       const currentY = scrollEl.scrollTop;
-      setHasScrolled(currentY > 5);
       if (!programmaticScroll.current) {
         const diff = currentY - lastScrollY.current;
         if (Math.abs(diff) > 5) {
-          // Only auto-hide bottom nav, not top nav
-          if (diff > 0 && currentY > 60) {
-            setNavsHidden(true);
-          } else if (diff < 0) {
-            setNavsHidden(false);
-          }
+          if (diff > 0 && currentY > 60) setNavsHidden(true);
+          else if (diff < 0) setNavsHidden(false);
           lastScrollY.current = currentY;
         }
-        if (currentY < 10) {
-          setNavsHidden(false);
-        }
+        if (currentY < 10) setNavsHidden(false);
       }
       if (superCatList.length === 0) return;
       const containerTop = scrollEl.getBoundingClientRect().top;
@@ -548,7 +536,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       </div>
 
       {/* NAV */}
-      <nav className="customer-top-nav grid grid-cols-[auto_1fr_auto] items-center px-6 h-14 bg-white border-b border-slate-200 sticky top-0 z-[1000] shadow-sm gap-3 max-sm:px-3 max-sm:fixed max-sm:top-0 max-sm:left-0 max-sm:right-0">
+      <nav className="customer-top-nav grid grid-cols-[auto_1fr_auto] items-center px-6 h-14 bg-white border-b border-slate-200 sticky top-0 z-[1000] shadow-sm gap-3 max-sm:px-3 shrink-0 max-sm:fixed max-sm:top-0 max-sm:left-0 max-sm:right-0">
         <div className="flex items-center gap-5 max-sm:gap-2">
           <button className="w-9 h-9 border-none bg-transparent cursor-pointer flex flex-col items-center justify-center gap-1 rounded-lg transition-colors hover:bg-slate-100"
             onClick={() => setSidebarOpen(!sidebarOpen)}>
@@ -649,7 +637,9 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
         <main className={`flex-1 flex min-h-0 overflow-hidden transition-[padding] duration-300 ${navsHidden && activePage === 'catalog' ? 'max-sm:pb-0' : 'max-sm:pb-16'}`}>
           {/* CATALOG */}
           {activePage === 'catalog' && (
-              <div ref={catalogScrollRef} className={`flex-1 ${(productsLoading || products.length === 0 || superCatList.length === 0 || viewSwitching) ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden'} max-w-[100vw]`} style={{ overscrollBehavior: 'contain', overflowAnchor: 'none', WebkitOverflowScrolling: 'touch' }}>
+              <div ref={catalogScrollRef} className={`flex-1 max-w-[100vw] ${(productsLoading || products.length === 0 || superCatList.length === 0 || viewSwitching) ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden'}`} style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}>
+                {/* Mobile spacer for fixed sticky bar */}
+                {isMob && mobileBarH > 0 && <div aria-hidden="true" style={{ height: `${mobileBarH}px` }} />}
                 {/* Promo Banner */}
                 <div className="px-8 max-sm:px-3 max-lg:px-5">
                 {promoBanner && promoBanner.type === 'image' && promoBanner.imageUrl ? (
@@ -694,7 +684,6 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                 <div
                   ref={stickyBarRef}
                   className="catalog-sticky-bar bg-white border-b border-slate-100 px-8 max-sm:px-3 max-lg:px-5 py-2 sm:sticky sm:top-0 z-20"
-                  style={{ overflowAnchor: 'none', '--sticky-offset': '0px' }}
                 >
                   {/* Desktop search bar */}
                   <div className="flex items-center justify-between max-sm:hidden">
@@ -715,11 +704,15 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                             onClick={() => {
                               setActiveSuperCatId(sc.id);
                               const el = document.getElementById(`supercat-${sc.id}`);
+                              const container = catalogScrollRef.current;
                               programmaticScroll.current = true;
-                              if (el && catalogScrollRef.current) {
-                                const scrollTop = el.offsetTop - 120;
-                                catalogScrollRef.current.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
-                                setTimeout(() => { programmaticScroll.current = false; lastScrollY.current = catalogScrollRef.current.scrollTop; }, 800);
+                              if (el && container) {
+                                const elRect = el.getBoundingClientRect();
+                                const containerRect = container.getBoundingClientRect();
+                                const stickyH = stickyBarRef.current?.offsetHeight || 80;
+                                const scrollTop = container.scrollTop + (elRect.top - containerRect.top) - stickyH - 12;
+                                container.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
+                                setTimeout(() => { programmaticScroll.current = false; lastScrollY.current = container.scrollTop; }, 800);
                               }
                             }}
                             className={`flex items-center gap-1.5 px-3 py-1.5 max-sm:px-4 max-sm:py-2.5 rounded-lg max-sm:rounded-full border text-xs max-sm:text-sm font-medium cursor-pointer transition-all whitespace-nowrap shrink-0 ${
@@ -935,7 +928,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       )}
 
       {/* PRODUCT SHEET */}
-      {productSheetOpen && (
+      {productSheetOpen && typeof document !== 'undefined' && createPortal(
       <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 max-sm:items-end"
         style={{ animation: 'fadeIn 0.2s ease', touchAction: 'none', overscrollBehavior: 'none' }}
         onClick={(e) => { if (e.target === e.currentTarget) closeProductSheet(); }}>
@@ -951,7 +944,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
           </button>
           {selectedProduct && (
             <>
-              <div ref={sheetScrollRef} className="flex-1 overflow-y-auto min-h-0" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <div ref={sheetScrollRef} className="flex-1 overflow-hidden min-h-0">
                 <div className="flex gap-6 p-6 max-sm:flex-col max-sm:items-center max-sm:gap-2 max-sm:p-4 max-sm:text-center">
                   {(() => {
                     const images = [
@@ -1066,7 +1059,8 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
             </>
           )}
         </div>
-      </div>
+      </div>,
+      document.body
       )}
 
       {/* FULLSCREEN IMAGE VIEWER (mobile) */}
