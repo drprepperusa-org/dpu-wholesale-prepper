@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { uploadImage } from '@/lib/supabase';
 
+export const dynamic = 'force-dynamic';
+
+
 export async function POST(request) {
   try {
     const admin = await requireAdmin(request);

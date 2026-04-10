@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { requireAdmin } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
+
 export async function GET(request, { params }) {
   try {
     const { customerId } = await params;

@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth';
 import { getSupabase } from '@/lib/supabase';
 
+export const dynamic = 'force-dynamic';
+
+
 // Use 'products' bucket with 'banners/' prefix since we know it works and is public
 const BUCKET = 'products';
 const PREFIX = 'banners';

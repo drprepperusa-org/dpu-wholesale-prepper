@@ -3,6 +3,9 @@ import pool from '@/lib/db';
 import { extractToken, verifyAdminToken, logActivity } from '@/lib/auth';
 import { deleteImage } from '@/lib/supabase';
 
+export const dynamic = 'force-dynamic';
+
+
 export async function PUT(request, { params }) {
   try {
     const { id } = await params;

@@ -3,6 +3,9 @@ import { existsSync, readdirSync, statSync } from 'fs';
 import path from 'path';
 import { requireAdmin } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
+
 export async function GET(request) {
   try {
     const admin = await requireAdmin(request);

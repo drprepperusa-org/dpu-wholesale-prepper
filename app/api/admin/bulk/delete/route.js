@@ -3,6 +3,9 @@ import pool from '@/lib/db';
 import { requireAdmin, logActivity } from '@/lib/auth';
 import { deleteImage } from '@/lib/supabase';
 
+export const dynamic = 'force-dynamic';
+
+
 export async function POST(request) {
   try {
     const admin = await requireAdmin(request);

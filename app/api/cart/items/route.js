@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { extractToken, decodeToken } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
+
 // POST /api/cart/items - Add item to cart
 export async function POST(request) {
   try {

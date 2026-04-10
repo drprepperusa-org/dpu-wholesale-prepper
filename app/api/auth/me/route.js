@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { extractToken, decodeToken, getUserFromPayload } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
+
 export async function GET(request) {
   try {
     const authHeader = request.headers.get('authorization');

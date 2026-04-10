@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { extractToken, decodeToken } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
+
 async function getUpdatedCart(customerId) {
   const cartResult = await pool.query(`
     SELECT c.id, c.product_id, p.name as product_name, p.price, p.image_url,

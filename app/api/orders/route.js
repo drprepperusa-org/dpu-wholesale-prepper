@@ -3,6 +3,9 @@ import { v4 as uuidv4 } from 'uuid';
 import pool from '@/lib/db';
 import { extractToken, verifyToken, verifyAdminToken } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
+
 export async function GET(request) {
   try {
     const authHeader = request.headers.get('authorization');

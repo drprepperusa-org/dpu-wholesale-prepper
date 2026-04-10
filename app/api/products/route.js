@@ -4,6 +4,9 @@ import pool from '@/lib/db';
 import { extractToken, decodeToken, verifyToken, verifyAdminToken, logActivity } from '@/lib/auth';
 import { validateProduct } from '@/lib/validation';
 
+export const dynamic = 'force-dynamic';
+
+
 export async function GET(request) {
   try {
     const authHeader = request.headers.get('authorization');

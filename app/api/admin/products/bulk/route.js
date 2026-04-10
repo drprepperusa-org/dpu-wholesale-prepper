@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { requireAdmin } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
+
 // PATCH /api/admin/products/bulk - Bulk update default product properties
 export async function PATCH(request) {
   try {
