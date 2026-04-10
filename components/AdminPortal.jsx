@@ -7,7 +7,7 @@ import {
   LogOut, ChevronDown, ChevronRight, ChevronLeft, Camera, Eye,
   DollarSign, Trophy, BarChart3, Shield, Key, Heart, User,
   XCircle, CheckCircle, MoreHorizontal, Plus, LayoutGrid, AlignJustify,
-  ArrowUpRight, Star, CheckCircle2, Boxes, Megaphone, ImageIcon, Type, Upload, Link, Download, FileSpreadsheet
+  ArrowUpRight, Star, CheckCircle2, Boxes, Megaphone, ImageIcon, Type, Upload, Link, Download, FileSpreadsheet, Crop
 } from 'lucide-react'
 
 function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
@@ -86,10 +86,70 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
   const [isDeletingProduct, setIsDeletingProduct] = useState(null)
   const [isSavingCustomer, setIsSavingCustomer] = useState(false)
   const [isSavingEditProduct, setIsSavingEditProduct] = useState(false)
+  const [cropState, setCropState] = useState({ open: false, imageUrl: '', fieldKey: '', zoom: 1, offsetX: 0, offsetY: 0 })
+  const cropDragging = useRef(false)
+  const cropStart = useRef({ x: 0, y: 0 })
+  const [dragProdId, setDragProdId] = useState(null)
+  const [dragOverProdId, setDragOverProdId] = useState(null)
+  const [dragProdCategoryKey, setDragProdCategoryKey] = useState('')
+  const [isReorderingProducts, setIsReorderingProducts] = useState(false)
+  const dragProdRef = useRef(null)
+  const dragOverProdRef = useRef(null)
+  const productsRef = useRef(products)
+  productsRef.current = products
+
+  const resetProductDragState = useCallback(() => {
+    dragProdRef.current = null
+    dragOverProdRef.current = null
+    setDragProdId(null)
+    setDragOverProdId(null)
+    setDragProdCategoryKey('')
+  }, [])
+
+  const getProductCategoryKey = useCallback((product) => {
+    if (!product) return ''
+    return `${product.super_category_id || ''}:${product.category_id || ''}`
+  }, [])
+
+  const fetchFullCategoryProductIds = useCallback(async (sampleProduct) => {
+    if (!sampleProduct?.category_id) return []
+    const token = localStorage.getItem('token')
+    const params = new URLSearchParams()
+    params.set('limit', '0')
+    if (sampleProduct.super_category) params.set('super_category', sampleProduct.super_category)
+    const response = await fetch(`/api/products?${params.toString()}`, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const data = await response.json()
+    const fullProducts = Array.isArray(data) ? data : (data.products || [])
+    return fullProducts
+      .filter(p => p.category_id === sampleProduct.category_id)
+      .map(p => p.id)
+  }, [])
+
+  const pendingSaveRef = useRef(null)
+
+  const handleProductDrop = () => {
+    const sourceId = dragProdRef.current
+    resetProductDragState()
+    if (!sourceId || !pendingSaveRef.current) return
+
+    // Save the order that was captured during the last onDragEnter
+    const ids = [...pendingSaveRef.current]
+    pendingSaveRef.current = null
+
+    const token = localStorage.getItem('token')
+    fetch('/api/admin/reorder-products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ productIds: ids })
+    }).catch(e => console.error('Product reorder save failed:', e))
+  }
 
   // Registration and Activity log
   const [registrationEnabled, setRegistrationEnabled] = useState(true)
-  const [priceVisibility, setPriceVisibility] = useState(true)
+  const [priceVisibility, setPriceVisibility] = useState(false)
   const [promoBanner, setPromoBanner] = useState({ enabled: false, type: 'text', label: 'LIMITED TIME OFFER', headline: 'Free freight on orders over $2,000', subtitle: 'Use code SPRINGDEAL at checkout for an extra 5% off your first container order.', ctaText: 'Shop New Arrivals', ctaLink: '', imageUrl: '' })
   const [pendingRegistrations, setPendingRegistrations] = useState([])
   const [activityLog, setActivityLog] = useState([
@@ -708,7 +768,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
           const val = data.settings.allow_registration ?? data.settings.registration_enabled
           setRegistrationEnabled(val === undefined ? true : (val === 'true' || val === true))
           const priceVal = data.settings.show_prices
-          setPriceVisibility(priceVal === undefined ? true : (priceVal === 'true' || priceVal === true))
+          setPriceVisibility(priceVal === undefined ? false : (priceVal === 'true' || priceVal === true))
           if (data.settings.promo_banner) {
             try {
               const parsed = JSON.parse(data.settings.promo_banner)
@@ -1012,7 +1072,9 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       } else if (response.status === 404) {
         showToast('Product not found')
       } else if (response.ok) {
-        await loadProductsWithScrollPreserve()
+        // Update product in-place to preserve sort order
+        const updated = data.product || { ...editingProduct, ...payload }
+        setProducts(prev => prev.map(p => p.id === editingProduct.id ? { ...p, ...updated } : p))
         setActiveModal(null)
         setEditProductErrors({})
         showToast('Product updated')
@@ -1723,13 +1785,57 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
   const downloadExcel = useCallback(async () => {
     try {
       const token = localStorage.getItem('token')
+      showToast('Preparing export...')
       const res = await fetch('/api/admin/products/excel', { headers: { 'Authorization': `Bearer ${token}` } })
       if (!res.ok) throw new Error('Download failed')
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
+      const excelBlob = await res.blob()
+
+      // Download Excel
+      const url = URL.createObjectURL(excelBlob)
       const a = document.createElement('a'); a.href = url; a.download = `products-${new Date().toISOString().split('T')[0]}.xlsx`; a.click()
       URL.revokeObjectURL(url)
-      showToast('Excel downloaded')
+
+      // Also create zip with images
+      const prodRes = await fetch('/api/products?limit=0', { headers: { 'Authorization': `Bearer ${token}` } })
+      if (prodRes.ok) {
+        const prodData = await prodRes.json()
+        const prods = prodData.products || []
+        const imageUrls = []
+        prods.forEach(p => {
+          if (p.image_url) imageUrls.push({ url: p.image_url, name: `unit/${(p.sku || p.id)}.${p.image_url.split('.').pop()?.split('?')[0] || 'jpg'}` })
+          if (p.box_image_url) imageUrls.push({ url: p.box_image_url, name: `box/${(p.sku || p.id)}.${p.box_image_url.split('.').pop()?.split('?')[0] || 'jpg'}` })
+          if (p.bundle_image_url) imageUrls.push({ url: p.bundle_image_url, name: `bundle/${(p.sku || p.id)}.${p.bundle_image_url.split('.').pop()?.split('?')[0] || 'jpg'}` })
+        })
+        if (imageUrls.length > 0) {
+          showToast(`Downloading ${imageUrls.length} images...`)
+          const JSZip = (await import('jszip')).default
+          const zip = new JSZip()
+          const BATCH = 10
+          let downloaded = 0
+          for (let i = 0; i < imageUrls.length; i += BATCH) {
+            const batch = imageUrls.slice(i, i + BATCH)
+            await Promise.allSettled(batch.map(async (img) => {
+              try {
+                const imgRes = await fetch(img.url)
+                if (imgRes.ok) { zip.file(img.name, await imgRes.blob()); downloaded++ }
+              } catch {}
+            }))
+          }
+          if (downloaded > 0) {
+            const zipBlob = await zip.generateAsync({ type: 'blob' })
+            const zipUrl = URL.createObjectURL(zipBlob)
+            const b = document.createElement('a'); b.href = zipUrl; b.download = `product-images-${new Date().toISOString().split('T')[0]}.zip`; b.click()
+            URL.revokeObjectURL(zipUrl)
+            showToast(`Excel + ${downloaded} images downloaded`)
+          } else {
+            showToast('Excel downloaded (no images to zip)')
+          }
+        } else {
+          showToast('Excel downloaded')
+        }
+      } else {
+        showToast('Excel downloaded')
+      }
     } catch (e) { showToast('Download failed: ' + e.message, 'error') }
   }, [showToast])
 
@@ -2136,10 +2242,84 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                           </>
                         )}
                       </div>
+                      <div className="mb-2.5 flex items-center justify-between gap-2 text-[10px] text-slate-400">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
+                          <GripVertical className="w-3 h-3" />
+                          Drag cards to change product position
+                        </span>
+                        {isReorderingProducts && dragProdCategoryKey === getProductCategoryKey(catProds[0]) && (
+                          <span className="inline-flex items-center gap-1 text-indigo-600 font-semibold">
+                            <span className="w-2.5 h-2.5 rounded-full border-2 border-indigo-200 border-t-indigo-500 animate-spin"></span>
+                            Saving order...
+                          </span>
+                        )}
+                      </div>
                       <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] max-sm:grid-cols-2 gap-2.5 max-sm:gap-2">
-                        {catProds.map(prod => (
-                          <div key={prod.id} className={`bg-white border-[1.5px] rounded-xl p-3 max-sm:p-2 relative transition-all shadow-sm hover:border-indigo-300 hover:shadow-md ${prod.is_hidden ? 'opacity-50 border-dashed border-slate-300 bg-slate-50' : 'border-slate-200'} ${prod.is_oos ? '!border-amber-300' : ''} ${selectedProducts[prod.id] ? 'outline-2 outline-indigo-500 outline-offset-[-2px] !bg-indigo-50' : ''}`}>
+                        {catProds.map((prod, index) => {
+                          const productCategoryKey = getProductCategoryKey(prod)
+                          const isDragged = dragProdId === prod.id
+                          const canDropHere = !!dragProdId && !isDragged && dragProdCategoryKey === productCategoryKey
+                          const isDropTarget = canDropHere && dragOverProdId === prod.id
+
+                          return (
+                          <div key={prod.id}
+                            draggable={!isReorderingProducts}
+                            onDragStart={(e) => {
+                              e.dataTransfer.effectAllowed = 'move'
+                              e.dataTransfer.setData('text/plain', String(prod.id))
+                              dragProdRef.current = prod.id
+                              dragOverProdRef.current = null
+                              setDragProdCategoryKey(productCategoryKey)
+                              setDragProdId(prod.id)
+                            }}
+                            onDragEnter={(e) => {
+                              if (!dragProdRef.current || dragProdCategoryKey !== productCategoryKey || dragProdRef.current === prod.id) return
+                              e.preventDefault()
+                              e.stopPropagation()
+                              dragOverProdRef.current = prod.id
+                              setDragOverProdId(prod.id)
+                              // Live reorder: move the dragged card to the hovered position
+                              setProducts(prev => {
+                                const copy = [...prev]
+                                const fromIdx = copy.findIndex(p => p.id === dragProdRef.current)
+                                const toIdx = copy.findIndex(p => p.id === prod.id)
+                                if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return prev
+                                const [moved] = copy.splice(fromIdx, 1)
+                                copy.splice(toIdx, 0, moved)
+                                // Capture the new order for this category to save on drop
+                                const source = copy[toIdx]
+                                const key = `${source.super_category_id || ''}:${source.category_id || ''}`
+                                pendingSaveRef.current = copy.filter(p => `${p.super_category_id || ''}:${p.category_id || ''}` === key).map(p => p.id)
+                                return copy
+                              })
+                            }}
+                            onDragOver={(e) => {
+                              if (!dragProdRef.current || dragProdCategoryKey !== productCategoryKey || dragProdRef.current === prod.id) return
+                              e.preventDefault()
+                              e.stopPropagation()
+                              e.dataTransfer.dropEffect = 'move'
+                              dragOverProdRef.current = prod.id
+                              if (dragOverProdId !== prod.id) setDragOverProdId(prod.id)
+                            }}
+                            onDragEnd={() => {
+                              requestAnimationFrame(() => {
+                                if (!isReorderingProducts) resetProductDragState()
+                              })
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              handleProductDrop()
+                            }}
+                            className={`bg-white border-[1.5px] rounded-xl p-3 max-sm:p-2 relative shadow-sm hover:border-indigo-300 hover:shadow-md ${prod.is_hidden ? 'opacity-50 border-dashed border-slate-300 bg-slate-50' : 'border-slate-200'} ${prod.is_oos ? '!border-amber-300' : ''} ${selectedProducts[prod.id] ? 'outline-2 outline-indigo-500 outline-offset-[-2px] !bg-indigo-50' : ''} ${isDragged ? 'opacity-40 scale-95 !border-indigo-400 !bg-indigo-50 shadow-lg' : ''}`}
+                            style={{ transition: isDragged ? 'none' : 'transform 150ms ease, opacity 150ms ease' }}>
+                            <div className="absolute right-2 top-2 text-[9px] font-semibold text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md">
+                              #{index + 1}
+                            </div>
                             <div className="flex items-center gap-2 mb-2 max-sm:gap-1 max-sm:mb-1">
+                              <div className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 flex-shrink-0" title="Drag to reorder">
+                                <GripVertical className="w-3.5 h-3.5" />
+                              </div>
                               <label className="flex items-center cursor-pointer flex-shrink-0 m-0 p-0 leading-none">
                                 <input type="checkbox" checked={!!selectedProducts[prod.id]} onChange={() => toggleProductSelect(prod.id)} className="w-4 h-4 cursor-pointer accent-indigo-500 m-0" />
                               </label>
@@ -2148,11 +2328,13 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                                 <div className={`px-[7px] py-0.5 rounded-full text-[9px] font-semibold tracking-wide uppercase cursor-pointer select-none transition-all ${prod.is_oos ? 'bg-red-100 text-red-600 border border-red-200 hover:bg-red-200' : 'bg-emerald-100 text-emerald-600 border border-emerald-200 hover:bg-emerald-200'}`} onClick={(e) => { e.stopPropagation(); toggleOosStatus(prod); }}>{prod.is_oos ? 'OOS: YES' : 'IN STOCK'}</div>
                               </div>
                             </div>
-                            <img src={prod.image_url} className="w-20 h-20 max-sm:h-[100px] object-contain rounded-lg bg-white block mx-auto mb-2.5 border border-slate-100" alt={prod.name} />
+                            <div className="w-full h-20 max-sm:h-[100px] rounded-lg bg-white mb-2.5 border border-slate-100 p-1 overflow-hidden flex items-center justify-center">
+                              <img src={prod.image_url} className="max-w-full max-h-full object-contain" style={{ transform: 'scale(1.08)' }} alt={prod.name} />
+                            </div>
                             <div className="flex-1 flex flex-col gap-1.5">
-                              <div className="text-[11px] max-sm:text-xs text-slate-800 font-medium leading-snug h-[30px] overflow-hidden mb-0.5">{prod.name}</div>
-                              <div className="text-[10px] max-sm:text-[9px] text-slate-400 mb-0.5">{prod.category}</div>
-                              <div className="text-[10px] max-sm:text-[9px] text-slate-300 font-mono mb-2.5">{prod.sku || 'N/A'}</div>
+                              <div className="text-[11px] max-sm:text-xs text-slate-800 font-medium leading-snug h-[30px] overflow-hidden mb-0.5 text-center">{prod.name}</div>
+                              <div className="text-[10px] max-sm:text-[9px] text-slate-400 mb-0.5 text-center">{prod.category}</div>
+                              <div className="text-[10px] max-sm:text-[9px] text-slate-300 font-mono mb-2.5 text-center">{prod.sku || 'N/A'}</div>
                               <div className="flex gap-[5px] max-sm:gap-[3px] flex-wrap">
                                 <button className="flex-1 min-w-[46px] py-[5px] px-[3px] rounded-md border border-slate-200 bg-transparent text-slate-500 text-[10px] max-sm:text-[9px] font-medium cursor-pointer transition-all text-center whitespace-nowrap hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50" onClick={() => editProduct(prod)} disabled={isDeletingProduct === prod.id}><Pencil className="w-2.5 h-2.5 inline -mt-px" /></button>
                                 <button className="flex-1 min-w-[46px] py-[5px] px-[3px] rounded-md border border-slate-200 bg-transparent text-slate-500 text-[10px] max-sm:text-[9px] font-medium cursor-pointer transition-all text-center whitespace-nowrap hover:border-red-300 hover:text-red-500 hover:bg-red-50" onClick={() => deleteProduct(prod.id)} disabled={isDeletingProduct === prod.id}>
@@ -2162,7 +2344,8 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                               </div>
                             </div>
                           </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     </div>
                   ))}
@@ -2587,8 +2770,8 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
             </div>
             <div className="flex items-center max-sm:flex-col max-sm:items-start gap-5 max-sm:gap-2 px-5 max-sm:px-3.5 py-4">
               <div className="flex-1">
-                <div className="text-sm font-medium text-slate-800 mb-0.5">Show prices to customers</div>
-                <div className="text-xs text-slate-400 leading-relaxed">When disabled, product prices will be hidden from all customer accounts site-wide. Admin can still see prices.</div>
+                <div className="text-sm font-medium text-slate-800 mb-0.5">Show prices to customers <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded ml-1">Default</span></div>
+                <div className="text-xs text-slate-400 leading-relaxed">Default setting for all customers. Per-customer "Show Prices" toggle in Customer View overrides this. Default is OFF — enable per customer as needed.</div>
               </div>
               <button className={`w-9 h-5 rounded-full border-none cursor-pointer relative transition-colors flex-shrink-0 ${priceVisibility ? 'bg-emerald-500' : 'bg-slate-300'}`} onClick={togglePriceVisibility}>
                 <span className={`absolute top-[3px] w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-[left] ${priceVisibility ? 'left-[19px]' : 'left-[3px]'}`}></span>
@@ -3120,6 +3303,12 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                           }} />
                         </label>
                         {editingProduct[imgField.key] && (
+                          <button type="button" className="px-3 py-1.5 rounded-md text-xs font-semibold border-none cursor-pointer transition-all bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1"
+                            onClick={() => setCropState({ open: true, imageUrl: editingProduct[imgField.key], fieldKey: imgField.key, zoom: 1, offsetX: 0, offsetY: 0 })}>
+                            <Crop className="w-3 h-3" /> Crop
+                          </button>
+                        )}
+                        {editingProduct[imgField.key] && (
                           <button type="button" className="px-3 py-1.5 rounded-md text-xs font-semibold border-none cursor-pointer transition-all bg-red-50 text-red-500 hover:bg-red-100 flex items-center gap-1"
                             onClick={() => setEditingProduct(prev => ({ ...prev, [imgField.key]: '' }))}>
                             <X className="w-3 h-3" /> Remove
@@ -3140,6 +3329,84 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
           </div>
         </div>
       </div>
+
+      {/* ========== CROP & SCALE MODAL ========== */}
+      {cropState.open && (
+        <div className="fixed inset-0 bg-black/70 z-[3000] flex items-center justify-center p-4" onClick={() => setCropState(prev => ({ ...prev, open: false }))}>
+          <div className="bg-white rounded-2xl p-5 w-[440px] max-w-[95vw] max-sm:p-3" onClick={e => e.stopPropagation()}>
+            <div className="text-sm font-semibold text-slate-800 mb-1">Crop & Scale Image</div>
+            <div className="text-xs text-slate-400 mb-3">Drag image to reposition. Use zoom to scale. The visible area will be saved.</div>
+            <div className="relative w-full aspect-square bg-slate-900 rounded-xl overflow-hidden cursor-grab active:cursor-grabbing border-2 border-dashed border-slate-400 mb-3"
+              onMouseDown={e => { e.preventDefault(); cropDragging.current = true; cropStart.current = { x: e.clientX - cropState.offsetX, y: e.clientY - cropState.offsetY }; }}
+              onMouseMove={e => { if (cropDragging.current) setCropState(prev => ({ ...prev, offsetX: e.clientX - cropStart.current.x, offsetY: e.clientY - cropStart.current.y })); }}
+              onMouseUp={() => { cropDragging.current = false; }}
+              onMouseLeave={() => { cropDragging.current = false; }}
+              onTouchStart={e => { cropDragging.current = true; const t = e.touches[0]; cropStart.current = { x: t.clientX - cropState.offsetX, y: t.clientY - cropState.offsetY }; }}
+              onTouchMove={e => { if (cropDragging.current) { const t = e.touches[0]; setCropState(prev => ({ ...prev, offsetX: t.clientX - cropStart.current.x, offsetY: t.clientY - cropStart.current.y })); } }}
+              onTouchEnd={() => { cropDragging.current = false; }}>
+              <img src={cropState.imageUrl} alt="Crop" className="absolute select-none pointer-events-none w-full h-full object-contain"
+                style={{ transform: `translate(${cropState.offsetX}px, ${cropState.offsetY}px) scale(${cropState.zoom})` }}
+                draggable={false} />
+              <div className="absolute inset-0 pointer-events-none border-2 border-white/30 rounded-lg" />
+            </div>
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-xs text-slate-400 shrink-0">Zoom</span>
+              <input type="range" min="0.3" max="4" step="0.05" value={cropState.zoom}
+                onChange={e => setCropState(prev => ({ ...prev, zoom: parseFloat(e.target.value) }))}
+                className="flex-1 accent-indigo-500" />
+              <span className="text-xs text-slate-500 w-10 text-right">{Math.round(cropState.zoom * 100)}%</span>
+            </div>
+            <div className="flex items-center gap-2 mb-3">
+              <button className="px-3 py-1.5 rounded-md text-xs font-medium border border-slate-200 bg-slate-50 text-slate-500 cursor-pointer hover:bg-slate-100"
+                onClick={() => setCropState(prev => ({ ...prev, zoom: 1, offsetX: 0, offsetY: 0 }))}>Reset</button>
+              <button className="px-3 py-1.5 rounded-md text-xs font-medium border border-slate-200 bg-slate-50 text-slate-500 cursor-pointer hover:bg-slate-100"
+                onClick={() => setCropState(prev => ({ ...prev, zoom: Math.min(4, prev.zoom + 0.5) }))}>Zoom In</button>
+              <button className="px-3 py-1.5 rounded-md text-xs font-medium border border-slate-200 bg-slate-50 text-slate-500 cursor-pointer hover:bg-slate-100"
+                onClick={() => setCropState(prev => ({ ...prev, zoom: Math.max(0.3, prev.zoom - 0.5) }))}>Zoom Out</button>
+            </div>
+            <div className="flex gap-2">
+              <button className="flex-1 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-500 text-sm font-medium cursor-pointer"
+                onClick={() => setCropState(prev => ({ ...prev, open: false }))}>Cancel</button>
+              <button className="flex-1 py-2.5 rounded-lg border-none bg-indigo-500 text-white text-sm font-semibold cursor-pointer hover:bg-indigo-600"
+                onClick={async () => {
+                  try {
+                    showToast('Cropping...');
+                    const img = new Image(); img.crossOrigin = 'anonymous'; img.src = cropState.imageUrl;
+                    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; setTimeout(rej, 10000); });
+                    const outSize = 600;
+                    const canvas = document.createElement('canvas'); canvas.width = outSize; canvas.height = outSize;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, outSize, outSize);
+                    // Match the CSS: object-contain centers the image, then translate + scale
+                    const imgAspect = img.width / img.height;
+                    let drawW, drawH;
+                    if (imgAspect > 1) { drawW = outSize; drawH = outSize / imgAspect; }
+                    else { drawH = outSize; drawW = outSize * imgAspect; }
+                    const baseX = (outSize - drawW) / 2;
+                    const baseY = (outSize - drawH) / 2;
+                    const z = cropState.zoom;
+                    const scaledW = drawW * z; const scaledH = drawH * z;
+                    const cx = outSize / 2 + cropState.offsetX * (outSize / 400);
+                    const cy = outSize / 2 + cropState.offsetY * (outSize / 400);
+                    const fx = cx - scaledW / 2;
+                    const fy = cy - scaledH / 2;
+                    ctx.drawImage(img, fx, fy, scaledW, scaledH);
+                    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.92));
+                    const fd = new FormData(); fd.append('image', blob, 'cropped.jpg');
+                    const token = localStorage.getItem('token');
+                    const res = await fetch('/api/products/upload-image', { method: 'POST', headers: token ? { 'Authorization': `Bearer ${token}` } : {}, body: fd });
+                    const data = await res.json();
+                    if (data.url) {
+                      setEditingProduct(prev => ({ ...prev, [cropState.fieldKey]: data.url }));
+                      setCropState(prev => ({ ...prev, open: false }));
+                      showToast('Image cropped & saved');
+                    } else { showToast('Crop failed'); }
+                  } catch (err) { console.error(err); showToast('Crop failed: ' + err.message); }
+                }}>Apply Crop</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========== ADD CUSTOMER MODAL ========== */}
       <div className={`fixed inset-0 bg-black/40 z-[2000] items-center justify-center p-5 max-sm:p-0 max-sm:items-end ${activeModal === 'addCustModal' ? 'flex' : 'hidden'}`} onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>

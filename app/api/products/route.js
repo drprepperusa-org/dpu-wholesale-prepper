@@ -24,15 +24,20 @@ export async function GET(request) {
     const visibilityFilter = searchParams.get('visibility') || 'all';
     const stockFilter = searchParams.get('stock') || 'all';
 
+    // Check which optional columns exist to avoid query errors if migrations haven't run
+    const _colCheck = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name='products' AND column_name IN ('barcode_pack','barcode_bundle','barcode_box','box_image_url','bundle_image_url')`);
+    const _cols = new Set(_colCheck.rows.map(r => r.column_name));
+    const _opt = (col) => _cols.has(col) ? `p.${col}` : `NULL as ${col}`;
+
     const selectFields = hasAdminAccess
       ? `p.id, p.name, p.weight, p.bags_per_case, p.cases_per_pallet, p.price,
          p.category_id, c.name as category, c.is_hidden as category_is_hidden,
          s.id as super_category_id, s.name as super_category,
-         p.image_url, p.box_image_url, p.bundle_image_url, p.sku, p.barcode_pack, p.barcode_bundle, p.barcode_box, p.sort_order, p.is_hidden, p.is_oos, p.show_price, p.created_at`
+         p.image_url, ${_opt('box_image_url')}, ${_opt('bundle_image_url')}, p.sku, ${_opt('barcode_pack')}, ${_opt('barcode_bundle')}, ${_opt('barcode_box')}, p.sort_order, p.is_hidden, p.is_oos, p.show_price, p.created_at`
       : `p.id, p.name, p.weight, p.bags_per_case, p.cases_per_pallet, p.price,
          p.category_id, c.name as category,
          s.id as super_category_id, s.name as super_category,
-         p.image_url, p.box_image_url, p.bundle_image_url, p.sku, p.barcode_pack, p.barcode_bundle, p.barcode_box, p.sort_order, p.show_price, p.created_at`;
+         p.image_url, ${_opt('box_image_url')}, ${_opt('bundle_image_url')}, p.sku, ${_opt('barcode_pack')}, ${_opt('barcode_bundle')}, ${_opt('barcode_box')}, p.sort_order, p.show_price, p.created_at`;
 
     let query = `SELECT ${selectFields}
       FROM products p

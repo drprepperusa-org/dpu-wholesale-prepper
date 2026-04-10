@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react'
 import { X, Loader2 } from 'lucide-react'
 
-function OrderConfirmModal({ isOpen, onClose, onSubmit, cartItems = [], total = 0, isSubmitting = false }) {
+function OrderConfirmModal({ isOpen, onClose, onSubmit, cartItems = [], total = 0, isSubmitting = false, showPrices = true }) {
   const [confirmTerms, setConfirmTerms] = useState(false)
 
   useEffect(() => {
@@ -60,9 +60,11 @@ function OrderConfirmModal({ isOpen, onClose, onSubmit, cartItems = [], total = 
             <div className="flex justify-between text-slate-500 mb-1">
               <span>Total cases:</span><span>{totalCases}</span>
             </div>
-            <div className="flex justify-between text-slate-800 font-semibold border-t border-slate-200 pt-2 mt-2">
-              <span>Estimated total:</span><span>${computedTotal.toFixed(2)}</span>
-            </div>
+            {showPrices && (
+              <div className="flex justify-between text-slate-800 font-semibold border-t border-slate-200 pt-2 mt-2">
+                <span>Estimated total:</span><span>${computedTotal.toFixed(2)}</span>
+              </div>
+            )}
           </div>
 
           <label className="flex items-center gap-2 cursor-pointer text-[13px] text-slate-500 mb-4">

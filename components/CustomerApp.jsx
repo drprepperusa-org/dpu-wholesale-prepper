@@ -29,6 +29,8 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   const sheetInteracted = React.useRef(false);
   const [sheetImgIdx, setSheetImgIdx] = React.useState(0);
   const sheetImgTouchX = React.useRef(0);
+  const [imgViewerOpen, setImgViewerOpen] = useState(false);
+  const imgViewerTouchX = React.useRef(0);
   const onSheetTouchStart = (e) => {
     sheetDragStart.current = e.touches[0].clientY;
     sheetDragging.current = true;
@@ -168,9 +170,10 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       fetch('/api/settings').then(r => r.json()).catch(() => ({})),
       (() => { const t = localStorage.getItem('token'); return t ? fetch('/api/customers/profile', { headers: { 'Authorization': `Bearer ${t}` } }).then(r => r.json()).catch(() => ({})) : Promise.resolve({}) })()
     ]).then(([settingsData, profileData]) => {
-      const siteWide = settingsData.settings?.show_prices === undefined ? true : (settingsData.settings.show_prices === 'true' || settingsData.settings.show_prices === true);
-      const perCustomer = profileData.customer?.show_prices !== false;
-      setShowPrices(siteWide && perCustomer);
+      const siteWide = settingsData.settings?.show_prices === undefined ? false : (settingsData.settings.show_prices === 'true' || settingsData.settings.show_prices === true);
+      const customerSetting = profileData.customer?.show_prices;
+      // Per-customer setting overrides global. If customer has explicit setting, use it. Otherwise fall back to global.
+      setShowPrices(customerSetting !== undefined && customerSetting !== null ? customerSetting !== false : siteWide);
       if (settingsData.settings?.promo_banner) {
         try {
           const b = JSON.parse(settingsData.settings.promo_banner);
@@ -521,7 +524,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
     if (isSubmittingOrder) return; setIsSubmittingOrder(true);
     try {
       const token = localStorage.getItem('token');
-      const orderItems = cartItems.map(item => ({ product_id: item.id, name: item.name, qty: item.qty, unit: 'cases' }));
+      const orderItems = cartItems.map(item => ({ product_id: item.id, name: item.name, qty: item.qty, unit: item.unit || 'cases', price: item.price, cases_per_pallet: item.cases_per_pallet }));
       const res = await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ items: orderItems }) });
       if (res.ok) { setCartItems([]); setConfirmModalOpen(false); setActivePage('history'); showToast('Order placed successfully'); loadOrders(); }
       else showToast('Failed to place order', 'error');
@@ -799,7 +802,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                     onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} onCardResize={setCardSize} showPrices={showPrices} />
                 ) : (
                   <CategoryView products={filteredProducts} favorites={favorites} cart={cartItems} cardSize={cardSize}
-                    onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} onCardResize={setCardSize} />
+                    onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} onCardResize={setCardSize} showPrices={showPrices} />
                 )}
                 </div>
               </div>
@@ -814,7 +817,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
               </div>
               {favorites.length > 0 ? (
                 <ProductGrid products={favorites} favorites={favorites} cart={cartItems} cardSize={cardSize}
-                  onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} />
+                  onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} showPrices={showPrices} />
               ) : (
                 <div className="text-center py-16"><Heart className="w-12 h-12 text-slate-300 mx-auto mb-4 opacity-40" /><p className="text-slate-400 text-sm">No favorites yet</p></div>
               )}
@@ -830,7 +833,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
               </div>
               {newItems.length > 0 ? (
                 <CategoryView products={newItems} favorites={favorites} cart={cartItems}
-                  onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} />
+                  onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} showPrices={showPrices} />
               ) : (
                 <div className="text-center py-16"><Sparkles className="w-12 h-12 text-slate-300 mx-auto mb-4 opacity-40" /><p className="text-slate-400 text-sm">No new items yet</p></div>
               )}
@@ -863,14 +866,14 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                       {order.items?.map((item, idx) => (
                         <div key={idx} className="flex items-center gap-2 py-1.5 text-[13px] border-b border-slate-100 last:border-b-0">
                           <span className="flex-1 text-slate-800 min-w-0 truncate">{item.name}</span>
-                          <span className="text-slate-400 text-xs whitespace-nowrap">{item.qty} cases × ${parseFloat(item.price || 0).toFixed(2)}</span>
-                          <span className="text-slate-800 font-semibold text-[13px] whitespace-nowrap min-w-[50px] text-right">${(parseFloat(item.price || 0) * (item.qty || 0)).toFixed(2)}</span>
+                          <span className="text-slate-400 text-xs whitespace-nowrap">{item.qty} {item.unit || 'cases'}{item.unit === 'pallets' ? ` (${(item.qty || 0) * (parseInt(item.cases_per_pallet) || 60)} cs)` : ''}{showPrices ? ` × $${parseFloat(item.price || 0).toFixed(2)}` : ''}</span>
+                          {showPrices && <span className="text-slate-800 font-semibold text-[13px] whitespace-nowrap min-w-[50px] text-right">${(parseFloat(item.price || 0) * (item.unit === 'pallets' ? (item.qty || 0) * (parseInt(item.cases_per_pallet) || 60) : (item.qty || 0))).toFixed(2)}</span>}
                         </div>
                       ))}
                     </div>
                     <div className="flex justify-between items-center border-t border-slate-200 pt-2.5 mt-2 text-[13px] text-slate-500 font-medium">
-                      <span>{order.total_cases || order.items?.reduce((s, i) => s + i.qty, 0)} total cases</span>
-                      <span className="text-base font-bold text-indigo-500">${order.items ? order.items.reduce((s, i) => s + (parseFloat(i.price || 0) * (i.qty || 0)), 0).toFixed(2) : '0.00'}</span>
+                      <span>{order.total_cases || order.items?.reduce((s, i) => s + (i.unit === 'pallets' ? (i.qty || 0) * (parseInt(i.cases_per_pallet) || 60) : (i.qty || 0)), 0)} total cases</span>
+                      {showPrices && <span className="text-base font-bold text-indigo-500">${order.items ? order.items.reduce((s, i) => { const cases = i.unit === 'pallets' ? (i.qty || 0) * (parseInt(i.cases_per_pallet) || 60) : (i.qty || 0); return s + (parseFloat(i.price || 0) * cases); }, 0).toFixed(2) : '0.00'}</span>}
                     </div>
                   </div>
                 )) : (
@@ -893,7 +896,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                     <div className="flex-1 min-w-0">
                       <div className="text-xs font-medium text-slate-800 leading-tight mb-0.5">{item.name}</div>
                       <div className="text-[11px] text-slate-400 mb-0.5">{item.weight}{item.bags_per_case ? ` · ${item.bags_per_case} bags/case` : ''}</div>
-                      <div className="text-[13px] font-semibold text-indigo-500">${parseFloat(item.price || 0).toFixed(2)}/case</div>
+                      {showPrices && <div className="text-[13px] font-semibold text-indigo-500">${parseFloat(item.price || 0).toFixed(2)}/case</div>}
                     </div>
                     <button onClick={() => removeFromCart(item.id)} className="bg-transparent border-none cursor-pointer text-slate-400 text-sm p-1 hover:text-red-500"><X className="w-3.5 h-3.5" /></button>
                   </div>
@@ -907,7 +910,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                         onClick={() => updateCartQty(item.id, item.qty + 1)}><Plus className="w-3 h-3" /></button>
                       <span className="text-[11px] text-slate-400 ml-1">{item.unit || 'cases'}</span>
                     </div>
-                    <div className="text-xs font-semibold text-slate-800">${(parseFloat(item.price || 0) * (item.unit === 'pallets' ? item.qty * (parseInt(item.cases_per_pallet) || 60) : item.qty)).toFixed(2)}</div>
+                    {showPrices && <div className="text-xs font-semibold text-slate-800">${(parseFloat(item.price || 0) * (item.unit === 'pallets' ? item.qty * (parseInt(item.cases_per_pallet) || 60) : item.qty)).toFixed(2)}</div>}
                   </div>
                 </div>
               ))
@@ -917,7 +920,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
             <div className="px-4 py-4 border-t border-slate-200 bg-slate-50">
               <div className="flex justify-between text-xs text-slate-500 mb-1"><span>Line items</span><span>{cartItems.length}</span></div>
               <div className="flex justify-between text-xs text-slate-500 mb-1"><span>Total cases</span><span>{totalCases}</span></div>
-              <div className="flex justify-between text-[13px] text-slate-800 font-semibold border-t border-slate-200 pt-1.5 mt-0.5"><span>Est. total</span><span>${cartTotal.toFixed(2)}</span></div>
+              {showPrices && <div className="flex justify-between text-[13px] text-slate-800 font-semibold border-t border-slate-200 pt-1.5 mt-0.5"><span>Est. total</span><span>${cartTotal.toFixed(2)}</span></div>}
               <button onClick={() => setConfirmModalOpen(true)} className="w-full py-3 bg-indigo-500 border-none rounded-lg text-white font-semibold text-sm cursor-pointer mt-2.5 transition-colors hover:bg-indigo-600 flex items-center justify-center gap-2">Place Order <ArrowRight className="w-4 h-4" /></button>
               <button onClick={clearCart} className="w-full py-2 bg-transparent border border-slate-200 rounded-lg text-slate-500 text-[13px] cursor-pointer mt-1.5 transition-colors hover:border-red-300 hover:text-red-500">Clear cart</button>
             </div>
@@ -985,7 +988,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 max-sm:items-end"
         style={{ animation: 'fadeIn 0.2s ease', touchAction: 'none', overscrollBehavior: 'none' }}
         onClick={(e) => { if (e.target === e.currentTarget) closeProductSheet(); }}>
-        <div className="bg-white rounded-2xl w-full max-w-[500px] overflow-hidden shadow-2xl flex flex-col relative max-sm:max-w-full max-sm:rounded-t-xl max-sm:rounded-b-none max-sm:h-[75vh] max-sm:max-h-[75vh]"
+        <div className="bg-white rounded-2xl w-full max-w-[900px] overflow-hidden shadow-2xl flex flex-col relative max-sm:max-w-full max-sm:rounded-t-xl max-sm:rounded-b-none max-sm:h-[75vh] max-sm:max-h-[75vh]"
           style={{ maxHeight: '85vh', animation: !sheetInteracted.current ? 'popIn 0.25s ease' : undefined, transform: `translateY(${sheetDragY}px)`, transition: sheetDragging.current ? 'none' : 'transform 0.35s cubic-bezier(.32,1,.32,1)', willChange: 'transform' }} onClick={e => e.stopPropagation()}
           onTouchStart={onSheetTouchStart} onTouchMove={onSheetTouchMove} onTouchEnd={onSheetTouchEnd}>
           <div className="shrink-0 hidden max-sm:flex justify-center items-center pt-2 pb-3">
@@ -998,7 +1001,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
           {selectedProduct && (
             <>
               <div ref={sheetScrollRef} className="flex-1 overflow-y-auto min-h-0" style={{ WebkitOverflowScrolling: 'touch' }}>
-                <div className="flex gap-4 p-5 max-sm:flex-col max-sm:items-center max-sm:gap-2 max-sm:p-4 max-sm:text-center">
+                <div className="flex gap-6 p-6 max-sm:flex-col max-sm:items-center max-sm:gap-2 max-sm:p-4 max-sm:text-center">
                   {(() => {
                     const images = [
                       selectedProduct.image_url && { url: selectedProduct.image_url, label: 'Unit' },
@@ -1008,12 +1011,12 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                     const idx = sheetImgIdx < images.length ? sheetImgIdx : 0;
                     return (
                       <div className="shrink-0 max-sm:items-center max-sm:flex max-sm:flex-col">
-                        <div className="w-[180px] h-[180px] bg-white rounded-xl overflow-hidden border border-slate-200 max-sm:w-[150px] max-sm:h-[150px] relative"
+                        <div className="w-[400px] h-[400px] bg-white rounded-xl overflow-hidden border border-slate-200 max-sm:w-[150px] max-sm:h-[150px] relative max-sm:cursor-pointer"
+                          onClick={() => { if (window.innerWidth <= 640) setImgViewerOpen(true); }}
                           onTouchStart={e => { sheetImgTouchX.current = e.touches[0].clientX; }}
                           onTouchEnd={e => {
                             const diff = e.changedTouches[0].clientX - sheetImgTouchX.current;
-                            if (diff > 40 && idx > 0) setSheetImgIdx(idx - 1);
-                            else if (diff < -40 && idx < images.length - 1) setSheetImgIdx(idx + 1);
+                            if (Math.abs(diff) > 40) { e.preventDefault(); if (diff > 40 && idx > 0) setSheetImgIdx(idx - 1); else if (diff < -40 && idx < images.length - 1) setSheetImgIdx(idx + 1); }
                           }}>
                           <div className="flex transition-transform duration-300 h-full" style={{ transform: `translateX(-${idx * 100}%)` }}>
                             {images.map((img, i) => (
@@ -1036,16 +1039,16 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                     );
                   })()}
                   <div className="flex-1 min-w-0 pt-1 max-sm:w-full">
-                    <div className="text-xl font-semibold text-slate-800 leading-tight mb-1.5 tracking-tight pr-10 max-sm:text-[17px] max-sm:pr-0">{selectedProduct.name}</div>
+                    <div className="text-2xl font-semibold text-slate-800 leading-tight mb-2 tracking-tight pr-10 max-sm:text-[17px] max-sm:pr-0">{selectedProduct.name}</div>
                     <div className="flex flex-wrap gap-1.5 mb-2 max-sm:justify-center">
                       <span className="bg-slate-100 border border-slate-200 rounded-md px-2.5 py-0.5 text-[11px] text-slate-500">{selectedProduct.super_category}</span>
                       <span className="bg-slate-100 border border-slate-200 rounded-md px-2.5 py-0.5 text-[11px] text-slate-500">{selectedProduct.category}</span>
                     </div>
-                    <div className="mb-2 max-sm:hidden">
-                      {selectedProduct.weight && <div className="flex justify-between py-0.5 text-xs"><span className="text-slate-400">Weight</span><span className="text-slate-800 font-medium">{selectedProduct.weight}</span></div>}
-                      {selectedProduct.bags_per_case && <div className="flex justify-between py-0.5 text-xs"><span className="text-slate-400">Bags/Case</span><span className="text-slate-800 font-medium">{selectedProduct.bags_per_case}</span></div>}
-                      {selectedProduct.cases_per_pallet && <div className="flex justify-between py-0.5 text-xs"><span className="text-slate-400">Cases/Pallet</span><span className="text-slate-800 font-medium">{selectedProduct.cases_per_pallet}</span></div>}
-                      {selectedProduct.sku && <div className="flex justify-between py-0.5 text-xs"><span className="text-slate-400">SKU</span><span className="text-slate-800 font-medium font-mono text-[11px]">{selectedProduct.sku}</span></div>}
+                    <div className="mb-3 max-sm:hidden">
+                      {selectedProduct.weight && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Weight</span><span className="text-slate-800 font-medium">{selectedProduct.weight}</span></div>}
+                      {selectedProduct.bags_per_case && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Bags/Case</span><span className="text-slate-800 font-medium">{selectedProduct.bags_per_case}</span></div>}
+                      {selectedProduct.cases_per_pallet && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Cases/Pallet</span><span className="text-slate-800 font-medium">{selectedProduct.cases_per_pallet}</span></div>}
+                      {selectedProduct.sku && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">SKU</span><span className="text-slate-800 font-medium font-mono text-[13px]">{selectedProduct.sku}</span></div>}
                       {[
                         { value: selectedProduct.barcode_pack, label: 'Barcode (Pack)' },
                         { value: selectedProduct.barcode_bundle, label: 'Barcode (Bundle)' },
@@ -1114,12 +1117,57 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       </div>
       )}
 
+      {/* FULLSCREEN IMAGE VIEWER (mobile) */}
+      {imgViewerOpen && selectedProduct && (() => {
+        const images = [
+          selectedProduct.image_url && { url: selectedProduct.image_url, label: 'Unit' },
+          selectedProduct.bundle_image_url && { url: selectedProduct.bundle_image_url, label: 'Bundle' },
+          selectedProduct.box_image_url && { url: selectedProduct.box_image_url, label: 'Box' },
+        ].filter(Boolean);
+        const idx = sheetImgIdx < images.length ? sheetImgIdx : 0;
+        return (
+          <div className="fixed inset-0 z-[20000] bg-black/95 flex flex-col items-center justify-center"
+            onClick={() => setImgViewerOpen(false)}>
+            <button onClick={() => setImgViewerOpen(false)}
+              className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 border-none text-white flex items-center justify-center cursor-pointer z-10">
+              <X className="w-5 h-5" />
+            </button>
+            <div className="w-full h-[70vh] relative overflow-hidden"
+              onClick={e => e.stopPropagation()}
+              onTouchStart={e => { imgViewerTouchX.current = e.touches[0].clientX; }}
+              onTouchEnd={e => {
+                const diff = e.changedTouches[0].clientX - imgViewerTouchX.current;
+                if (diff > 50 && idx > 0) setSheetImgIdx(idx - 1);
+                else if (diff < -50 && idx < images.length - 1) setSheetImgIdx(idx + 1);
+              }}>
+              <div className="flex transition-transform duration-300 h-full" style={{ transform: `translateX(-${idx * 100}%)` }}>
+                {images.map((img, i) => (
+                  <div key={i} className="w-full h-full shrink-0 flex items-center justify-center p-4">
+                    <img src={img.url} alt={img.label} className="max-w-full max-h-full object-contain" />
+                  </div>
+                ))}
+              </div>
+            </div>
+            {images.length > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-4">
+                {images.map((img, i) => (
+                  <button key={i} onClick={(e) => { e.stopPropagation(); setSheetImgIdx(i); }}
+                    className={`px-3 py-1.5 rounded-full border-none text-xs font-medium cursor-pointer transition-all ${i === idx ? 'bg-white text-slate-800' : 'bg-white/20 text-white/70'}`}>
+                    {img.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       <CartOverlay isOpen={cartOverlayOpen} cartItems={cartItems} onClose={closeCartOverlay}
         onRemoveItem={removeFromCart} onPlaceOrder={() => { setConfirmModalOpen(true); closeCartOverlay(); }}
-        onClearCart={clearCart} onUpdateQty={updateCartQty} />
+        onClearCart={clearCart} onUpdateQty={updateCartQty} showPrices={showPrices} />
 
       <OrderConfirmModal isOpen={confirmModalOpen} onClose={() => setConfirmModalOpen(false)} onSubmit={submitOrder}
-        cartItems={cartItems} total={cartTotal} isSubmitting={isSubmittingOrder} />
+        cartItems={cartItems} total={cartTotal} isSubmitting={isSubmittingOrder} showPrices={showPrices} />
 
       {/* ACCOUNT SETTINGS MODAL */}
       {acctModal && (

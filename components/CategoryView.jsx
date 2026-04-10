@@ -8,7 +8,7 @@ function useIsMobile() {
   return m
 }
 
-function CategoryView({ products, favorites, cart, onProductSelected, onAddToCart, onToggleFavorite, cardSize, onCardResize }) {
+function CategoryView({ products, favorites, cart, onProductSelected, onAddToCart, onToggleFavorite, cardSize, onCardResize, showPrices = true }) {
   const firstCardRendered = React.useRef(false);
   const isMobile = useIsMobile()
   const [hierarchy, setHierarchy] = useState([])
@@ -20,8 +20,9 @@ function CategoryView({ products, favorites, cart, onProductSelected, onAddToCar
   const loadCategories = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/categories/hierarchy')
-      if (!response.ok) throw new Error('Failed to load categories')
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+      const response = await fetch('/api/categories/hierarchy', token ? { headers: { 'Authorization': `Bearer ${token}` } } : {})
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
       const data = await response.json()
       setHierarchy(data.hierarchy || [])
       setError(null)
@@ -45,7 +46,6 @@ function CategoryView({ products, favorites, cart, onProductSelected, onAddToCar
     })
     return Object.values(grouped)
       .sort((a, b) => a.name.localeCompare(b.name))
-      .map(cat => ({ ...cat, products: cat.products.sort((a, b) => a.name.localeCompare(b.name)) }))
   }
 
   if (loading) return <div className="p-10 text-center text-base text-slate-400">Loading categories...</div>
@@ -81,7 +81,7 @@ function CategoryView({ products, favorites, cart, onProductSelected, onAddToCar
                     return (
                       <ProductCard key={product.id} product={product} isFavorited={isFavorited(product.id)} inCart={isInCart(product.id)}
                         isFirst={isFirst} onProductSelected={onProductSelected} onAddToCart={onAddToCart} onToggleFavorite={onToggleFavorite}
-                        cardSize={isMobile ? 1 : cardSize} onCardResize={onCardResize} />
+                        cardSize={isMobile ? 1 : cardSize} onCardResize={onCardResize} showPrices={showPrices} />
                     );
                   })}
                 </div>

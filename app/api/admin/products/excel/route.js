@@ -12,9 +12,14 @@ export async function GET(request) {
     const admin = await requireAdmin(request);
     if (!admin) return NextResponse.json({ error: 'Admin required' }, { status: 403 });
 
+    // Check which optional columns exist
+    const colCheck = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name='products' AND column_name IN ('barcode_pack','barcode_bundle','barcode_box','box_image_url','bundle_image_url')`);
+    const existingCols = new Set(colCheck.rows.map(r => r.column_name));
+    const optCol = (col) => existingCols.has(col) ? `p.${col}` : `NULL as ${col}`;
+
     const result = await pool.query(`
-      SELECT p.id, p.sku, p.barcode_pack, p.barcode_bundle, p.barcode_box, p.name, p.price, p.weight, p.bags_per_case, p.cases_per_pallet,
-             p.image_url, p.box_image_url, p.bundle_image_url, p.is_hidden, p.is_oos, p.show_price,
+      SELECT p.id, p.sku, ${optCol('barcode_pack')}, ${optCol('barcode_bundle')}, ${optCol('barcode_box')}, p.name, p.price, p.weight, p.bags_per_case, p.cases_per_pallet,
+             p.image_url, ${optCol('box_image_url')}, ${optCol('bundle_image_url')}, p.is_hidden, p.is_oos, p.show_price,
              s.name as super_category, c.name as category,
              p.super_category_id, p.category_id, p.created_at
       FROM products p

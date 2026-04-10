@@ -87,31 +87,32 @@ function ProductCard({ product, isFavorited, inCart, isFirst, onProductSelected,
         <Heart className={`w-4 h-4 transition-colors ${isFavorited ? 'fill-red-500 text-red-500' : 'text-slate-300 hover:text-red-400'}`} />
       </button>
 
-      <div className="w-full flex items-center justify-center bg-white"
-        style={{ height: `${160 * scale}px`, marginBottom: `${8 * scale}px` }}
+      <div className="w-full bg-white overflow-hidden flex items-center justify-center"
+        style={{ height: `${160 * scale}px`, marginBottom: `${8 * scale}px`, padding: `${4 * scale}px` }}
         onClick={() => onProductSelected(product)}>
         <img
           src={imgError ? placeholderSvg : (product.image_url || placeholderSvg)}
           alt={product.name}
-          className="max-w-full max-h-full object-contain rounded-md"
+          className="max-w-full max-h-full object-contain"
+          style={{ transform: 'scale(1.08)' }}
           onError={() => setImgError(true)}
         />
       </div>
 
-<div className="text-slate-800 font-semibold leading-tight overflow-hidden cursor-pointer"
+<div className="text-slate-800 font-semibold leading-tight overflow-hidden cursor-pointer text-center"
         style={{ fontSize: `${12 * scale}px`, height: `${32 * scale}px`, marginBottom: `${4 * scale}px` }}
         onClick={() => onProductSelected(product)}>
         {product.name}
       </div>
 
-      <div className="text-slate-400 leading-snug"
+      <div className="text-slate-400 leading-snug text-center"
         style={{ fontSize: `${10 * scale}px`, marginBottom: `${8 * scale}px` }}>
         {product.weight && <div>{product.weight}</div>}
         {product.bags_per_case && <div>{product.bags_per_case} bags/case</div>}
       </div>
 
       {product.show_price !== false && showPrices && (
-        <div className="text-slate-800 font-bold"
+        <div className="text-slate-800 font-bold text-center"
           style={{ fontSize: `${16 * scale}px`, marginBottom: `${8 * scale}px` }}>
           ${parseFloat(product.price || 0).toFixed(2)}
           <span className="font-normal text-slate-400" style={{ fontSize: `${11 * scale}px` }}> /case</span>
