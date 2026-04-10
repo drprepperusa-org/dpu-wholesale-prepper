@@ -3507,7 +3507,18 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
               onTouchEnd={() => { cropDragging.current = false; }}>
               <img src={cropState.imageUrl} alt="Crop" className="absolute select-none pointer-events-none w-full h-full object-contain"
                 style={{ transform: `translate(${cropState.offsetX}px, ${cropState.offsetY}px) scale(${cropState.zoom})` }}
-                draggable={false} />
+                draggable={false}
+                onLoad={(e) => {
+                  const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
+                  if (!w || !h) return;
+                  const coverZoom = w > h ? w / h : 1;
+                  setCropState(prev => {
+                    if (prev.zoom === 1 && prev.offsetX === 0 && prev.offsetY === 0) {
+                      return { ...prev, zoom: coverZoom };
+                    }
+                    return prev;
+                  });
+                }} />
               <div className="absolute inset-0 pointer-events-none border-2 border-white/30 rounded-lg" />
             </div>
             <div className="flex items-center gap-3 mb-4">
