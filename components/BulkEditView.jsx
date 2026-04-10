@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useMemo } from 'react'
-import { Search, DollarSign, FolderOpen, Ban, X, CheckCircle, XCircle } from 'lucide-react'
+import { Search, DollarSign, FolderOpen, Ban, X, CheckCircle, XCircle, Tag } from 'lucide-react'
 
 function BulkEditView({ initialCustomers, initialProducts, superCategories, categoriesBySuper, onLoadProducts }) {
   const [selectedMode, setSelectedMode] = useState('all')
@@ -9,14 +9,17 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedRows, setSelectedRows] = useState(new Set())
   const [editingPrices, setEditingPrices] = useState({})
+  const [editingBrands, setEditingBrands] = useState({})
   const [editingSuper, setEditingSuper] = useState({})
   const [editingCats, setEditingCats] = useState({})
   const [editingHidden, setEditingHidden] = useState({})
   const [overrides, setOverrides] = useState({})
   const [isLoading, setIsLoading] = useState(false)
   const [showBulkPriceModal, setShowBulkPriceModal] = useState(false)
+  const [showBulkBrandModal, setShowBulkBrandModal] = useState(false)
   const [showBulkCategoryModal, setShowBulkCategoryModal] = useState(false)
   const [bulkPrice, setBulkPrice] = useState('')
+  const [bulkBrand, setBulkBrand] = useState('')
   const [bulkSuperCat, setBulkSuperCat] = useState('')
   const [bulkCat, setBulkCat] = useState('')
   const [toast, setToast] = useState({ message: '', type: 'success' })
@@ -25,16 +28,16 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
     if (initialProducts) {
       const prods = JSON.parse(JSON.stringify(initialProducts))
       setProducts(prods)
-      const prices = {}, supers = {}, cats = {}, hiddens = {}
-      prods.forEach(p => { prices[p.id] = p.price; supers[p.id] = p.super_category_id; cats[p.id] = p.category_id; hiddens[p.id] = p.is_hidden })
-      setEditingPrices(prices); setEditingSuper(supers); setEditingCats(cats); setEditingHidden(hiddens)
+      const prices = {}, brands = {}, supers = {}, cats = {}, hiddens = {}
+      prods.forEach(p => { prices[p.id] = p.price; brands[p.id] = p.brand || ''; supers[p.id] = p.super_category_id; cats[p.id] = p.category_id; hiddens[p.id] = p.is_hidden })
+      setEditingPrices(prices); setEditingBrands(brands); setEditingSuper(supers); setEditingCats(cats); setEditingHidden(hiddens)
     }
   }, [initialProducts])
 
   const filteredProducts = useMemo(() => {
     if (!searchQuery) return products
     const q = searchQuery.toLowerCase()
-    return products.filter(p => (p.sku && p.sku.toLowerCase().includes(q)) || p.name.toLowerCase().includes(q) || (p.category && p.category.toLowerCase().includes(q)) || (p.super_category && p.super_category.toLowerCase().includes(q)))
+    return products.filter(p => (p.sku && p.sku.toLowerCase().includes(q)) || p.name.toLowerCase().includes(q) || (p.brand && p.brand.toLowerCase().includes(q)) || (p.category && p.category.toLowerCase().includes(q)) || (p.super_category && p.super_category.toLowerCase().includes(q)))
   }, [products, searchQuery])
 
   const totalProducts = products.length
@@ -82,6 +85,12 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
     } else { await setOverrideData(prod.id, { override_price: price }) }
   }
 
+  const saveBrandChange = async (prod, newBrand) => {
+    const brand = newBrand.trim()
+    try { const token = localStorage.getItem('token'); const r = await fetch(`/api/admin/products/bulk`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [prod.id], brand }) }); if (!r.ok) throw new Error('Failed'); setProducts(products.map(p => p.id === prod.id ? { ...p, brand } : p)); showToast(`Brand updated`) }
+    catch (e) { showToast('Failed to save brand', 'error') }
+  }
+
   const setOverrideData = async (productId, data) => {
     try { const token = localStorage.getItem('token'); const r = await fetch(`/api/admin/products/${productId}/override`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ customer_id: selectedCustomerId, ...data }) }); if (!r.ok) throw new Error('Failed'); const result = await r.json(); setOverrides({ ...overrides, [productId]: { price: result.override.override_price, hidden: result.override.override_is_hidden } }); showToast('Override saved') }
     catch (e) { showToast('Failed to save override', 'error') }
@@ -112,6 +121,17 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
       else { const r = await fetch('/api/admin/products/bulk-override', { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ product_ids: ids, customer_id: selectedCustomerId, override_price: price }) }); if (!r.ok) throw new Error('Failed'); await loadOverridesForCustomer(selectedCustomerId) }
       showToast(`Applied to ${ids.length} products`); setSelectedRows(new Set()); setShowBulkPriceModal(false); setBulkPrice('')
     } catch (e) { showToast('Failed to apply bulk price', 'error') }
+  }
+
+  const applyBulkBrand = async () => {
+    const ids = Array.from(selectedRows); const brand = bulkBrand.trim()
+    try {
+      const token = localStorage.getItem('token')
+      const r = await fetch('/api/admin/products/bulk', { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, brand }) }); if (!r.ok) throw new Error('Failed')
+      setProducts(products.map(p => ids.includes(p.id) ? { ...p, brand } : p))
+      setEditingBrands(prev => { const next = { ...prev }; ids.forEach(id => { next[id] = brand }); return next })
+      showToast(`Brand set to "${brand}" for ${ids.length} products`); setSelectedRows(new Set()); setShowBulkBrandModal(false); setBulkBrand('')
+    } catch (e) { showToast('Failed to apply bulk brand', 'error') }
   }
 
   const applyBulkHide = async () => {
@@ -160,6 +180,7 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
         <div className="flex gap-2 items-center px-4 py-2.5 bg-indigo-50 border border-indigo-200 rounded-lg mb-4 flex-wrap max-sm:px-2.5 max-sm:py-2 max-sm:gap-1.5">
           <span className="text-[13px] font-semibold text-indigo-500 mr-1 max-sm:text-xs max-sm:w-full">{selectedRows.size} selected</span>
           <button onClick={() => setShowBulkPriceModal(true)} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-semibold cursor-pointer transition-colors hover:border-indigo-400 hover:text-indigo-500 max-sm:text-[11px] max-sm:px-2.5"><DollarSign className="w-3.5 h-3.5" /> Set Price</button>
+          <button onClick={() => setShowBulkBrandModal(true)} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-semibold cursor-pointer transition-colors hover:border-indigo-400 hover:text-indigo-500 max-sm:text-[11px] max-sm:px-2.5"><Tag className="w-3.5 h-3.5" /> Set Brand</button>
           <button onClick={() => setShowBulkCategoryModal(true)} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-semibold cursor-pointer transition-colors hover:border-indigo-400 hover:text-indigo-500 max-sm:text-[11px] max-sm:px-2.5"><FolderOpen className="w-3.5 h-3.5" /> Set Category</button>
           <button onClick={applyBulkHide} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-500 text-xs font-semibold cursor-pointer transition-colors hover:bg-red-500 hover:text-white max-sm:text-[11px] max-sm:px-2.5"><Ban className="w-3.5 h-3.5" /> Hide</button>
           <button onClick={() => setSelectedRows(new Set())} className="px-3.5 py-1.5 rounded-lg bg-slate-100 text-slate-400 border border-slate-200 text-xs font-semibold cursor-pointer transition-colors hover:text-slate-700 hover:border-slate-300 ml-auto max-sm:text-[11px] max-sm:px-2.5">Deselect</button>
@@ -177,6 +198,7 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
               <th className="w-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2"></th>
               <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">SKU</th>
               <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Name</th>
+              <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Brand</th>
               <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Price</th>
               <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Super Category</th>
               <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Category</th>
@@ -198,6 +220,11 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
                 </td>
                 <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]"><code className="text-slate-500 text-xs">{prod.sku || '—'}</code></td>
                 <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]">{prod.name}</td>
+                <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]">
+                  <input type="text" value={editingBrands[prod.id] ?? ''} onChange={e => setEditingBrands({...editingBrands, [prod.id]: e.target.value})} onBlur={e => { if (e.target.value !== (prod.brand || '')) saveBrandChange(prod, e.target.value) }}
+                    placeholder="—"
+                    className="w-24 px-1 py-1 border border-slate-200 rounded text-slate-800 text-[13px] focus:outline-none focus:border-indigo-400 max-sm:w-[70px] max-sm:text-xs max-sm:p-0.5" />
+                </td>
                 <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]">
                   <div className={`flex items-center gap-1 ${hasOverride(prod.id, 'price') ? 'bg-indigo-50 rounded p-0.5' : ''}`}>
                     <input type="number" step="0.01" value={editingPrices[prod.id] || ''} onChange={e => setEditingPrices({...editingPrices, [prod.id]: e.target.value})} onBlur={e => savePriceChange(prod, e.target.value)}
@@ -247,6 +274,29 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
               <button onClick={() => setShowBulkPriceModal(false)} className="px-4 py-2 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 text-[13px] font-semibold cursor-pointer hover:bg-slate-200">Cancel</button>
               <button onClick={applyBulkPrice} disabled={!bulkPrice || parseFloat(bulkPrice) <= 0}
                 className="px-4 py-2 rounded-lg bg-indigo-500 text-white text-[13px] font-semibold cursor-pointer transition-colors hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed">Apply to {selectedRows.size}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Brand Modal */}
+      {showBulkBrandModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[1000]" onClick={() => setShowBulkBrandModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-[400px] w-[90%] overflow-hidden max-sm:max-w-full max-sm:mx-2.5" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center px-4 py-3.5 border-b border-slate-200">
+              <h3 className="m-0 text-slate-800 text-base font-semibold">Set Brand for {selectedRows.size} Products</h3>
+              <button onClick={() => setShowBulkBrandModal(false)} className="bg-transparent border-none cursor-pointer text-slate-400 p-1 hover:text-red-500"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="p-4">
+              <label className="block mb-1.5 text-[13px] font-semibold text-slate-800">Brand:</label>
+              <input type="text" value={bulkBrand} onChange={e => setBulkBrand(e.target.value)} placeholder="e.g. Nongshim, Lay's"
+                className="w-full px-2.5 py-2.5 border border-slate-200 rounded-lg text-sm mb-3 bg-slate-50 text-slate-800 focus:outline-none focus:border-indigo-400" />
+              <p className="text-xs text-slate-400 italic mt-2 mb-0">Leave blank to clear brand from selected products</p>
+            </div>
+            <div className="flex gap-2 px-4 py-3 border-t border-slate-200 justify-end">
+              <button onClick={() => setShowBulkBrandModal(false)} className="px-4 py-2 rounded-lg bg-slate-100 text-slate-800 border border-slate-200 text-[13px] font-semibold cursor-pointer hover:bg-slate-200">Cancel</button>
+              <button onClick={applyBulkBrand}
+                className="px-4 py-2 rounded-lg bg-indigo-500 text-white text-[13px] font-semibold cursor-pointer transition-colors hover:bg-indigo-600">Apply to {selectedRows.size}</button>
             </div>
           </div>
         </div>

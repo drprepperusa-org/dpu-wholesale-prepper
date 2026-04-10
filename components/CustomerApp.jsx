@@ -89,8 +89,8 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [historyFilter, setHistoryFilter] = useState('all');
-  const [gridViewMode, setGridViewMode] = useState('categories');
   const [selectedUnit, setSelectedUnit] = useState('cases');
   const [sheetQty, setSheetQty] = useState(1);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
@@ -224,58 +224,16 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   // Lock body scroll when any popup is open or catalog is loading to prevent pull-to-refresh / shift
   const savedScrollY = React.useRef(0);
   useEffect(() => {
-    const anyOpen = productSheetOpen || cartOverlayOpen || confirmModalOpen || !!acctModal || floatingSearchFocused;
-    const isMobile = window.innerWidth <= 640;
-    const catalogLoading = activePage === 'catalog' && (productsLoading || products.length === 0 || superCatList.length === 0 || viewSwitching);
-    if (anyOpen && isMobile) {
-      // Only save scroll if not already locked (prevent overwriting with 0)
-      if (document.body.style.position !== 'fixed') {
-        savedScrollY.current = window.scrollY;
-      }
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${savedScrollY.current}px`;
-      document.body.style.left = '0';
-      document.body.style.right = '0';
-      document.body.style.overflow = 'hidden';
-      document.documentElement.style.overscrollBehavior = 'none';
-      document.body.style.overscrollBehavior = 'none';
-    } else if (anyOpen) {
-      document.body.style.overflow = 'hidden';
-      document.documentElement.style.overflow = 'hidden';
-      document.documentElement.style.overscrollBehavior = 'none';
-      document.body.style.overscrollBehavior = 'none';
-    } else if (catalogLoading && !isMobile) {
+    const anyOpen = productSheetOpen || cartOverlayOpen || confirmModalOpen || !!acctModal;
+    if (anyOpen) {
       document.body.style.overflow = 'hidden';
       document.documentElement.style.overflow = 'hidden';
     } else {
-      // Restore scroll position
-      const wasFixed = document.body.style.position === 'fixed';
-      const scrollY = savedScrollY.current;
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.left = '';
-      document.body.style.right = '';
       document.body.style.overflow = '';
       document.documentElement.style.overflow = '';
-      document.documentElement.style.overscrollBehavior = '';
-      document.body.style.overscrollBehavior = '';
-      if (wasFixed && isMobile) {
-        window.scrollTo(0, scrollY);
-        requestAnimationFrame(() => window.scrollTo(0, scrollY));
-        setTimeout(() => window.scrollTo(0, scrollY), 50);
-      }
     }
-    return () => { document.body.style.position = ''; document.body.style.top = ''; document.body.style.left = ''; document.body.style.right = ''; document.body.style.overflow = ''; document.documentElement.style.overflow = ''; document.documentElement.style.overscrollBehavior = ''; document.body.style.overscrollBehavior = ''; };
-  }, [productSheetOpen, cartOverlayOpen, confirmModalOpen, acctModal, floatingSearchFocused, activePage, productsLoading, products.length, superCatList.length, viewSwitching]);
-
-  // Lock scroll briefly when switching between grid and categories view
-  useEffect(() => {
-    setViewSwitching(true);
-    if (window.innerWidth <= 640) window.scrollTo(0, 0); else if (catalogScrollRef.current) catalogScrollRef.current.scrollTop = 0;
-    const t = setTimeout(() => setViewSwitching(false), 500);
-    return () => clearTimeout(t);
-  }, [gridViewMode]);
-
+    return () => { document.body.style.overflow = ''; document.documentElement.style.overflow = ''; };
+  }, [productSheetOpen, cartOverlayOpen, confirmModalOpen, acctModal]);
 
   // Keep floating bar off outside mobile catalog
   useEffect(() => {
@@ -283,7 +241,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       setShowFloatingBar(false);
       setFloatingSearchFocused(false);
     }
-  }, [activePage, gridViewMode]);
+  }, [activePage]);
 
   // Track visual viewport top offset on iOS so fixed controls stay aligned
   // when browser chrome expands/collapses during scroll.
@@ -341,10 +299,8 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
 
   // Reset scroll to top after products load if user was near top
   useEffect(() => {
-    if (products.length > 0 && activePage === 'catalog') {
-      const mob = window.innerWidth <= 640;
-      const pos = mob ? window.scrollY : (catalogScrollRef.current?.scrollTop || 0);
-      if (pos < 200) { if (mob) window.scrollTo(0, 0); else if (catalogScrollRef.current) catalogScrollRef.current.scrollTop = 0; }
+    if (products.length > 0 && activePage === 'catalog' && catalogScrollRef.current) {
+      if (catalogScrollRef.current.scrollTop < 200) catalogScrollRef.current.scrollTop = 0;
     }
   }, [products.length]);
 
@@ -359,7 +315,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   useEffect(() => {
     if (activePage === 'catalog') {
       if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
-      const reset = () => { if (window.innerWidth <= 640) window.scrollTo(0, 0); else if (catalogScrollRef.current) catalogScrollRef.current.scrollTop = 0; };
+      const reset = () => { if (catalogScrollRef.current) catalogScrollRef.current.scrollTop = 0; };
       reset();
       requestAnimationFrame(reset);
       const t1 = setTimeout(reset, 50);
@@ -389,12 +345,11 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   // Track which super category is currently scrolled to + scroll direction for nav hide/show
   useEffect(() => {
     if (activePage !== 'catalog') return;
-    const isMobile = window.innerWidth <= 640;
-    const scrollEl = isMobile ? null : catalogScrollRef.current;
-    if (!isMobile && !scrollEl) return;
+    const scrollEl = catalogScrollRef.current;
+    if (!scrollEl) return;
     const handleScroll = () => {
-      const currentY = isMobile ? window.scrollY : scrollEl.scrollTop;
-      if (isMobile) setHasScrolled(currentY > 5);
+      const currentY = scrollEl.scrollTop;
+      setHasScrolled(currentY > 5);
       if (!programmaticScroll.current) {
         const diff = currentY - lastScrollY.current;
         if (Math.abs(diff) > 5) {
@@ -411,7 +366,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
         }
       }
       if (superCatList.length === 0) return;
-      const containerTop = isMobile ? 0 : scrollEl.getBoundingClientRect().top;
+      const containerTop = scrollEl.getBoundingClientRect().top;
       let active = null;
       for (const sc of superCatList) {
         const el = document.getElementById(`supercat-${sc.id}`);
@@ -419,11 +374,10 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       }
       if (active) setActiveSuperCatId(active);
     };
-    const target = isMobile ? window : scrollEl;
-    target.addEventListener('scroll', handleScroll, { passive: true });
+    scrollEl.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll();
-    return () => target.removeEventListener('scroll', handleScroll);
-  }, [activePage, superCatList, gridViewMode, floatingSearchFocused]);
+    return () => scrollEl.removeEventListener('scroll', handleScroll);
+  }, [activePage, superCatList, floatingSearchFocused]);
 
   const onFloatingSearchFocus = () => {
     setFloatingSearchFocused(true);
@@ -506,7 +460,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       if (isSuperCat) filtered = filtered.filter(p => p.super_category_id === selectedCategory.id || p.super_category === selectedCategory.name);
       else filtered = filtered.filter(p => p.category_id === selectedCategory.id || p.category === selectedCategory.name);
     }
-    if (searchQuery) { const q = searchQuery.toLowerCase(); filtered = filtered.filter(p => p.name.toLowerCase().includes(q) || p.sku?.toLowerCase().includes(q) || p.super_category?.toLowerCase().includes(q) || p.category?.toLowerCase().includes(q)); }
+    if (searchQuery) { const q = searchQuery.toLowerCase(); filtered = filtered.filter(p => p.name.toLowerCase().includes(q) || p.sku?.toLowerCase().includes(q) || p.brand?.toLowerCase().includes(q) || p.super_category?.toLowerCase().includes(q) || p.category?.toLowerCase().includes(q)); }
     return filtered;
   }, [products, selectedCategory, searchQuery]);
 
@@ -581,7 +535,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   };
 
   return (
-    <div className={`flex flex-col bg-slate-50 sm:h-[100svh] sm:overflow-hidden ${activePage === 'catalog' ? 'max-sm:min-h-[100svh]' : 'max-sm:h-[100svh] max-sm:overflow-hidden'}`}>
+    <div className="flex flex-col bg-slate-50 h-[100svh] overflow-hidden">
 
       {/* UTILITY BAR */}
       <div className="hidden items-center justify-between px-6 h-8 bg-slate-900 text-slate-400 text-[11px] shrink-0">
@@ -688,16 +642,14 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       </div>
 
       {/* CONTENT ROW */}
-      <div className={`customer-content-row flex-1 flex sm:overflow-hidden transition-[padding] duration-300 ${activePage !== 'catalog' ? 'max-sm:overflow-hidden' : ''}`}>
+      <div className="customer-content-row flex-1 flex min-h-0 overflow-hidden transition-[padding] duration-300">
         <CategorySidebar isOpen={sidebarOpen} token={typeof window !== 'undefined' ? localStorage.getItem('token') : null}
           selectedCategory={selectedCategory} onSelectCategory={(cat) => setSelectedCategory(cat)} onClose={() => setSidebarOpen(false)} />
 
-        <main className={`flex-1 flex min-h-0 sm:overflow-hidden transition-[padding] duration-300 max-sm:pb-16 ${activePage !== 'catalog' ? 'max-sm:overflow-hidden' : ''}`}>
+        <main className={`flex-1 flex min-h-0 overflow-hidden transition-[padding] duration-300 ${navsHidden && activePage === 'catalog' ? 'max-sm:pb-0' : 'max-sm:pb-16'}`}>
           {/* CATALOG */}
           {activePage === 'catalog' && (
-              <div ref={catalogScrollRef} className={`flex-1 ${(productsLoading || products.length === 0 || superCatList.length === 0 || viewSwitching) ? 'overflow-hidden' : 'sm:overflow-y-auto sm:overflow-x-hidden'} max-w-[100vw]`} style={{ overscrollBehavior: 'contain', overflowAnchor: 'none' }}>
-                {/* Spacer to ensure banner is visible below fixed sticky bar on mobile */}
-                <div className="h-16" style={{ overflowAnchor: 'auto', ...(isMob ? { height: mobileBarH } : {}) }} />
+              <div ref={catalogScrollRef} className={`flex-1 ${(productsLoading || products.length === 0 || superCatList.length === 0 || viewSwitching) ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden'} max-w-[100vw]`} style={{ overscrollBehavior: 'contain', overflowAnchor: 'none', WebkitOverflowScrolling: 'touch' }}>
                 {/* Promo Banner */}
                 <div className="px-8 max-sm:px-3 max-lg:px-5">
                 {promoBanner && promoBanner.type === 'image' && promoBanner.imageUrl ? (
@@ -742,49 +694,35 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                 <div
                   ref={stickyBarRef}
                   className="catalog-sticky-bar bg-white border-b border-slate-100 px-8 max-sm:px-3 max-lg:px-5 py-2 sm:sticky sm:top-0 z-20"
-                  style={{ overflowAnchor: 'none', '--sticky-offset': hasScrolled ? (gridViewMode === 'grid' ? '12px' : '12px') : '0px' }}
+                  style={{ overflowAnchor: 'none', '--sticky-offset': '0px' }}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="relative max-w-[400px] max-sm:max-w-full flex-1">
+                  {/* Desktop search bar */}
+                  <div className="flex items-center justify-between max-sm:hidden">
+                    <div className="relative max-w-[400px] flex-1">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                       <input type="text" placeholder="Search products..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} autoComplete="off"
                         className="w-full py-2.5 pl-9 pr-3 border border-slate-200 rounded-xl text-sm transition-colors focus:border-indigo-400 focus:outline-none" />
                     </div>
-                    <div className="flex gap-1 bg-slate-100 border border-slate-200 rounded-lg p-0.5 shrink-0 ml-3">
-                      <button className={`px-3.5 py-1.5 border-none rounded-md text-xs font-medium cursor-pointer transition-all flex items-center gap-1 ${gridViewMode === 'categories' ? 'bg-white text-slate-800 shadow-sm font-semibold' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
-                        onClick={() => setGridViewMode('categories')}><FolderOpen className="w-3.5 h-3.5" /> Categories</button>
-                      <button className={`px-3.5 py-1.5 border-none rounded-md text-xs font-medium cursor-pointer transition-all flex items-center gap-1 ${gridViewMode === 'grid' ? 'bg-white text-slate-800 shadow-sm font-semibold' : 'bg-transparent text-slate-500 hover:text-slate-700'}`}
-                        onClick={() => setGridViewMode('grid')}><LayoutGrid className="w-3.5 h-3.5" /> Grid</button>
-                    </div>
                   </div>
 
-                  {/* Category quick-nav pills - categories view only */}
-                  {gridViewMode === 'categories' && superCatList.length > 0 && !selectedCategory && filteredProducts.length > 0 &&
+                  {/* Category quick-nav pills */}
+                  {superCatList.length > 0 && !selectedCategory && filteredProducts.length > 0 &&
                     superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).length > 1 && (
-                    <div className="mt-2">
-                      <div ref={pillsRowRef} className="flex gap-2 max-sm:gap-1.5 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                    <div className="sm:mt-2 flex items-center gap-1.5">
+                      <div ref={pillsRowRef} className="flex gap-2 max-sm:gap-1.5 overflow-x-auto flex-1 min-w-0" style={{ scrollbarWidth: 'none' }}>
                         {superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).map(sc => (
                           <button key={sc.id} data-pill-id={sc.id}
                             onClick={() => {
-                              if (gridViewMode === 'categories') {
-                                setActiveSuperCatId(sc.id);
-                                const el = document.getElementById(`supercat-${sc.id}`);
-                                const mob = window.innerWidth <= 640;
-                                programmaticScroll.current = true;
-                                if (mob && el) {
-                                  const top = el.getBoundingClientRect().top + window.scrollY - 120;
-                                  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
-                                  setTimeout(() => { programmaticScroll.current = false; lastScrollY.current = window.scrollY; }, 800);
-                                } else if (el && catalogScrollRef.current) {
-                                  const scrollTop = el.offsetTop - 120;
-                                  catalogScrollRef.current.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
-                                  setTimeout(() => { programmaticScroll.current = false; lastScrollY.current = catalogScrollRef.current.scrollTop; }, 800);
-                                }
-                              } else {
-                                setSelectedCategory(activeSuperCatId === sc.id ? null : sc);
+                              setActiveSuperCatId(sc.id);
+                              const el = document.getElementById(`supercat-${sc.id}`);
+                              programmaticScroll.current = true;
+                              if (el && catalogScrollRef.current) {
+                                const scrollTop = el.offsetTop - 120;
+                                catalogScrollRef.current.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' });
+                                setTimeout(() => { programmaticScroll.current = false; lastScrollY.current = catalogScrollRef.current.scrollTop; }, 800);
                               }
                             }}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 max-sm:px-4 max-sm:py-2.5 rounded-lg border text-xs max-sm:text-sm font-medium cursor-pointer transition-all whitespace-nowrap shrink-0 ${
+                            className={`flex items-center gap-1.5 px-3 py-1.5 max-sm:px-4 max-sm:py-2.5 rounded-lg max-sm:rounded-full border text-xs max-sm:text-sm font-medium cursor-pointer transition-all whitespace-nowrap shrink-0 ${
                               activeSuperCatId === sc.id
                                 ? 'bg-indigo-500 border-indigo-500 text-white shadow-sm'
                                 : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300 hover:text-indigo-500'
@@ -793,18 +731,36 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                           </button>
                         ))}
                       </div>
+                      {/* Mobile search icon */}
+                      <button
+                        onClick={() => setMobileSearchOpen(v => !v)}
+                        className={`hidden max-sm:flex shrink-0 w-10 h-10 rounded-full border items-center justify-center transition-colors ${mobileSearchOpen || searchQuery ? 'bg-indigo-500 border-indigo-500 text-white' : 'bg-white border-slate-200 text-slate-500'}`}
+                        aria-label="Search">
+                        <Search className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Mobile search dropdown */}
+                  {mobileSearchOpen && (
+                    <div className="hidden max-sm:block mt-2">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input type="text" placeholder="Search products..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} autoComplete="off" autoFocus
+                          className="w-full py-2.5 pl-9 pr-9 border border-slate-200 rounded-xl text-sm bg-white focus:border-indigo-400 focus:outline-none" />
+                        {searchQuery && (
+                          <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-slate-400 hover:text-slate-600">
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
 
-                <div className="px-8 max-sm:px-3 max-lg:px-5 pb-8 max-sm:pb-3 max-lg:pb-5 pt-4 max-sm:pt-3">
-                {gridViewMode === 'grid' ? (
-                  <ProductGrid products={filteredProducts} favorites={favorites} cart={cartItems} cardSize={cardSize}
-                    onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} onCardResize={setCardSize} showPrices={showPrices} />
-                ) : (
+                <div className="px-8 max-sm:px-0 max-lg:px-5 pb-8 max-sm:pb-3 max-lg:pb-5 pt-4 max-sm:pt-3">
                   <CategoryView products={filteredProducts} favorites={favorites} cart={cartItems} cardSize={cardSize}
                     onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} onCardResize={setCardSize} showPrices={showPrices} />
-                )}
                 </div>
               </div>
           )}
@@ -941,7 +897,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
             animation: 'fadeIn 0.2s ease'
           }}
         >
-          <div className={`flex items-center gap-2 ${gridViewMode === 'categories' ? 'mb-2' : ''}`}>
+          <div className="flex items-center gap-2 mb-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input id="floating-catalog-search" type="text" placeholder="Search products..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} autoComplete="off"
@@ -949,14 +905,8 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                 onBlur={onFloatingSearchBlur}
                 className="w-full py-2 pl-9 pr-3 border border-slate-200 rounded-xl text-sm transition-colors focus:border-indigo-400 focus:outline-none" />
             </div>
-            <div className="flex gap-1 bg-slate-100 border border-slate-200 rounded-lg p-0.5 shrink-0">
-              <button className={`px-2.5 py-1.5 border-none rounded-md text-xs font-medium cursor-pointer transition-all flex items-center gap-1 ${gridViewMode === 'grid' ? 'bg-white text-slate-800 shadow-sm font-semibold' : 'bg-transparent text-slate-500'}`}
-                onClick={() => setGridViewMode('grid')}><LayoutGrid className="w-3.5 h-3.5" /></button>
-              <button className={`px-2.5 py-1.5 border-none rounded-md text-xs font-medium cursor-pointer transition-all flex items-center gap-1 ${gridViewMode === 'categories' ? 'bg-white text-slate-800 shadow-sm font-semibold' : 'bg-transparent text-slate-500'}`}
-                onClick={() => setGridViewMode('categories')}><FolderOpen className="w-3.5 h-3.5" /></button>
-            </div>
           </div>
-          {gridViewMode === 'categories' && superCatList.length > 0 && !selectedCategory && filteredProducts.length > 0 &&
+          {superCatList.length > 0 && !selectedCategory && filteredProducts.length > 0 &&
             superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).length > 1 && (
             <div ref={floatingPillsRef} className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
               {superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).map(sc => (
@@ -971,7 +921,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                       setTimeout(() => { programmaticScroll.current = false; lastScrollY.current = window.scrollY; }, 800);
                     }
                   }}
-                  className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg border text-sm font-medium cursor-pointer transition-all whitespace-nowrap shrink-0 ${
+                  className={`flex items-center gap-1.5 px-4 py-2.5 rounded-full border text-sm font-medium cursor-pointer transition-all whitespace-nowrap shrink-0 ${
                     activeSuperCatId === sc.id
                       ? 'bg-indigo-500 border-indigo-500 text-white shadow-sm'
                       : 'bg-white border-slate-200 text-slate-500'
@@ -1046,6 +996,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                       <span className="bg-slate-100 border border-slate-200 rounded-md px-2.5 py-0.5 text-[11px] text-slate-500">{selectedProduct.category}</span>
                     </div>
                     <div className="mb-3 max-sm:hidden">
+                      {selectedProduct.brand && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Brand</span><span className="text-slate-800 font-medium">{selectedProduct.brand}</span></div>}
                       {selectedProduct.weight && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Weight</span><span className="text-slate-800 font-medium">{selectedProduct.weight}</span></div>}
                       {selectedProduct.bags_per_case && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Bags/Case</span><span className="text-slate-800 font-medium">{selectedProduct.bags_per_case}</span></div>}
                       {selectedProduct.cases_per_pallet && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Cases/Pallet</span><span className="text-slate-800 font-medium">{selectedProduct.cases_per_pallet}</span></div>}
@@ -1143,7 +1094,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
               }}>
               <div className="flex transition-transform duration-300 h-full" style={{ transform: `translateX(-${idx * 100}%)` }}>
                 {images.map((img, i) => (
-                  <div key={i} className="w-full h-full shrink-0 flex items-center justify-center p-4">
+                  <div key={i} className="w-full h-full shrink-0 flex items-center justify-center p-4 bg-white">
                     <img src={img.url} alt={img.label} className="max-w-full max-h-full object-contain" />
                   </div>
                 ))}

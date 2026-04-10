@@ -28,16 +28,16 @@ export async function GET(request) {
     const stockFilter = searchParams.get('stock') || 'all';
 
     // Check which optional columns exist to avoid query errors if migrations haven't run
-    const _colCheck = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name='products' AND column_name IN ('barcode_pack','barcode_bundle','barcode_box','box_image_url','bundle_image_url')`);
+    const _colCheck = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name='products' AND column_name IN ('barcode_pack','barcode_bundle','barcode_box','box_image_url','bundle_image_url','brand')`);
     const _cols = new Set(_colCheck.rows.map(r => r.column_name));
     const _opt = (col) => _cols.has(col) ? `p.${col}` : `NULL as ${col}`;
 
     const selectFields = hasAdminAccess
-      ? `p.id, p.name, p.weight, p.bags_per_case, p.cases_per_pallet, p.price,
+      ? `p.id, p.name, ${_opt('brand')}, p.weight, p.bags_per_case, p.cases_per_pallet, p.price,
          p.category_id, c.name as category, c.is_hidden as category_is_hidden,
          s.id as super_category_id, s.name as super_category,
          p.image_url, ${_opt('box_image_url')}, ${_opt('bundle_image_url')}, p.sku, ${_opt('barcode_pack')}, ${_opt('barcode_bundle')}, ${_opt('barcode_box')}, p.sort_order, p.is_hidden, p.is_oos, p.show_price, p.created_at`
-      : `p.id, p.name, p.weight, p.bags_per_case, p.cases_per_pallet, p.price,
+      : `p.id, p.name, ${_opt('brand')}, p.weight, p.bags_per_case, p.cases_per_pallet, p.price,
          p.category_id, c.name as category,
          s.id as super_category_id, s.name as super_category,
          p.image_url, ${_opt('box_image_url')}, ${_opt('bundle_image_url')}, p.sku, ${_opt('barcode_pack')}, ${_opt('barcode_bundle')}, ${_opt('barcode_box')}, p.sort_order, p.show_price, p.created_at`;
@@ -83,6 +83,7 @@ export async function GET(request) {
       query += ` AND (
         LOWER(p.name) LIKE LOWER($${params.length + 1})
         OR LOWER(COALESCE(p.sku, '')) LIKE LOWER($${params.length + 1})
+        ${_cols.has('brand') ? `OR LOWER(COALESCE(p.brand, '')) LIKE LOWER($${params.length + 1})` : ''}
       )`;
       params.push(`%${search}%`);
     }
@@ -102,7 +103,7 @@ export async function GET(request) {
     );
     const total = parseInt(countResult.rows[0]?.total || 0);
 
-    query += ' ORDER BY s.sort_order, c.sort_order, p.sort_order';
+    query += ' ORDER BY s.sort_order NULLS LAST, c.sort_order NULLS LAST, p.sort_order NULLS LAST, p.name';
 
     if (limit > 0) {
       query += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
@@ -149,7 +150,7 @@ export async function POST(request) {
       }, { status: 422 });
     }
 
-    const { id, name, weight, bags_per_case, cases_per_pallet, category_id, super_category_id, image_url, box_image_url, bundle_image_url, sku, barcode_pack, barcode_bundle, barcode_box, price, show_price } = body;
+    const { id, name, brand, weight, bags_per_case, cases_per_pallet, category_id, super_category_id, image_url, box_image_url, bundle_image_url, sku, barcode_pack, barcode_bundle, barcode_box, price, show_price } = body;
 
     try {
       const productId = id || uuidv4();
@@ -182,11 +183,18 @@ export async function POST(request) {
         }, { status: 422 });
       }
 
+      // Get next sort_order for this category
+      const maxSort = await pool.query(
+        'SELECT COALESCE(MAX(sort_order), $1) + 1 as next_sort FROM products WHERE category_id = $2',
+        [parseInt(category_id) * 10000 - 1, category_id]
+      );
+      const nextSortOrder = maxSort.rows[0]?.next_sort || (parseInt(category_id) * 10000);
+
       const result = await pool.query(
-        `INSERT INTO products (id, name, weight, bags_per_case, cases_per_pallet, category_id, super_category_id, image_url, box_image_url, bundle_image_url, sku, barcode_pack, barcode_bundle, barcode_box, price, show_price)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        `INSERT INTO products (id, name, brand, weight, bags_per_case, cases_per_pallet, category_id, super_category_id, image_url, box_image_url, bundle_image_url, sku, barcode_pack, barcode_bundle, barcode_box, price, show_price, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
          RETURNING *`,
-        [productId, name, weight, bags_per_case, cases_per_pallet || 60, category_id, finalSuperCategoryId, image_url, box_image_url || null, bundle_image_url || null, productSku, barcode_pack || null, barcode_bundle || null, barcode_box || null, price || 25.00, show_price !== false]
+        [productId, name, brand || null, weight, bags_per_case, cases_per_pallet || 60, category_id, finalSuperCategoryId, image_url, box_image_url || null, bundle_image_url || null, productSku, barcode_pack || null, barcode_bundle || null, barcode_box || null, price || 25.00, show_price !== false, nextSortOrder]
       );
 
       await logActivity(null, 'admin_product_create', `Created product: ${name}`, {

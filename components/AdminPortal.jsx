@@ -52,6 +52,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
   const [activeModal, setActiveModal] = useState(null)
   const [newProductForm, setNewProductForm] = useState({
     name: '',
+    brand: '',
     sku: '',
     barcode_pack: '',
     barcode_bundle: '',
@@ -130,22 +131,22 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
 
   const pendingSaveRef = useRef(null)
 
-  const handleProductDrop = () => {
+  const handleProductDrop = useCallback(() => {
     const sourceId = dragProdRef.current
-    resetProductDragState()
-    if (!sourceId || !pendingSaveRef.current) return
-
-    // Save the order that was captured during the last onDragEnter
-    const ids = [...pendingSaveRef.current]
+    const ids = pendingSaveRef.current ? [...pendingSaveRef.current] : null
     pendingSaveRef.current = null
+    resetProductDragState()
+    if (!sourceId || !ids || ids.length === 0) return
 
     const token = localStorage.getItem('token')
     fetch('/api/admin/reorder-products', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
       body: JSON.stringify({ productIds: ids })
+    }).then(res => {
+      if (!res.ok) console.error('Product reorder failed:', res.status)
     }).catch(e => console.error('Product reorder save failed:', e))
-  }
+  }, [resetProductDragState])
 
   // Registration and Activity log
   const [registrationEnabled, setRegistrationEnabled] = useState(true)
@@ -219,6 +220,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
   const oosCount = useMemo(() => products.filter(p => p.is_oos).length, [products])
   const inStockCount = useMemo(() => products.filter(p => !p.is_oos && !p.is_hidden).length, [products])
   const newThisWeekCount = useMemo(() => products.filter(p => { if (!p.created_at) return false; return ((new Date() - new Date(p.created_at)) / (1000 * 60 * 60 * 24)) <= 7 }).length, [products])
+  const existingBrands = useMemo(() => [...new Set(products.map(p => p.brand).filter(Boolean))].sort(), [products])
 
   const superCatNames = useMemo(() => categoryTree.map(c => c.name), [categoryTree])
 
@@ -243,7 +245,8 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       const q = searchQuery.toLowerCase()
       filtered = filtered.filter(p =>
         p.name.toLowerCase().includes(q) ||
-        (p.sku && p.sku.toLowerCase().includes(q))
+        (p.sku && p.sku.toLowerCase().includes(q)) ||
+        (p.brand && p.brand.toLowerCase().includes(q))
       )
     }
 
@@ -673,6 +676,12 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
         setPaginationPages(data.pagination.pages)
       }
       buildCategoryTree(prods)
+      // Auto-initialize sort_order if many products have sort_order=0 or null
+      const needsInit = prods.length > 1 && prods.filter(p => !p.sort_order && p.sort_order !== 0).length > prods.length * 0.5
+      if (needsInit) {
+        const t = localStorage.getItem('token')
+        fetch('/api/admin/reorder-products', { method: 'PUT', headers: t ? { 'Authorization': `Bearer ${t}` } : {} }).catch(() => {})
+      }
     } catch (e) {
       console.error('Failed to load products:', e)
       showErrorToast('Failed to load products', () => loadProducts())
@@ -1363,6 +1372,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
 
       const payload = {
         name: f.name.trim(),
+        brand: f.brand ? String(f.brand).trim() : null,
         sku: f.sku ? String(f.sku).trim() : null,
         barcode_pack: f.barcode_pack ? String(f.barcode_pack).trim() : null,
         barcode_bundle: f.barcode_bundle ? String(f.barcode_bundle).trim() : null,
@@ -1410,7 +1420,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       } else if (response.ok) {
         await loadProducts()
         setActiveModal(null)
-        setNewProductForm({ name: '', sku: '', weight: '', bags_per_case: '', cases_per_pallet: '', price: '', category_id: '', image_url: '', box_image_url: '', bundle_image_url: '', imageFile: null, showPrice: true })
+        setNewProductForm({ name: '', brand: '', sku: '', weight: '', bags_per_case: '', cases_per_pallet: '', price: '', category_id: '', image_url: '', box_image_url: '', bundle_image_url: '', imageFile: null, showPrice: true })
         setProductFormErrors({})
         showToast('Product added')
         logActivity(`Added new product: ${payload.name}`)
@@ -2373,9 +2383,12 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                               if (dragOverProdId !== prod.id) setDragOverProdId(prod.id)
                             }}
                             onDragEnd={() => {
-                              requestAnimationFrame(() => {
-                                if (!isReorderingProducts) resetProductDragState()
-                              })
+                              // onDragEnd always fires — if pendingSaveRef still has data, onDrop didn't fire, so save here
+                              if (pendingSaveRef.current) {
+                                handleProductDrop()
+                              } else {
+                                resetProductDragState()
+                              }
                             }}
                             onDrop={(e) => {
                               e.preventDefault()
@@ -3167,6 +3180,19 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
           />
           {productFormErrors.sku && <div className="text-[11px] text-red-500 mt-0.5 mb-1 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> {productFormErrors.sku}</div>}
 
+          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Brand</label>
+          <input
+            className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400"
+            type="text"
+            list="brand-options-add"
+            placeholder="Select or type a new brand"
+            value={newProductForm.brand}
+            onChange={e => setNewProductForm(prev => ({ ...prev, brand: e.target.value }))}
+          />
+          <datalist id="brand-options-add">
+            {existingBrands.map(b => <option key={b} value={b} />)}
+          </datalist>
+
           <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Barcode (Pack)</label>
           <input
             className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400"
@@ -3310,6 +3336,11 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
               <div>
                 <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">Product Name</label>
                 <input type="text" value={editingProduct.name || ''} onChange={e => setEditingProduct(prev => ({ ...prev, name: e.target.value }))} className="w-full py-[9px] px-3 border-[1.5px] border-slate-200 rounded-[9px] text-[13px] max-sm:!text-sm bg-slate-50 text-slate-800 outline-none transition-colors box-border focus:border-indigo-400" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">Brand</label>
+                <input type="text" list="brand-options-edit" value={editingProduct.brand || ''} onChange={e => setEditingProduct(prev => ({ ...prev, brand: e.target.value }))} placeholder="Select or type a new brand" className="w-full py-[9px] px-3 border-[1.5px] border-slate-200 rounded-[9px] text-[13px] max-sm:!text-sm bg-slate-50 text-slate-800 outline-none transition-colors box-border focus:border-indigo-400" />
+                <datalist id="brand-options-edit">{existingBrands.map(b => <option key={b} value={b} />)}</datalist>
               </div>
               <div>
                 <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">Price</label>

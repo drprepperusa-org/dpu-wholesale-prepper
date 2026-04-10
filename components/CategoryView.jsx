@@ -53,7 +53,7 @@ function CategoryView({ products, favorites, cart, onProductSelected, onAddToCar
 
   firstCardRendered.current = false;
   return (
-    <div className="w-full p-5">
+    <div className="w-full p-5 max-sm:px-[2px] max-sm:py-2">
       {hierarchy.map(superCat => {
         const catSections = getProductsByCategory(superCat.id)
         if (catSections.length === 0) return null
@@ -74,14 +74,14 @@ function CategoryView({ products, favorites, cart, onProductSelected, onAddToCar
                     {category.products.length}
                   </span>
                 </div>
-                <div style={isMobile ? { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' } : { display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${148 * (cardSize || 1)}px, 1fr))`, gap: `${10 * (cardSize || 1)}px` }}>
+                <div style={isMobile ? { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' } : { display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${148 * (cardSize || 1)}px, 1fr))`, gap: `${10 * (cardSize || 1)}px` }}>
                   {category.products.map(product => {
                     const isFirst = !firstCardRendered.current;
                     if (isFirst) firstCardRendered.current = true;
                     return (
                       <ProductCard key={product.id} product={product} isFavorited={isFavorited(product.id)} inCart={isInCart(product.id)}
                         isFirst={isFirst} onProductSelected={onProductSelected} onAddToCart={onAddToCart} onToggleFavorite={onToggleFavorite}
-                        cardSize={isMobile ? 1 : cardSize} onCardResize={onCardResize} showPrices={showPrices} />
+                        cardSize={isMobile ? 0.75 : cardSize} onCardResize={onCardResize} showPrices={showPrices} />
                     );
                   })}
                 </div>

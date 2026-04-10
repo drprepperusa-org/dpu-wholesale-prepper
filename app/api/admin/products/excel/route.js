@@ -13,12 +13,12 @@ export async function GET(request) {
     if (!admin) return NextResponse.json({ error: 'Admin required' }, { status: 403 });
 
     // Check which optional columns exist
-    const colCheck = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name='products' AND column_name IN ('barcode_pack','barcode_bundle','barcode_box','box_image_url','bundle_image_url')`);
+    const colCheck = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name='products' AND column_name IN ('barcode_pack','barcode_bundle','barcode_box','box_image_url','bundle_image_url','brand')`);
     const existingCols = new Set(colCheck.rows.map(r => r.column_name));
     const optCol = (col) => existingCols.has(col) ? `p.${col}` : `NULL as ${col}`;
 
     const result = await pool.query(`
-      SELECT p.id, p.sku, ${optCol('barcode_pack')}, ${optCol('barcode_bundle')}, ${optCol('barcode_box')}, p.name, p.price, p.weight, p.bags_per_case, p.cases_per_pallet,
+      SELECT p.id, p.sku, ${optCol('brand')}, ${optCol('barcode_pack')}, ${optCol('barcode_bundle')}, ${optCol('barcode_box')}, p.name, p.price, p.weight, p.bags_per_case, p.cases_per_pallet,
              p.image_url, ${optCol('box_image_url')}, ${optCol('bundle_image_url')}, p.is_hidden, p.is_oos, p.show_price,
              s.name as super_category, c.name as category,
              p.super_category_id, p.category_id, p.created_at
@@ -31,6 +31,7 @@ export async function GET(request) {
     const rows = result.rows.map(p => ({
       'Product ID (leave blank for new)': p.id,
       'SKU': p.sku || '',
+      'Brand': p.brand || '',
       'Barcode (Pack)': p.barcode_pack || '',
       'Barcode (Bundle)': p.barcode_bundle || '',
       'Barcode (Box)': p.barcode_box || '',
@@ -58,6 +59,7 @@ export async function GET(request) {
     ws['!cols'] = [
       { wch: 28 }, // Product ID
       { wch: 14 }, // SKU
+      { wch: 20 }, // Brand
       { wch: 16 }, // Barcode (Pack)
       { wch: 16 }, // Barcode (Bundle)
       { wch: 16 }, // Barcode (Box)
@@ -171,6 +173,7 @@ export async function POST(request) {
       if (!name) { skipped++; continue; }
 
       const sku = get(['SKU', 'sku', 'Sku']);
+      const brand = get(['Brand', 'brand', 'BRAND']);
       const barcode_pack = get(['Barcode (Pack)', 'barcode_pack', 'Barcode Pack', 'UPC', 'upc']);
       const barcode_bundle = get(['Barcode (Bundle)', 'barcode_bundle', 'Barcode Bundle']);
       const barcode_box = get(['Barcode (Box)', 'barcode_box', 'Barcode Box']);
@@ -219,11 +222,11 @@ export async function POST(request) {
       if (!existingId && sku && skuToId[sku.toLowerCase()]) existingId = skuToId[sku.toLowerCase()];
 
       if (existingId) {
-        toUpdate.push([name, sku, barcode_pack, barcode_bundle, barcode_box, price, weight, bagsPerCase, casesPerPallet, imageUrl || '', boxImageUrl || '', bundleImageUrl || '', isHidden, isOos, showPrice, superCatId, catId, existingId]);
+        toUpdate.push([name, sku, brand, barcode_pack, barcode_bundle, barcode_box, price, weight, bagsPerCase, casesPerPallet, imageUrl || '', boxImageUrl || '', bundleImageUrl || '', isHidden, isOos, showPrice, superCatId, catId, existingId]);
       } else {
         const newId = productId || uuidv4();
         const newSku = sku || `SKU-${newId.substring(0, 8).toUpperCase()}`;
-        toCreate.push([newId, name, newSku, barcode_pack, barcode_bundle, barcode_box, price, weight, bagsPerCase, casesPerPallet, imageUrl, boxImageUrl, bundleImageUrl, isHidden, isOos, showPrice, superCatId, catId]);
+        toCreate.push([newId, name, newSku, brand, barcode_pack, barcode_bundle, barcode_box, price, weight, bagsPerCase, casesPerPallet, imageUrl, boxImageUrl, bundleImageUrl, isHidden, isOos, showPrice, superCatId, catId]);
       }
     }
 
@@ -232,9 +235,9 @@ export async function POST(request) {
     for (let i = 0; i < toUpdate.length; i += BATCH) {
       const batch = toUpdate.slice(i, i + BATCH);
       await Promise.all(batch.map(params =>
-        pool.query(`UPDATE products SET name=$1, sku=$2, barcode_pack=$3, barcode_bundle=$4, barcode_box=$5, price=$6, weight=$7, bags_per_case=$8,
-          cases_per_pallet=$9, image_url=COALESCE(NULLIF($10,''), image_url), box_image_url=COALESCE(NULLIF($11,''), box_image_url), bundle_image_url=COALESCE(NULLIF($12,''), bundle_image_url), is_hidden=$13, is_oos=$14,
-          show_price=$15, super_category_id=$16, category_id=$17 WHERE id=$18`, params)
+        pool.query(`UPDATE products SET name=$1, sku=$2, brand=$3, barcode_pack=$4, barcode_bundle=$5, barcode_box=$6, price=$7, weight=$8, bags_per_case=$9,
+          cases_per_pallet=$10, image_url=COALESCE(NULLIF($11,''), image_url), box_image_url=COALESCE(NULLIF($12,''), box_image_url), bundle_image_url=COALESCE(NULLIF($13,''), bundle_image_url), is_hidden=$14, is_oos=$15,
+          show_price=$16, super_category_id=$17, category_id=$18 WHERE id=$19`, params)
           .then(() => { updated++ })
           .catch(e => { errors.push(`Update "${params[0]}": ${e.message}`); skipped++ })
       ));
@@ -244,8 +247,8 @@ export async function POST(request) {
     for (let i = 0; i < toCreate.length; i += BATCH) {
       const batch = toCreate.slice(i, i + BATCH);
       await Promise.all(batch.map(params =>
-        pool.query(`INSERT INTO products (id, name, sku, barcode_pack, barcode_bundle, barcode_box, price, weight, bags_per_case, cases_per_pallet, image_url, box_image_url, bundle_image_url, is_hidden, is_oos, show_price, super_category_id, category_id)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`, params)
+        pool.query(`INSERT INTO products (id, name, sku, brand, barcode_pack, barcode_bundle, barcode_box, price, weight, bags_per_case, cases_per_pallet, image_url, box_image_url, bundle_image_url, is_hidden, is_oos, show_price, super_category_id, category_id)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`, params)
           .then(() => { created++ })
           .catch(e => { errors.push(`Create "${params[1]}": ${e.message}`); skipped++ })
       ));

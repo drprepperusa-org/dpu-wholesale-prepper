@@ -23,13 +23,14 @@ export async function PUT(request, { params }) {
     if (oldProduct.rows[0]) oldImageUrl = oldProduct.rows[0].image_url;
 
     const body = await request.json();
-    const { name, weight, bags_per_case, cases_per_pallet, category_id, super_category_id, image_url, box_image_url, bundle_image_url, sku, barcode_pack, barcode_bundle, barcode_box, is_hidden, is_oos, show_price, price } = body;
+    const { name, brand, weight, bags_per_case, cases_per_pallet, category_id, super_category_id, image_url, box_image_url, bundle_image_url, sku, barcode_pack, barcode_bundle, barcode_box, is_hidden, is_oos, show_price, price } = body;
 
     const updateFields = [];
     const values = [];
     let paramIndex = 1;
 
     if (name !== undefined) { updateFields.push(`name = $${paramIndex++}`); values.push(name); }
+    if (brand !== undefined) { updateFields.push(`brand = $${paramIndex++}`); values.push(brand); }
     if (weight !== undefined) { updateFields.push(`weight = $${paramIndex++}`); values.push(weight); }
     if (bags_per_case !== undefined) { updateFields.push(`bags_per_case = $${paramIndex++}`); values.push(bags_per_case); }
     if (cases_per_pallet !== undefined) { updateFields.push(`cases_per_pallet = $${paramIndex++}`); values.push(cases_per_pallet); }
