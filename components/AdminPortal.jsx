@@ -2409,7 +2409,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                                   <input type="checkbox" checked={!!selectedProducts[prod.id]} onChange={() => toggleProductSelect(prod.id)} className="w-4 h-4 cursor-pointer accent-indigo-500 m-0" />
                                 </label>
                                 <div className="flex gap-1 flex-wrap items-center">
-                                  {prod.is_hidden && <div className="px-[7px] py-0.5 rounded-full text-[9px] font-semibold tracking-wide uppercase bg-slate-50 text-slate-400 border border-slate-200">Hidden</div>}
+                                  {prod.is_hidden && <div className="px-[7px] py-0.5 rounded-full text-[9px] font-semibold tracking-wide uppercase bg-red-50 text-red-600 border border-red-200">Hidden</div>}
                                   <div className={`px-[7px] py-0.5 rounded-full text-[9px] font-semibold tracking-wide uppercase cursor-pointer select-none transition-all ${prod.is_oos ? 'bg-red-100 text-red-600 border border-red-200 hover:bg-red-200' : 'bg-emerald-100 text-emerald-600 border border-emerald-200 hover:bg-emerald-200'}`} onClick={(e) => { e.stopPropagation(); toggleOosStatus(prod); }}>{prod.is_oos ? 'OOS: YES' : 'IN STOCK'}</div>
                                 </div>
                               </div>
