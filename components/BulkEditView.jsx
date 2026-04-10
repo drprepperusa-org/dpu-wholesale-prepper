@@ -210,7 +210,7 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
               <tr key={prod.id} className={`border-b border-slate-200 hover:bg-slate-50 transition-colors ${selectedRows.has(prod.id) ? 'bg-indigo-50' : ''}`}>
                 <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]"><input type="checkbox" checked={selectedRows.has(prod.id)} onChange={() => toggleProductSelect(prod.id)} className="accent-indigo-500" /></td>
                 <td className="p-1.5 max-sm:p-1">
-                  <div className="w-10 h-10 max-sm:w-8 max-sm:h-8 rounded-md border border-slate-200 bg-white flex items-center justify-center overflow-hidden shrink-0">
+                  <div className="w-20 h-20 max-sm:w-12 max-sm:h-12 rounded-md border border-slate-200 bg-white flex items-center justify-center overflow-hidden shrink-0">
                     {prod.image_url ? (
                       <img src={prod.image_url} alt="" className="w-full h-full object-contain p-0.5" onError={e => { e.target.style.display = 'none'; }} />
                     ) : (
@@ -221,13 +221,13 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
                 <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]"><code className="text-slate-500 text-xs">{prod.sku || '—'}</code></td>
                 <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]">{prod.name}</td>
                 <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]">
-                  <input type="text" value={editingBrands[prod.id] ?? ''} onChange={e => setEditingBrands({...editingBrands, [prod.id]: e.target.value})} onBlur={e => { if (e.target.value !== (prod.brand || '')) saveBrandChange(prod, e.target.value) }}
+                  <input type="text" value={editingBrands[prod.id] ?? ''} onChange={e => setEditingBrands({ ...editingBrands, [prod.id]: e.target.value })} onBlur={e => { if (e.target.value !== (prod.brand || '')) saveBrandChange(prod, e.target.value) }}
                     placeholder="—"
                     className="w-24 px-1 py-1 border border-slate-200 rounded text-slate-800 text-[13px] focus:outline-none focus:border-indigo-400 max-sm:w-[70px] max-sm:text-xs max-sm:p-0.5" />
                 </td>
                 <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]">
                   <div className={`flex items-center gap-1 ${hasOverride(prod.id, 'price') ? 'bg-indigo-50 rounded p-0.5' : ''}`}>
-                    <input type="number" step="0.01" value={editingPrices[prod.id] || ''} onChange={e => setEditingPrices({...editingPrices, [prod.id]: e.target.value})} onBlur={e => savePriceChange(prod, e.target.value)}
+                    <input type="number" step="0.01" value={editingPrices[prod.id] || ''} onChange={e => setEditingPrices({ ...editingPrices, [prod.id]: e.target.value })} onBlur={e => savePriceChange(prod, e.target.value)}
                       className="w-20 px-1 py-1 border border-slate-200 rounded text-slate-800 text-[13px] focus:outline-none focus:border-indigo-400 max-sm:w-[60px] max-sm:text-xs max-sm:p-0.5" />
                     {hasOverride(prod.id, 'price') && <span className="text-[10px] text-amber-500">●</span>}
                   </div>
@@ -246,7 +246,7 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
                 </td>
                 <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]">
                   <div className={`flex items-center gap-1 ${hasOverride(prod.id, 'hidden') ? 'bg-indigo-50 rounded p-0.5' : ''}`}>
-                    <input type="checkbox" checked={editingHidden[prod.id] || false} onChange={e => { const val = e.target.checked; setEditingHidden({...editingHidden, [prod.id]: val}); saveHiddenChange(prod, val) }} className="accent-indigo-500" />
+                    <input type="checkbox" checked={editingHidden[prod.id] || false} onChange={e => { const val = e.target.checked; setEditingHidden({ ...editingHidden, [prod.id]: val }); saveHiddenChange(prod, val) }} className="accent-indigo-500" />
                     {hasOverride(prod.id, 'hidden') && <span className="text-[10px] text-amber-500">●</span>}
                   </div>
                 </td>
