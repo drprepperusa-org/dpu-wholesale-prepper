@@ -292,7 +292,7 @@ function AdminDashboard() {
           font-weight: 600;
           cursor: pointer;
           transition: all 0.2s;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Poppins', sans-serif;
         }
         .admin-btn:hover { background: #d94a4a; transform: translateY(-2px); }
         .admin-modal-overlay {
@@ -314,7 +314,7 @@ function AdminDashboard() {
           width: 100%; padding: 10px; background: var(--border, #e2ddd8); border: none;
           border-radius: 6px; color: var(--text, #1a1a18); font-size: 13px; font-weight: 600;
           cursor: pointer; transition: all 0.2s;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Poppins', sans-serif;
         }
         .close-btn:hover { background: var(--red, #c0392b); color: white; }
         .admin-note {
@@ -326,16 +326,16 @@ function AdminDashboard() {
         .form-group input, .form-group select {
           width: 100%; padding: 8px 10px; background: var(--bg, #f5f4f0); border: 1px solid var(--border, #e2ddd8);
           border-radius: 6px; font-size: 13px; box-sizing: border-box; color: var(--text, #1a1a18);
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Poppins', sans-serif;
         }
         .error-message { padding: 8px 10px; background: #fee; border: 1px solid #fcc; border-radius: 6px; color: #c33; font-size: 12px; margin-bottom: 12px; }
         .success-message { padding: 8px 10px; background: #efe; border: 1px solid #cfc; border-radius: 6px; color: #3a3; font-size: 12px; margin-bottom: 12px; word-break: break-word; }
         .form-actions { display: flex; gap: 8px; margin-top: 16px; }
         .submit-btn { flex: 1; padding: 10px; background: var(--red, #c0392b); color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Poppins', sans-serif;
         }
         .cancel-btn { flex: 1; padding: 10px; background: var(--border, #e2ddd8); color: var(--text, #1a1a18); border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;
-          font-family: 'DM Sans', sans-serif;
+          font-family: 'Poppins', sans-serif;
         }
       `}</style>
     </div>

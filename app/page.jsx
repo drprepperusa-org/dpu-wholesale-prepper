@@ -74,7 +74,7 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: "'DM Sans', sans-serif" }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: "'Poppins', sans-serif" }}>
         <p>Loading...</p>
       </div>
     );
