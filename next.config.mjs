@@ -10,7 +10,9 @@ const nextConfig = {
     ],
   },
   // Allow server-side code to use Node.js native modules
-  serverExternalPackages: ['pg', 'bcrypt', 'jsonwebtoken', 'nodemailer', 'multer'],
+  experimental: {
+    serverComponentsExternalPackages: ['pg', 'bcrypt', 'jsonwebtoken', 'nodemailer', 'multer'],
+  },
 };
 
 export default nextConfig;
