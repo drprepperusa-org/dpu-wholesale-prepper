@@ -835,44 +835,64 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
         </main>
 
         {/* DESKTOP CART SIDEBAR */}
-        <div className="hidden sm:flex w-[440px] min-w-[440px] bg-white border-l border-slate-200 flex-col sticky top-14 shrink-0 max-lg:w-[360px] max-lg:min-w-[360px]" style={{ height: 'calc(100vh - 56px)' }}>
-          <div className="px-5 py-4 border-b border-slate-200"><h2 className="text-lg font-semibold m-0 flex items-center gap-2"><ShoppingCart className="w-5 h-5" /> Order</h2></div>
-          <div className="flex-1 overflow-y-auto p-3">
-            {cartItems.length === 0 ? <div className="text-center py-10 text-slate-400 text-base">Your cart is empty</div> :
+        <div className="hidden sm:flex bg-white border-l border-slate-200 flex-col sticky top-14 shrink-0"
+          style={{ height: 'calc(100vh - 56px)', width: 'clamp(360px, 26vw, 640px)', minWidth: 'clamp(360px, 26vw, 640px)', fontSize: 'clamp(14px, 1.1vw, 24px)' }}>
+          <div className="border-b border-slate-200" style={{ padding: 'clamp(12px, 1em, 28px) clamp(16px, 1.3em, 36px)' }}>
+            <h2 className="font-semibold m-0 flex items-center gap-2" style={{ fontSize: 'clamp(16px, 1.2em, 32px)' }}>
+              <ShoppingCart style={{ width: 'clamp(16px, 1em, 28px)', height: 'clamp(16px, 1em, 28px)' }} /> Order
+            </h2>
+          </div>
+          <div className="flex-1 overflow-y-auto" style={{ padding: 'clamp(10px, 0.8em, 20px)' }}>
+            {cartItems.length === 0 ? <div className="text-center py-10 text-slate-400" style={{ fontSize: 'clamp(13px, 0.95em, 24px)' }}>Your cart is empty</div> :
               cartItems.map(item => (
-                <div key={item.cartKey || item.id} className="flex flex-col gap-2 p-3.5 border-b border-slate-200 relative">
-                  <div className="flex gap-3 items-start">
-                    {item.image_url && <img src={item.image_url} alt="" className="w-[88px] h-[88px] object-contain rounded-md bg-white shrink-0 border border-slate-200" />}
+                <div key={item.cartKey || item.id} className="flex flex-col border-b border-slate-200 relative" style={{ gap: 'clamp(6px, 0.5em, 14px)', padding: 'clamp(10px, 0.9em, 22px) clamp(10px, 0.8em, 20px)' }}>
+                  <div className="flex items-start" style={{ gap: 'clamp(10px, 0.8em, 22px)' }}>
+                    {item.image_url && <img src={item.image_url} alt="" className="object-contain rounded-md bg-white shrink-0 border border-slate-200" style={{ width: 'clamp(88px, 6.5em, 180px)', height: 'clamp(88px, 6.5em, 180px)' }} />}
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-slate-800 leading-tight mb-1">{item.name}</div>
-                      <div className="text-[13px] text-slate-400 mb-1">{item.weight}{item.bags_per_case ? ` · ${item.bags_per_case} bags/case` : ''}</div>
-                      {showPrices && <div className="text-[15px] font-semibold text-indigo-500">${parseFloat(item.price || 0).toFixed(2)}/case</div>}
+                      <div className="font-medium text-slate-800 leading-tight mb-1" style={{ fontSize: 'clamp(13px, 1em, 26px)' }}>{item.name}</div>
+                      <div className="text-slate-400 mb-1" style={{ fontSize: 'clamp(11px, 0.85em, 22px)' }}>{item.weight}{item.bags_per_case ? ` · ${item.bags_per_case} bags/case` : ''}</div>
+                      {showPrices && <div className="font-semibold text-indigo-500" style={{ fontSize: 'clamp(13px, 1em, 26px)' }}>${parseFloat(item.price || 0).toFixed(2)}/case</div>}
                     </div>
-                    <button onClick={() => removeFromCart(item.cartKey || item.id)} className="bg-transparent border-none cursor-pointer text-slate-400 text-base p-1 hover:text-red-500"><X className="w-4 h-4" /></button>
+                    <button onClick={() => removeFromCart(item.cartKey || item.id)} className="bg-transparent border-none cursor-pointer text-slate-400 p-1 hover:text-red-500">
+                      <X style={{ width: 'clamp(14px, 1em, 26px)', height: 'clamp(14px, 1em, 26px)' }} />
+                    </button>
                   </div>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <button className="w-8 h-8 border border-slate-200 bg-white rounded text-slate-700 cursor-pointer flex items-center justify-center hover:border-indigo-400 hover:text-indigo-500"
-                        onClick={() => updateCartQty(item.cartKey || item.id, Math.max(1, item.qty - 1))}><Minus className="w-4 h-4" /></button>
-                      <input type="number" className="w-14 h-8 text-center border border-slate-200 rounded text-sm" value={item.qty} min="1"
+                    <div className="flex items-center" style={{ gap: 'clamp(4px, 0.3em, 10px)' }}>
+                      <button className="border border-slate-200 bg-white rounded text-slate-700 cursor-pointer flex items-center justify-center hover:border-indigo-400 hover:text-indigo-500"
+                        style={{ width: 'clamp(28px, 2em, 50px)', height: 'clamp(28px, 2em, 50px)' }}
+                        onClick={() => updateCartQty(item.cartKey || item.id, Math.max(1, item.qty - 1))}>
+                        <Minus style={{ width: 'clamp(12px, 0.9em, 22px)', height: 'clamp(12px, 0.9em, 22px)' }} />
+                      </button>
+                      <input type="number" className="text-center border border-slate-200 rounded text-slate-800" value={item.qty} min="1"
+                        style={{ width: 'clamp(48px, 3.5em, 90px)', height: 'clamp(28px, 2em, 50px)', fontSize: 'clamp(13px, 1em, 24px)' }}
                         onChange={e => updateCartQty(item.cartKey || item.id, Math.max(1, parseInt(e.target.value) || 1))} />
-                      <button className="w-8 h-8 border border-slate-200 bg-white rounded text-slate-700 cursor-pointer flex items-center justify-center hover:border-indigo-400 hover:text-indigo-500"
-                        onClick={() => updateCartQty(item.cartKey || item.id, item.qty + 1)}><Plus className="w-4 h-4" /></button>
-                      <span className="text-[13px] text-slate-400 ml-1.5">{item.unit || 'cases'}</span>
+                      <button className="border border-slate-200 bg-white rounded text-slate-700 cursor-pointer flex items-center justify-center hover:border-indigo-400 hover:text-indigo-500"
+                        style={{ width: 'clamp(28px, 2em, 50px)', height: 'clamp(28px, 2em, 50px)' }}
+                        onClick={() => updateCartQty(item.cartKey || item.id, item.qty + 1)}>
+                        <Plus style={{ width: 'clamp(12px, 0.9em, 22px)', height: 'clamp(12px, 0.9em, 22px)' }} />
+                      </button>
+                      <span className="text-slate-400 ml-1.5" style={{ fontSize: 'clamp(11px, 0.85em, 22px)' }}>{item.unit || 'cases'}</span>
                     </div>
-                    {showPrices && <div className="text-sm font-semibold text-slate-800">${(parseFloat(item.price || 0) * (item.unit === 'pallets' ? item.qty * (parseInt(item.cases_per_pallet) || 60) : item.qty)).toFixed(2)}</div>}
+                    {showPrices && <div className="font-semibold text-slate-800" style={{ fontSize: 'clamp(13px, 1em, 26px)' }}>${(parseFloat(item.price || 0) * (item.unit === 'pallets' ? item.qty * (parseInt(item.cases_per_pallet) || 60) : item.qty)).toFixed(2)}</div>}
                   </div>
                 </div>
               ))
             }
           </div>
           {cartItems.length > 0 && (
-            <div className="px-5 py-4 border-t border-slate-200 bg-slate-50">
-              <div className="flex justify-between text-sm text-slate-500 mb-1.5"><span>Line items</span><span>{cartItems.length}</span></div>
-              <div className="flex justify-between text-sm text-slate-500 mb-1.5"><span>Total cases</span><span>{totalCases}</span></div>
-              {showPrices && <div className="flex justify-between text-base text-slate-800 font-semibold border-t border-slate-200 pt-2 mt-1"><span>Est. total</span><span>${cartTotal.toFixed(2)}</span></div>}
-              <button onClick={() => setConfirmModalOpen(true)} className="w-full py-3.5 bg-indigo-500 border-none rounded-lg text-white font-semibold text-base cursor-pointer mt-3 transition-colors hover:bg-indigo-600 flex items-center justify-center gap-2">Place Order <ArrowRight className="w-5 h-5" /></button>
-              <button onClick={clearCart} className="w-full py-2.5 bg-transparent border border-slate-200 rounded-lg text-slate-500 text-sm cursor-pointer mt-2 transition-colors hover:border-red-300 hover:text-red-500">Clear cart</button>
+            <div className="border-t border-slate-200 bg-slate-50" style={{ padding: 'clamp(14px, 1.1em, 30px) clamp(18px, 1.3em, 36px)' }}>
+              <div className="flex justify-between text-slate-500 mb-1.5" style={{ fontSize: 'clamp(12px, 0.9em, 22px)' }}><span>Line items</span><span>{cartItems.length}</span></div>
+              <div className="flex justify-between text-slate-500 mb-1.5" style={{ fontSize: 'clamp(12px, 0.9em, 22px)' }}><span>Total cases</span><span>{totalCases}</span></div>
+              {showPrices && <div className="flex justify-between text-slate-800 font-semibold border-t border-slate-200 pt-2 mt-1" style={{ fontSize: 'clamp(15px, 1.1em, 28px)' }}><span>Est. total</span><span>${cartTotal.toFixed(2)}</span></div>}
+              <button onClick={() => setConfirmModalOpen(true)} className="w-full bg-indigo-500 border-none rounded-lg text-white font-semibold cursor-pointer transition-colors hover:bg-indigo-600 flex items-center justify-center gap-2"
+                style={{ padding: 'clamp(12px, 0.9em, 24px)', fontSize: 'clamp(14px, 1.05em, 26px)', marginTop: 'clamp(10px, 0.8em, 20px)' }}>
+                Place Order <ArrowRight style={{ width: 'clamp(16px, 1.1em, 28px)', height: 'clamp(16px, 1.1em, 28px)' }} />
+              </button>
+              <button onClick={clearCart} className="w-full bg-transparent border border-slate-200 rounded-lg text-slate-500 cursor-pointer transition-colors hover:border-red-300 hover:text-red-500"
+                style={{ padding: 'clamp(8px, 0.7em, 18px)', fontSize: 'clamp(13px, 0.95em, 22px)', marginTop: 'clamp(6px, 0.5em, 14px)' }}>
+                Clear cart
+              </button>
             </div>
           )}
         </div>
