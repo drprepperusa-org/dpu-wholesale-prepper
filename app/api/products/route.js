@@ -103,7 +103,8 @@ export async function GET(request) {
     );
     const total = parseInt(countResult.rows[0]?.total || 0);
 
-    query += ' ORDER BY s.sort_order NULLS LAST, c.sort_order NULLS LAST, p.sort_order NULLS LAST, p.name';
+    const _brandSort = _cols.has('brand') ? 'p.brand NULLS LAST, ' : '';
+    query += ` ORDER BY s.sort_order NULLS LAST, c.sort_order NULLS LAST, ${_brandSort}p.name`;
 
     if (limit > 0) {
       query += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
@@ -190,12 +191,20 @@ export async function POST(request) {
       );
       const nextSortOrder = maxSort.rows[0]?.next_sort || (parseInt(category_id) * 10000);
 
-      const result = await pool.query(
-        `INSERT INTO products (id, name, brand, weight, bags_per_case, cases_per_pallet, category_id, super_category_id, image_url, box_image_url, bundle_image_url, sku, barcode_pack, barcode_bundle, barcode_box, price, show_price, sort_order)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-         RETURNING *`,
-        [productId, name, brand || null, weight, bags_per_case, cases_per_pallet || 60, category_id, finalSuperCategoryId, image_url, box_image_url || null, bundle_image_url || null, productSku, barcode_pack || null, barcode_bundle || null, barcode_box || null, price || 25.00, show_price !== false, nextSortOrder]
-      );
+      const _hasPkg = (await pool.query(`SELECT 1 FROM information_schema.columns WHERE table_name='products' AND column_name='packaging_type' LIMIT 1`)).rowCount > 0;
+      const result = _hasPkg
+        ? await pool.query(
+            `INSERT INTO products (id, name, brand, packaging_type, weight, bags_per_case, cases_per_pallet, category_id, super_category_id, image_url, box_image_url, bundle_image_url, sku, barcode_pack, barcode_bundle, barcode_box, price, show_price, sort_order)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+             RETURNING *`,
+            [productId, name, brand || null, packaging_type || null, weight, bags_per_case, cases_per_pallet || 60, category_id, finalSuperCategoryId, image_url, box_image_url || null, bundle_image_url || null, productSku, barcode_pack || null, barcode_bundle || null, barcode_box || null, price || 25.00, show_price !== false, nextSortOrder]
+          )
+        : await pool.query(
+            `INSERT INTO products (id, name, brand, weight, bags_per_case, cases_per_pallet, category_id, super_category_id, image_url, box_image_url, bundle_image_url, sku, barcode_pack, barcode_bundle, barcode_box, price, show_price, sort_order)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+             RETURNING *`,
+            [productId, name, brand || null, weight, bags_per_case, cases_per_pallet || 60, category_id, finalSuperCategoryId, image_url, box_image_url || null, bundle_image_url || null, productSku, barcode_pack || null, barcode_bundle || null, barcode_box || null, price || 25.00, show_price !== false, nextSortOrder]
+          );
 
       await logActivity(null, 'admin_product_create', `Created product: ${name}`, {
         adminId: admin.id,
