@@ -2438,8 +2438,22 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                                   <div className={`px-[7px] py-0.5 rounded-full text-[9px] font-semibold tracking-wide uppercase cursor-pointer select-none transition-all ${prod.is_oos ? 'bg-red-100 text-red-600 border border-red-200 hover:bg-red-200' : 'bg-emerald-100 text-emerald-600 border border-emerald-200 hover:bg-emerald-200'}`} onClick={(e) => { e.stopPropagation(); toggleOosStatus(prod); }}>{prod.is_oos ? 'OOS: YES' : 'IN STOCK'}</div>
                                 </div>
                               </div>
-                              <div className="w-full h-20 max-sm:h-[100px] rounded-lg bg-white mb-2.5 border border-slate-100 p-1 overflow-hidden flex items-center justify-center">
-                                <img src={prod.image_url} className="max-w-full max-h-full object-contain" style={{ transform: 'scale(1.08)' }} alt={prod.name} />
+                              <div className="w-full h-20 max-sm:h-[100px] rounded-lg bg-white mb-2.5 border border-slate-100 overflow-hidden flex items-center justify-center">
+                                <img
+                                  src={prod.image_url}
+                                  className="w-full h-full object-contain"
+                                  alt={prod.name}
+                                  onLoad={(e) => {
+                                    const img = e.currentTarget;
+                                    const parent = img.parentElement;
+                                    if (!parent || !img.naturalWidth || !img.naturalHeight) return;
+                                    const containerAspect = parent.clientWidth / parent.clientHeight;
+                                    const imageAspect = img.naturalWidth / img.naturalHeight;
+                                    if (imageAspect > containerAspect) {
+                                      img.style.transform = `scale(${imageAspect / containerAspect})`;
+                                    }
+                                  }}
+                                />
                               </div>
                               <div className="flex-1 flex flex-col gap-1.5">
                                 <div className="text-[11px] max-sm:text-xs text-slate-800 font-medium leading-snug h-[30px] overflow-hidden mb-0.5 text-center">{prod.name}</div>

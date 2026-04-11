@@ -835,44 +835,44 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
         </main>
 
         {/* DESKTOP CART SIDEBAR */}
-        <div className="hidden sm:flex w-[340px] min-w-[340px] bg-white border-l border-slate-200 flex-col sticky top-14 shrink-0 max-lg:w-[300px] max-lg:min-w-[300px]" style={{ height: 'calc(100vh - 56px)' }}>
-          <div className="px-5 py-4 border-b border-slate-200"><h2 className="text-base font-semibold m-0 flex items-center gap-2"><ShoppingCart className="w-4 h-4" /> Order</h2></div>
-          <div className="flex-1 overflow-y-auto p-2.5">
-            {cartItems.length === 0 ? <div className="text-center py-10 text-slate-400 text-sm">Your cart is empty</div> :
+        <div className="hidden sm:flex w-[440px] min-w-[440px] bg-white border-l border-slate-200 flex-col sticky top-14 shrink-0 max-lg:w-[360px] max-lg:min-w-[360px]" style={{ height: 'calc(100vh - 56px)' }}>
+          <div className="px-5 py-4 border-b border-slate-200"><h2 className="text-lg font-semibold m-0 flex items-center gap-2"><ShoppingCart className="w-5 h-5" /> Order</h2></div>
+          <div className="flex-1 overflow-y-auto p-3">
+            {cartItems.length === 0 ? <div className="text-center py-10 text-slate-400 text-base">Your cart is empty</div> :
               cartItems.map(item => (
-                <div key={item.cartKey || item.id} className="flex flex-col gap-1.5 p-3 border-b border-slate-200 relative">
-                  <div className="flex gap-2.5 items-start">
-                    {item.image_url && <img src={item.image_url} alt="" className="w-[60px] h-[60px] object-contain rounded-md bg-white shrink-0 border border-slate-200" />}
+                <div key={item.cartKey || item.id} className="flex flex-col gap-2 p-3.5 border-b border-slate-200 relative">
+                  <div className="flex gap-3 items-start">
+                    {item.image_url && <img src={item.image_url} alt="" className="w-[88px] h-[88px] object-contain rounded-md bg-white shrink-0 border border-slate-200" />}
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium text-slate-800 leading-tight mb-0.5">{item.name}</div>
-                      <div className="text-[11px] text-slate-400 mb-0.5">{item.weight}{item.bags_per_case ? ` · ${item.bags_per_case} bags/case` : ''}</div>
-                      {showPrices && <div className="text-[13px] font-semibold text-indigo-500">${parseFloat(item.price || 0).toFixed(2)}/case</div>}
+                      <div className="text-sm font-medium text-slate-800 leading-tight mb-1">{item.name}</div>
+                      <div className="text-[13px] text-slate-400 mb-1">{item.weight}{item.bags_per_case ? ` · ${item.bags_per_case} bags/case` : ''}</div>
+                      {showPrices && <div className="text-[15px] font-semibold text-indigo-500">${parseFloat(item.price || 0).toFixed(2)}/case</div>}
                     </div>
-                    <button onClick={() => removeFromCart(item.cartKey || item.id)} className="bg-transparent border-none cursor-pointer text-slate-400 text-sm p-1 hover:text-red-500"><X className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => removeFromCart(item.cartKey || item.id)} className="bg-transparent border-none cursor-pointer text-slate-400 text-base p-1 hover:text-red-500"><X className="w-4 h-4" /></button>
                   </div>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1">
-                      <button className="w-6 h-6 border border-slate-200 bg-white rounded text-slate-700 cursor-pointer flex items-center justify-center hover:border-indigo-400 hover:text-indigo-500"
-                        onClick={() => updateCartQty(item.cartKey || item.id, Math.max(1, item.qty - 1))}><Minus className="w-3 h-3" /></button>
-                      <input type="number" className="w-10 h-6 text-center border border-slate-200 rounded text-xs" value={item.qty} min="1"
+                    <div className="flex items-center gap-1.5">
+                      <button className="w-8 h-8 border border-slate-200 bg-white rounded text-slate-700 cursor-pointer flex items-center justify-center hover:border-indigo-400 hover:text-indigo-500"
+                        onClick={() => updateCartQty(item.cartKey || item.id, Math.max(1, item.qty - 1))}><Minus className="w-4 h-4" /></button>
+                      <input type="number" className="w-14 h-8 text-center border border-slate-200 rounded text-sm" value={item.qty} min="1"
                         onChange={e => updateCartQty(item.cartKey || item.id, Math.max(1, parseInt(e.target.value) || 1))} />
-                      <button className="w-6 h-6 border border-slate-200 bg-white rounded text-slate-700 cursor-pointer flex items-center justify-center hover:border-indigo-400 hover:text-indigo-500"
-                        onClick={() => updateCartQty(item.cartKey || item.id, item.qty + 1)}><Plus className="w-3 h-3" /></button>
-                      <span className="text-[11px] text-slate-400 ml-1">{item.unit || 'cases'}</span>
+                      <button className="w-8 h-8 border border-slate-200 bg-white rounded text-slate-700 cursor-pointer flex items-center justify-center hover:border-indigo-400 hover:text-indigo-500"
+                        onClick={() => updateCartQty(item.cartKey || item.id, item.qty + 1)}><Plus className="w-4 h-4" /></button>
+                      <span className="text-[13px] text-slate-400 ml-1.5">{item.unit || 'cases'}</span>
                     </div>
-                    {showPrices && <div className="text-xs font-semibold text-slate-800">${(parseFloat(item.price || 0) * (item.unit === 'pallets' ? item.qty * (parseInt(item.cases_per_pallet) || 60) : item.qty)).toFixed(2)}</div>}
+                    {showPrices && <div className="text-sm font-semibold text-slate-800">${(parseFloat(item.price || 0) * (item.unit === 'pallets' ? item.qty * (parseInt(item.cases_per_pallet) || 60) : item.qty)).toFixed(2)}</div>}
                   </div>
                 </div>
               ))
             }
           </div>
           {cartItems.length > 0 && (
-            <div className="px-4 py-4 border-t border-slate-200 bg-slate-50">
-              <div className="flex justify-between text-xs text-slate-500 mb-1"><span>Line items</span><span>{cartItems.length}</span></div>
-              <div className="flex justify-between text-xs text-slate-500 mb-1"><span>Total cases</span><span>{totalCases}</span></div>
-              {showPrices && <div className="flex justify-between text-[13px] text-slate-800 font-semibold border-t border-slate-200 pt-1.5 mt-0.5"><span>Est. total</span><span>${cartTotal.toFixed(2)}</span></div>}
-              <button onClick={() => setConfirmModalOpen(true)} className="w-full py-3 bg-indigo-500 border-none rounded-lg text-white font-semibold text-sm cursor-pointer mt-2.5 transition-colors hover:bg-indigo-600 flex items-center justify-center gap-2">Place Order <ArrowRight className="w-4 h-4" /></button>
-              <button onClick={clearCart} className="w-full py-2 bg-transparent border border-slate-200 rounded-lg text-slate-500 text-[13px] cursor-pointer mt-1.5 transition-colors hover:border-red-300 hover:text-red-500">Clear cart</button>
+            <div className="px-5 py-4 border-t border-slate-200 bg-slate-50">
+              <div className="flex justify-between text-sm text-slate-500 mb-1.5"><span>Line items</span><span>{cartItems.length}</span></div>
+              <div className="flex justify-between text-sm text-slate-500 mb-1.5"><span>Total cases</span><span>{totalCases}</span></div>
+              {showPrices && <div className="flex justify-between text-base text-slate-800 font-semibold border-t border-slate-200 pt-2 mt-1"><span>Est. total</span><span>${cartTotal.toFixed(2)}</span></div>}
+              <button onClick={() => setConfirmModalOpen(true)} className="w-full py-3.5 bg-indigo-500 border-none rounded-lg text-white font-semibold text-base cursor-pointer mt-3 transition-colors hover:bg-indigo-600 flex items-center justify-center gap-2">Place Order <ArrowRight className="w-5 h-5" /></button>
+              <button onClick={clearCart} className="w-full py-2.5 bg-transparent border border-slate-200 rounded-lg text-slate-500 text-sm cursor-pointer mt-2 transition-colors hover:border-red-300 hover:text-red-500">Clear cart</button>
             </div>
           )}
         </div>
