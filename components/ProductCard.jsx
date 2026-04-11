@@ -80,12 +80,14 @@ function ProductCard({ product, isFavorited, inCart, isFirst, onProductSelected,
         </div>
       )}
 
-      <button
-        className="absolute top-1.5 right-2 bg-transparent border-none cursor-pointer p-0.5 transition-transform hover:scale-125 z-10"
-        onClick={(e) => { e.stopPropagation(); onToggleFavorite(product); }}
-      >
-        <Heart className={`w-4 h-4 transition-colors ${isFavorited ? 'fill-red-500 text-red-500' : 'text-slate-300 hover:text-red-400'}`} />
-      </button>
+      {onToggleFavorite && (
+        <button
+          className="absolute top-1.5 right-2 bg-transparent border-none cursor-pointer p-0.5 transition-transform hover:scale-125 z-10"
+          onClick={(e) => { e.stopPropagation(); onToggleFavorite(product); }}
+        >
+          <Heart className={`w-4 h-4 transition-colors ${isFavorited ? 'fill-red-500 text-red-500' : 'text-slate-300 hover:text-red-400'}`} />
+        </button>
+      )}
 
       <div className="w-full bg-white overflow-hidden flex items-center justify-center"
         style={{ height: `${160 * scale}px`, marginBottom: `${8 * scale}px`, padding: `${4 * scale}px` }}

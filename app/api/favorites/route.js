@@ -11,6 +11,9 @@ export async function GET(request) {
     if (!customer) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 403 });
     }
+    if (customer.role !== 'customer') {
+      return NextResponse.json({ success: true, favorites: [] });
+    }
 
     const result = await pool.query(`
       SELECT p.id, p.name, p.price, p.weight, p.bags_per_case, p.cases_per_pallet,
@@ -40,6 +43,9 @@ export async function POST(request) {
     const customer = await requireAuth(request);
     if (!customer) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 403 });
+    }
+    if (customer.role !== 'customer') {
+      return NextResponse.json({ error: 'Favorites are only available for customer accounts' }, { status: 403 });
     }
 
     const { product_id } = await request.json();

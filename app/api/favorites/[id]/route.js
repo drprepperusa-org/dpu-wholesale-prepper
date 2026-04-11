@@ -12,6 +12,9 @@ export async function DELETE(request, { params }) {
     if (!customer) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 403 });
     }
+    if (customer.role !== 'customer') {
+      return NextResponse.json({ success: true });
+    }
 
     const result = await pool.query(
       'DELETE FROM favorites WHERE customer_id = $1 AND product_id = $2 RETURNING *',

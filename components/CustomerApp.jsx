@@ -18,7 +18,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
     }
     return 'catalog'
   });
-  const setActivePage = (page) => { _setActivePage(page); try { localStorage.setItem('customer_active_page', page) } catch(e) {} };
+  const setActivePage = (page) => { _setActivePage(page); try { localStorage.setItem('customer_active_page', page) } catch (e) { } };
   const [sidebarOpen, setSidebarOpen] = useState(typeof window !== 'undefined' ? window.innerWidth > 640 : true);
   const [acctDropdownOpen, setAcctDropdownOpen] = useState(false);
   const [productSheetOpen, setProductSheetOpen] = useState(false);
@@ -170,7 +170,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
         try {
           const b = JSON.parse(settingsData.settings.promo_banner);
           if (b.enabled) setPromoBanner({ ...b, type: b.type || 'text' });
-        } catch(e) {}
+        } catch (e) { }
       }
     });
   }, []);
@@ -205,7 +205,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
             customerSince: c.created_at ? new Date(c.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : prev.customerSince,
             lastSignIn: c.last_login ? new Date(c.last_login).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Today'
           }));
-        }).catch(() => {});
+        }).catch(() => { });
     }
   }, [currentUser]);
 
@@ -303,7 +303,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   useEffect(() => {
     fetch('/api/categories/hierarchy').then(r => r.json()).then(d => {
       if (d.hierarchy) setSuperCatList(d.hierarchy);
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   // Force scroll to top on catalog load so banner is fully visible
@@ -420,6 +420,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   };
 
   const toggleFavorite = async (product) => {
+    if (userRole === 'admin') return;
     const token = localStorage.getItem('token'); if (!token) return;
     const isFav = favorites.some(f => f.id === product.id);
     const prevFavorites = [...favorites];
@@ -438,7 +439,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
 
   const loadOrders = async () => {
     const token = localStorage.getItem('token'); if (!token) return;
-    try { const res = await fetch('/api/orders', { headers: { 'Authorization': `Bearer ${token}` } }); if (res.ok) { const data = await res.json(); setOrders(data.orders || data || []); } } catch (e) {}
+    try { const res = await fetch('/api/orders', { headers: { 'Authorization': `Bearer ${token}` } }); if (res.ok) { const data = await res.json(); setOrders(data.orders || data || []); } } catch (e) { }
   };
 
   const filteredProducts = useMemo(() => {
@@ -487,7 +488,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
     try {
       const token = localStorage.getItem('token');
       const res = await fetch('/api/customers/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }, body: JSON.stringify({ contact_name: `${acctData.firstName} ${acctData.lastName}`.trim(), company_name: acctData.company }) });
-      if (res.ok) { showAcctBanner('Profile saved successfully'); showToast('Profile saved'); const updatedUser = { ...currentUser, companyName: acctData.company, company_name: acctData.company, name: `${acctData.firstName} ${acctData.lastName}`.trim(), contact_name: `${acctData.firstName} ${acctData.lastName}`.trim() }; setCurrentUser(updatedUser); try { localStorage.setItem('user', JSON.stringify(updatedUser)); localStorage.setItem('userInfo', JSON.stringify({ ...updatedUser, role: userRole })); } catch (e) {} }
+      if (res.ok) { showAcctBanner('Profile saved successfully'); showToast('Profile saved'); const updatedUser = { ...currentUser, companyName: acctData.company, company_name: acctData.company, name: `${acctData.firstName} ${acctData.lastName}`.trim(), contact_name: `${acctData.firstName} ${acctData.lastName}`.trim() }; setCurrentUser(updatedUser); try { localStorage.setItem('user', JSON.stringify(updatedUser)); localStorage.setItem('userInfo', JSON.stringify({ ...updatedUser, role: userRole })); } catch (e) { } }
       else showToast('Failed to save profile', 'error');
     } catch (e) { showToast('Connection error', 'error'); }
   };
@@ -637,11 +638,11 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
         <main className={`flex-1 flex min-h-0 overflow-hidden transition-[padding] duration-300 ${navsHidden && activePage === 'catalog' ? 'max-sm:pb-0' : 'max-sm:pb-16'}`}>
           {/* CATALOG */}
           {activePage === 'catalog' && (
-              <div ref={catalogScrollRef} className={`flex-1 max-w-[100vw] ${(productsLoading || products.length === 0 || superCatList.length === 0 || viewSwitching) ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden'}`} style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}>
-                {/* Mobile spacer for fixed sticky bar */}
-                {isMob && mobileBarH > 0 && <div aria-hidden="true" style={{ height: `${mobileBarH}px` }} />}
-                {/* Promo Banner */}
-                <div className="px-8 max-sm:px-3 max-lg:px-5">
+            <div ref={catalogScrollRef} className={`flex-1 max-w-[100vw] ${(productsLoading || products.length === 0 || superCatList.length === 0 || viewSwitching) ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden'}`} style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}>
+              {/* Mobile spacer for fixed sticky bar */}
+              {isMob && mobileBarH > 0 && <div aria-hidden="true" style={{ height: `${mobileBarH}px` }} />}
+              {/* Promo Banner */}
+              <div className="px-8 max-sm:px-3 max-lg:px-5">
                 {promoBanner && promoBanner.type === 'image' && promoBanner.imageUrl ? (
                   <div className="mb-6 max-sm:mb-4 rounded-2xl overflow-hidden cursor-pointer"
                     onClick={() => { if (promoBanner.ctaLink) window.open(promoBanner.ctaLink, '_blank') }}>
@@ -671,32 +672,32 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                     </div>
                   </div>
                 ) : null}
-                </div>
+              </div>
 
-                {/* Title */}
-                <div className="px-8 max-sm:px-3 max-lg:px-5 pt-4 max-sm:pt-2">
-                  <span className="text-[17px] font-semibold text-slate-800 truncate max-sm:text-[15px]">
-                    {selectedCategory?.name || 'All Products'} <span className="text-[13px] text-slate-400 font-normal ml-1.5">({filteredProducts.length})</span>
-                  </span>
-                </div>
+              {/* Title */}
+              <div className="px-8 max-sm:px-3 max-lg:px-5 pt-4 max-sm:pt-2">
+                <span className="text-[17px] font-semibold text-slate-800 truncate max-sm:text-[15px]">
+                  {selectedCategory?.name || 'All Products'} <span className="text-[13px] text-slate-400 font-normal ml-1.5">({filteredProducts.length})</span>
+                </span>
+              </div>
 
-                {/* Sticky block: view toggle + search + pills (categories view) OR search only (grid view) */}
-                <div
-                  ref={stickyBarRef}
-                  className="catalog-sticky-bar bg-white border-b border-slate-100 px-8 max-sm:px-3 max-lg:px-5 py-2 sm:sticky sm:top-0 z-20"
-                >
-                  {/* Desktop search bar */}
-                  <div className="flex items-center justify-between max-sm:hidden">
-                    <div className="relative max-w-[400px] flex-1">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <input type="text" placeholder="Search products..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} autoComplete="off"
-                        className="w-full py-2.5 pl-9 pr-3 border border-slate-200 rounded-xl text-sm transition-colors focus:border-indigo-400 focus:outline-none" />
-                    </div>
+              {/* Sticky block: view toggle + search + pills (categories view) OR search only (grid view) */}
+              <div
+                ref={stickyBarRef}
+                className="catalog-sticky-bar bg-white border-b border-slate-100 px-8 max-sm:px-3 max-lg:px-5 py-2 sm:sticky sm:top-0 z-20"
+              >
+                {/* Desktop search bar */}
+                <div className="flex items-center justify-between max-sm:hidden">
+                  <div className="relative max-w-[400px] flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input type="text" placeholder="Search products..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} autoComplete="off"
+                      className="w-full py-2.5 pl-9 pr-3 border border-slate-200 rounded-xl text-sm transition-colors focus:border-indigo-400 focus:outline-none" />
                   </div>
+                </div>
 
-                  {/* Category quick-nav pills */}
-                  {superCatList.length > 0 && !selectedCategory && filteredProducts.length > 0 &&
-                    superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).length > 1 && (
+                {/* Category quick-nav pills */}
+                {superCatList.length > 0 && !selectedCategory && filteredProducts.length > 0 &&
+                  superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).length > 1 && (
                     <div className="sm:mt-2 flex items-center gap-1.5">
                       <div ref={pillsRowRef} className="flex gap-2 max-sm:gap-1.5 overflow-x-auto flex-1 min-w-0" style={{ scrollbarWidth: 'none' }}>
                         {superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).map(sc => (
@@ -715,11 +716,10 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                                 setTimeout(() => { programmaticScroll.current = false; lastScrollY.current = container.scrollTop; }, 800);
                               }
                             }}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 max-sm:px-4 max-sm:py-2.5 rounded-lg max-sm:rounded-full border text-xs max-sm:text-sm font-medium cursor-pointer transition-all whitespace-nowrap shrink-0 ${
-                              activeSuperCatId === sc.id
+                            className={`flex items-center gap-1.5 px-3 py-1.5 max-sm:px-4 max-sm:py-2.5 rounded-lg max-sm:rounded-full border text-xs max-sm:text-sm font-medium cursor-pointer transition-all whitespace-nowrap shrink-0 ${activeSuperCatId === sc.id
                                 ? 'bg-indigo-500 border-indigo-500 text-white shadow-sm'
                                 : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300 hover:text-indigo-500'
-                            }`}>
+                              }`}>
                             <span className="text-sm max-sm:text-base">{sc.emoji}</span> {sc.name}
                           </button>
                         ))}
@@ -734,28 +734,28 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                     </div>
                   )}
 
-                  {/* Mobile search dropdown */}
-                  {mobileSearchOpen && (
-                    <div className="hidden max-sm:block mt-2">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                        <input type="text" placeholder="Search products..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} autoComplete="off" autoFocus
-                          className="w-full py-2.5 pl-9 pr-9 border border-slate-200 rounded-xl text-sm bg-white focus:border-indigo-400 focus:outline-none" />
-                        {searchQuery && (
-                          <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-slate-400 hover:text-slate-600">
-                            <X className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
+                {/* Mobile search dropdown */}
+                {mobileSearchOpen && (
+                  <div className="hidden max-sm:block mt-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input type="text" placeholder="Search products..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} autoComplete="off" autoFocus
+                        className="w-full py-2.5 pl-9 pr-9 border border-slate-200 rounded-xl text-sm bg-white focus:border-indigo-400 focus:outline-none" />
+                      {searchQuery && (
+                        <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-slate-400 hover:text-slate-600">
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
-                  )}
-                </div>
-
-                <div className="px-8 max-sm:px-0 max-lg:px-5 pb-8 max-sm:pb-3 max-lg:pb-5 pt-4 max-sm:pt-3">
-                  <CategoryView products={filteredProducts} favorites={favorites} cart={cartItems} cardSize={cardSize}
-                    onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} onCardResize={setCardSize} showPrices={showPrices} />
-                </div>
+                  </div>
+                )}
               </div>
+
+              <div className="px-8 max-sm:px-0 max-lg:px-5 pb-8 max-sm:pb-3 max-lg:pb-5 pt-4 max-sm:pt-3">
+                <CategoryView products={filteredProducts} favorites={favorites} cart={cartItems} cardSize={cardSize}
+                  onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={userRole === 'admin' ? undefined : toggleFavorite} onCardResize={setCardSize} showPrices={showPrices} />
+              </div>
+            </div>
           )}
 
           {/* FAVORITES */}
@@ -767,7 +767,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
               </div>
               {favorites.length > 0 ? (
                 <ProductGrid products={favorites} favorites={favorites} cart={cartItems} cardSize={cardSize}
-                  onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} showPrices={showPrices} />
+                  onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={userRole === 'admin' ? undefined : toggleFavorite} showPrices={showPrices} />
               ) : (
                 <div className="text-center py-16"><Heart className="w-12 h-12 text-slate-300 mx-auto mb-4 opacity-40" /><p className="text-slate-400 text-sm">No favorites yet</p></div>
               )}
@@ -783,7 +783,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
               </div>
               {newItems.length > 0 ? (
                 <CategoryView products={newItems} favorites={favorites} cart={cartItems}
-                  onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={toggleFavorite} showPrices={showPrices} />
+                  onProductSelected={selectProduct} onAddToCart={addToCart} onToggleFavorite={userRole === 'admin' ? undefined : toggleFavorite} showPrices={showPrices} />
               ) : (
                 <div className="text-center py-16"><Sparkles className="w-12 h-12 text-slate-300 mx-auto mb-4 opacity-40" /><p className="text-slate-400 text-sm">No new items yet</p></div>
               )}
@@ -835,64 +835,44 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
         </main>
 
         {/* DESKTOP CART SIDEBAR */}
-        <div className="hidden sm:flex bg-white border-l border-slate-200 flex-col sticky top-14 shrink-0"
-          style={{ height: 'calc(100vh - 56px)', width: 'clamp(360px, 26vw, 640px)', minWidth: 'clamp(360px, 26vw, 640px)', fontSize: 'clamp(14px, 1.1vw, 24px)' }}>
-          <div className="border-b border-slate-200" style={{ padding: 'clamp(12px, 1em, 28px) clamp(16px, 1.3em, 36px)' }}>
-            <h2 className="font-semibold m-0 flex items-center gap-2" style={{ fontSize: 'clamp(16px, 1.2em, 32px)' }}>
-              <ShoppingCart style={{ width: 'clamp(16px, 1em, 28px)', height: 'clamp(16px, 1em, 28px)' }} /> Order
-            </h2>
-          </div>
-          <div className="flex-1 overflow-y-auto" style={{ padding: 'clamp(10px, 0.8em, 20px)' }}>
-            {cartItems.length === 0 ? <div className="text-center py-10 text-slate-400" style={{ fontSize: 'clamp(13px, 0.95em, 24px)' }}>Your cart is empty</div> :
+        <div className="hidden sm:flex w-[340px] min-w-[340px] bg-white border-l border-slate-200 flex-col sticky top-14 shrink-0 max-lg:w-[300px] max-lg:min-w-[300px]" style={{ height: 'calc(100vh - 56px)' }}>
+          <div className="px-5 py-4 border-b border-slate-200"><h2 className="text-base font-semibold m-0 flex items-center gap-2"><ShoppingCart className="w-4 h-4" /> Order</h2></div>
+          <div className="flex-1 overflow-y-auto p-2.5">
+            {cartItems.length === 0 ? <div className="text-center py-10 text-slate-400 text-sm">Your cart is empty</div> :
               cartItems.map(item => (
-                <div key={item.cartKey || item.id} className="flex flex-col border-b border-slate-200 relative" style={{ gap: 'clamp(6px, 0.5em, 14px)', padding: 'clamp(10px, 0.9em, 22px) clamp(10px, 0.8em, 20px)' }}>
-                  <div className="flex items-start" style={{ gap: 'clamp(10px, 0.8em, 22px)' }}>
-                    {item.image_url && <img src={item.image_url} alt="" className="object-contain rounded-md bg-white shrink-0 border border-slate-200" style={{ width: 'clamp(88px, 6.5em, 180px)', height: 'clamp(88px, 6.5em, 180px)' }} />}
+                <div key={item.cartKey || item.id} className="flex flex-col gap-1.5 p-3 border-b border-slate-200 relative">
+                  <div className="flex gap-2.5 items-start">
+                    {item.image_url && <img src={item.image_url} alt="" className="w-[60px] h-[60px] object-contain rounded-md bg-white shrink-0 border border-slate-200" />}
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-slate-800 leading-tight mb-1" style={{ fontSize: 'clamp(13px, 1em, 26px)' }}>{item.name}</div>
-                      <div className="text-slate-400 mb-1" style={{ fontSize: 'clamp(11px, 0.85em, 22px)' }}>{item.weight}{item.bags_per_case ? ` · ${item.bags_per_case} bags/case` : ''}</div>
-                      {showPrices && <div className="font-semibold text-indigo-500" style={{ fontSize: 'clamp(13px, 1em, 26px)' }}>${parseFloat(item.price || 0).toFixed(2)}/case</div>}
+                      <div className="text-xs font-medium text-slate-800 leading-tight mb-0.5">{item.name}</div>
+                      <div className="text-[11px] text-slate-400 mb-0.5">{item.weight}{item.bags_per_case ? ` · ${item.bags_per_case} bags/case` : ''}</div>
+                      {showPrices && <div className="text-[13px] font-semibold text-indigo-500">${parseFloat(item.price || 0).toFixed(2)}/case</div>}
                     </div>
-                    <button onClick={() => removeFromCart(item.cartKey || item.id)} className="bg-transparent border-none cursor-pointer text-slate-400 p-1 hover:text-red-500">
-                      <X style={{ width: 'clamp(14px, 1em, 26px)', height: 'clamp(14px, 1em, 26px)' }} />
-                    </button>
+                    <button onClick={() => removeFromCart(item.cartKey || item.id)} className="bg-transparent border-none cursor-pointer text-slate-400 text-sm p-1 hover:text-red-500"><X className="w-3.5 h-3.5" /></button>
                   </div>
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center" style={{ gap: 'clamp(4px, 0.3em, 10px)' }}>
-                      <button className="border border-slate-200 bg-white rounded text-slate-700 cursor-pointer flex items-center justify-center hover:border-indigo-400 hover:text-indigo-500"
-                        style={{ width: 'clamp(28px, 2em, 50px)', height: 'clamp(28px, 2em, 50px)' }}
-                        onClick={() => updateCartQty(item.cartKey || item.id, Math.max(1, item.qty - 1))}>
-                        <Minus style={{ width: 'clamp(12px, 0.9em, 22px)', height: 'clamp(12px, 0.9em, 22px)' }} />
-                      </button>
-                      <input type="number" className="text-center border border-slate-200 rounded text-slate-800" value={item.qty} min="1"
-                        style={{ width: 'clamp(48px, 3.5em, 90px)', height: 'clamp(28px, 2em, 50px)', fontSize: 'clamp(13px, 1em, 24px)' }}
+                    <div className="flex items-center gap-1">
+                      <button className="w-6 h-6 border border-slate-200 bg-white rounded text-slate-700 cursor-pointer flex items-center justify-center hover:border-indigo-400 hover:text-indigo-500"
+                        onClick={() => updateCartQty(item.cartKey || item.id, Math.max(1, item.qty - 1))}><Minus className="w-3 h-3" /></button>
+                      <input type="number" className="w-10 h-6 text-center border border-slate-200 rounded text-xs" value={item.qty} min="1"
                         onChange={e => updateCartQty(item.cartKey || item.id, Math.max(1, parseInt(e.target.value) || 1))} />
-                      <button className="border border-slate-200 bg-white rounded text-slate-700 cursor-pointer flex items-center justify-center hover:border-indigo-400 hover:text-indigo-500"
-                        style={{ width: 'clamp(28px, 2em, 50px)', height: 'clamp(28px, 2em, 50px)' }}
-                        onClick={() => updateCartQty(item.cartKey || item.id, item.qty + 1)}>
-                        <Plus style={{ width: 'clamp(12px, 0.9em, 22px)', height: 'clamp(12px, 0.9em, 22px)' }} />
-                      </button>
-                      <span className="text-slate-400 ml-1.5" style={{ fontSize: 'clamp(11px, 0.85em, 22px)' }}>{item.unit || 'cases'}</span>
+                      <button className="w-6 h-6 border border-slate-200 bg-white rounded text-slate-700 cursor-pointer flex items-center justify-center hover:border-indigo-400 hover:text-indigo-500"
+                        onClick={() => updateCartQty(item.cartKey || item.id, item.qty + 1)}><Plus className="w-3 h-3" /></button>
+                      <span className="text-[11px] text-slate-400 ml-1">{item.unit || 'cases'}</span>
                     </div>
-                    {showPrices && <div className="font-semibold text-slate-800" style={{ fontSize: 'clamp(13px, 1em, 26px)' }}>${(parseFloat(item.price || 0) * (item.unit === 'pallets' ? item.qty * (parseInt(item.cases_per_pallet) || 60) : item.qty)).toFixed(2)}</div>}
+                    {showPrices && <div className="text-xs font-semibold text-slate-800">${(parseFloat(item.price || 0) * (item.unit === 'pallets' ? item.qty * (parseInt(item.cases_per_pallet) || 60) : item.qty)).toFixed(2)}</div>}
                   </div>
                 </div>
               ))
             }
           </div>
           {cartItems.length > 0 && (
-            <div className="border-t border-slate-200 bg-slate-50" style={{ padding: 'clamp(14px, 1.1em, 30px) clamp(18px, 1.3em, 36px)' }}>
-              <div className="flex justify-between text-slate-500 mb-1.5" style={{ fontSize: 'clamp(12px, 0.9em, 22px)' }}><span>Line items</span><span>{cartItems.length}</span></div>
-              <div className="flex justify-between text-slate-500 mb-1.5" style={{ fontSize: 'clamp(12px, 0.9em, 22px)' }}><span>Total cases</span><span>{totalCases}</span></div>
-              {showPrices && <div className="flex justify-between text-slate-800 font-semibold border-t border-slate-200 pt-2 mt-1" style={{ fontSize: 'clamp(15px, 1.1em, 28px)' }}><span>Est. total</span><span>${cartTotal.toFixed(2)}</span></div>}
-              <button onClick={() => setConfirmModalOpen(true)} className="w-full bg-indigo-500 border-none rounded-lg text-white font-semibold cursor-pointer transition-colors hover:bg-indigo-600 flex items-center justify-center gap-2"
-                style={{ padding: 'clamp(12px, 0.9em, 24px)', fontSize: 'clamp(14px, 1.05em, 26px)', marginTop: 'clamp(10px, 0.8em, 20px)' }}>
-                Place Order <ArrowRight style={{ width: 'clamp(16px, 1.1em, 28px)', height: 'clamp(16px, 1.1em, 28px)' }} />
-              </button>
-              <button onClick={clearCart} className="w-full bg-transparent border border-slate-200 rounded-lg text-slate-500 cursor-pointer transition-colors hover:border-red-300 hover:text-red-500"
-                style={{ padding: 'clamp(8px, 0.7em, 18px)', fontSize: 'clamp(13px, 0.95em, 22px)', marginTop: 'clamp(6px, 0.5em, 14px)' }}>
-                Clear cart
-              </button>
+            <div className="px-4 py-4 border-t border-slate-200 bg-slate-50">
+              <div className="flex justify-between text-xs text-slate-500 mb-1"><span>Line items</span><span>{cartItems.length}</span></div>
+              <div className="flex justify-between text-xs text-slate-500 mb-1"><span>Total cases</span><span>{totalCases}</span></div>
+              {showPrices && <div className="flex justify-between text-[13px] text-slate-800 font-semibold border-t border-slate-200 pt-1.5 mt-0.5"><span>Est. total</span><span>${cartTotal.toFixed(2)}</span></div>}
+              <button onClick={() => setConfirmModalOpen(true)} className="w-full py-3 bg-indigo-500 border-none rounded-lg text-white font-semibold text-sm cursor-pointer mt-2.5 transition-colors hover:bg-indigo-600 flex items-center justify-center gap-2">Place Order <ArrowRight className="w-4 h-4" /></button>
+              <button onClick={clearCart} className="w-full py-2 bg-transparent border border-slate-200 rounded-lg text-slate-500 text-[13px] cursor-pointer mt-1.5 transition-colors hover:border-red-300 hover:text-red-500">Clear cart</button>
             </div>
           )}
         </div>
@@ -921,166 +901,167 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
           </div>
           {superCatList.length > 0 && !selectedCategory && filteredProducts.length > 0 &&
             superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).length > 1 && (
-            <div ref={floatingPillsRef} className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-              {superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).map(sc => (
-                <button key={sc.id}
-                  onClick={() => {
-                    setActiveSuperCatId(sc.id);
-                    const el = document.getElementById(`supercat-${sc.id}`);
-                    programmaticScroll.current = true;
-                    if (el) {
-                      const top = el.getBoundingClientRect().top + window.scrollY - 120;
-                      window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
-                      setTimeout(() => { programmaticScroll.current = false; lastScrollY.current = window.scrollY; }, 800);
-                    }
-                  }}
-                  className={`flex items-center gap-1.5 px-4 py-2.5 rounded-full border text-sm font-medium cursor-pointer transition-all whitespace-nowrap shrink-0 ${
-                    activeSuperCatId === sc.id
-                      ? 'bg-indigo-500 border-indigo-500 text-white shadow-sm'
-                      : 'bg-white border-slate-200 text-slate-500'
-                  }`}>
-                  <span className="text-base">{sc.emoji}</span> {sc.name}
-                </button>
-              ))}
-            </div>
-          )}
+              <div ref={floatingPillsRef} className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                {superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).map(sc => (
+                  <button key={sc.id}
+                    onClick={() => {
+                      setActiveSuperCatId(sc.id);
+                      const el = document.getElementById(`supercat-${sc.id}`);
+                      programmaticScroll.current = true;
+                      if (el) {
+                        const top = el.getBoundingClientRect().top + window.scrollY - 120;
+                        window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+                        setTimeout(() => { programmaticScroll.current = false; lastScrollY.current = window.scrollY; }, 800);
+                      }
+                    }}
+                    className={`flex items-center gap-1.5 px-4 py-2.5 rounded-full border text-sm font-medium cursor-pointer transition-all whitespace-nowrap shrink-0 ${activeSuperCatId === sc.id
+                        ? 'bg-indigo-500 border-indigo-500 text-white shadow-sm'
+                        : 'bg-white border-slate-200 text-slate-500'
+                      }`}>
+                    <span className="text-base">{sc.emoji}</span> {sc.name}
+                  </button>
+                ))}
+              </div>
+            )}
         </div>
       )}
 
       {/* PRODUCT SHEET */}
       {productSheetOpen && typeof document !== 'undefined' && createPortal(
-      <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 max-sm:items-end"
-        style={{ animation: 'fadeIn 0.2s ease', touchAction: 'none', overscrollBehavior: 'none' }}
-        onClick={(e) => { if (e.target === e.currentTarget) closeProductSheet(); }}>
-        <div className="bg-white rounded-2xl w-full max-w-[900px] overflow-hidden shadow-2xl flex flex-col relative max-sm:max-w-full max-sm:rounded-t-xl max-sm:rounded-b-none max-sm:h-[75vh] max-sm:max-h-[75vh]"
-          style={{ maxHeight: '85vh', animation: !sheetInteracted.current ? 'popIn 0.25s ease' : undefined, transform: `translateY(${sheetDragY}px)`, transition: sheetDragging.current ? 'none' : 'transform 0.35s cubic-bezier(.32,1,.32,1)', willChange: 'transform' }} onClick={e => e.stopPropagation()}
-          onTouchStart={onSheetTouchStart} onTouchMove={onSheetTouchMove} onTouchEnd={onSheetTouchEnd}>
-          <div className="shrink-0 hidden max-sm:flex justify-center items-center pt-2 pb-3">
-            <div className="w-10 h-1 bg-slate-300 rounded-full" />
-          </div>
-          <button onClick={closeProductSheet}
-            className="absolute top-3 right-3.5 w-7 h-7 rounded-lg border border-slate-200 bg-slate-50 text-slate-400 flex items-center justify-center cursor-pointer z-10 transition-colors hover:bg-indigo-500 hover:border-indigo-500 hover:text-white">
-            <X className="w-4 h-4" />
-          </button>
-          {selectedProduct && (
-            <>
-              <div ref={sheetScrollRef} className="flex-1 overflow-hidden min-h-0">
-                <div className="flex gap-6 p-6 max-sm:flex-col max-sm:items-center max-sm:gap-2 max-sm:p-4 max-sm:text-center">
-                  {(() => {
-                    const images = [
-                      selectedProduct.image_url && { url: selectedProduct.image_url, label: 'Unit' },
-                      selectedProduct.bundle_image_url && { url: selectedProduct.bundle_image_url, label: 'Bundle' },
-                      selectedProduct.box_image_url && { url: selectedProduct.box_image_url, label: 'Box' },
-                    ].filter(Boolean);
-                    const idx = sheetImgIdx < images.length ? sheetImgIdx : 0;
-                    return (
-                      <div className="shrink-0 max-sm:items-center max-sm:flex max-sm:flex-col">
-                        <div className="w-[400px] h-[400px] bg-white rounded-xl overflow-hidden border border-slate-200 max-sm:w-[150px] max-sm:h-[150px] relative max-sm:cursor-pointer"
-                          onClick={() => { if (window.innerWidth <= 640) setImgViewerOpen(true); }}
-                          onTouchStart={e => { sheetImgTouchX.current = e.touches[0].clientX; }}
-                          onTouchEnd={e => {
-                            const diff = e.changedTouches[0].clientX - sheetImgTouchX.current;
-                            if (Math.abs(diff) > 40) { e.preventDefault(); if (diff > 40 && idx > 0) setSheetImgIdx(idx - 1); else if (diff < -40 && idx < images.length - 1) setSheetImgIdx(idx + 1); }
-                          }}>
-                          <div className="flex transition-transform duration-300 h-full" style={{ transform: `translateX(-${idx * 100}%)` }}>
-                            {images.map((img, i) => (
-                              <img key={i} src={img.url} alt={img.label} className="w-full h-full object-contain p-2 shrink-0" />
-                            ))}
-                          </div>
-                        </div>
-                        {images.length > 1 && (
-                          <div className="flex items-center justify-center gap-1 mt-1.5">
-                            {images.map((img, i) => (
-                              <button key={i} onClick={() => setSheetImgIdx(i)}
-                                className={`w-1.5 h-1.5 rounded-full border-none cursor-pointer transition-all ${i === idx ? 'bg-indigo-500 w-3' : 'bg-slate-300'}`} />
-                            ))}
-                          </div>
-                        )}
-                        {images.length > 1 && (
-                          <div className="text-[10px] text-slate-400 text-center mt-0.5">{images[idx]?.label}</div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                  <div className="flex-1 min-w-0 pt-1 max-sm:w-full">
-                    <div className="text-2xl font-semibold text-slate-800 leading-tight mb-2 tracking-tight pr-10 max-sm:text-[17px] max-sm:pr-0">{selectedProduct.name}</div>
-                    <div className="flex flex-wrap gap-1.5 mb-2 max-sm:justify-center">
-                      <span className="bg-slate-100 border border-slate-200 rounded-md px-2.5 py-0.5 text-[11px] text-slate-500">{selectedProduct.super_category}</span>
-                      <span className="bg-slate-100 border border-slate-200 rounded-md px-2.5 py-0.5 text-[11px] text-slate-500">{selectedProduct.category}</span>
-                    </div>
-                    <div className="mb-3 max-sm:hidden">
-                      {selectedProduct.brand && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Brand</span><span className="text-slate-800 font-medium">{selectedProduct.brand}</span></div>}
-                      {selectedProduct.weight && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Weight</span><span className="text-slate-800 font-medium">{selectedProduct.weight}</span></div>}
-                      {selectedProduct.bags_per_case && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Bags/Case</span><span className="text-slate-800 font-medium">{selectedProduct.bags_per_case}</span></div>}
-                      {selectedProduct.cases_per_pallet && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Cases/Pallet</span><span className="text-slate-800 font-medium">{selectedProduct.cases_per_pallet}</span></div>}
-                      {selectedProduct.sku && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">SKU</span><span className="text-slate-800 font-medium font-mono text-[13px]">{selectedProduct.sku}</span></div>}
-                      {[
-                        { value: selectedProduct.barcode_pack, label: 'Barcode (Pack)' },
-                        { value: selectedProduct.barcode_bundle, label: 'Barcode (Bundle)' },
-                        { value: selectedProduct.barcode_box, label: 'Barcode (Box)' },
-                      ].filter(b => b.value).map(b => (
-                        <div key={b.label} className="relative group flex justify-between py-0.5 text-xs cursor-pointer">
-                          <span className="text-slate-400">{b.label}</span>
-                          <span className="text-slate-800 font-medium font-mono text-[11px] underline decoration-dotted underline-offset-2">{b.value}</span>
-                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block max-sm:group-active:block z-50">
-                            <div className="bg-white rounded-xl shadow-xl border border-slate-200 p-3 flex flex-col items-center gap-1">
-                              <svg ref={el => { if (el) { try { import('jsbarcode').then(m => m.default(el, b.value.replace(/\s/g, ''), { format: 'CODE128', width: 1.5, height: 50, displayValue: false, margin: 0 })); } catch {} } }} />
-                              <span className="text-[10px] text-slate-500 font-mono">{b.value}</span>
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 max-sm:items-end"
+          style={{ animation: 'fadeIn 0.2s ease', touchAction: 'none', overscrollBehavior: 'none' }}
+          onClick={(e) => { if (e.target === e.currentTarget) closeProductSheet(); }}>
+          <div className="bg-white rounded-2xl w-full max-w-[900px] overflow-hidden shadow-2xl flex flex-col relative max-sm:max-w-full max-sm:rounded-t-xl max-sm:rounded-b-none max-sm:h-[75vh] max-sm:max-h-[75vh]"
+            style={{ maxHeight: '85vh', animation: !sheetInteracted.current ? 'popIn 0.25s ease' : undefined, transform: `translateY(${sheetDragY}px)`, transition: sheetDragging.current ? 'none' : 'transform 0.35s cubic-bezier(.32,1,.32,1)', willChange: 'transform' }} onClick={e => e.stopPropagation()}
+            onTouchStart={onSheetTouchStart} onTouchMove={onSheetTouchMove} onTouchEnd={onSheetTouchEnd}>
+            <div className="shrink-0 hidden max-sm:flex justify-center items-center pt-2 pb-3">
+              <div className="w-10 h-1 bg-slate-300 rounded-full" />
+            </div>
+            <button onClick={closeProductSheet}
+              className="absolute top-3 right-3.5 w-7 h-7 rounded-lg border border-slate-200 bg-slate-50 text-slate-400 flex items-center justify-center cursor-pointer z-10 transition-colors hover:bg-indigo-500 hover:border-indigo-500 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+            {selectedProduct && (
+              <>
+                <div ref={sheetScrollRef} className="flex-1 overflow-hidden min-h-0">
+                  <div className="flex gap-6 p-6 max-sm:flex-col max-sm:items-center max-sm:gap-2 max-sm:p-4 max-sm:text-center">
+                    {(() => {
+                      const images = [
+                        selectedProduct.image_url && { url: selectedProduct.image_url, label: 'Unit' },
+                        selectedProduct.bundle_image_url && { url: selectedProduct.bundle_image_url, label: 'Bundle' },
+                        selectedProduct.box_image_url && { url: selectedProduct.box_image_url, label: 'Box' },
+                      ].filter(Boolean);
+                      const idx = sheetImgIdx < images.length ? sheetImgIdx : 0;
+                      return (
+                        <div className="shrink-0 max-sm:items-center max-sm:flex max-sm:flex-col">
+                          <div className="w-[400px] h-[400px] bg-white rounded-xl overflow-hidden border border-slate-200 max-sm:w-[150px] max-sm:h-[150px] relative max-sm:cursor-pointer"
+                            onClick={() => { if (window.innerWidth <= 640) setImgViewerOpen(true); }}
+                            onTouchStart={e => { sheetImgTouchX.current = e.touches[0].clientX; }}
+                            onTouchEnd={e => {
+                              const diff = e.changedTouches[0].clientX - sheetImgTouchX.current;
+                              if (Math.abs(diff) > 40) { e.preventDefault(); if (diff > 40 && idx > 0) setSheetImgIdx(idx - 1); else if (diff < -40 && idx < images.length - 1) setSheetImgIdx(idx + 1); }
+                            }}>
+                            <div className="flex transition-transform duration-300 h-full" style={{ transform: `translateX(-${idx * 100}%)` }}>
+                              {images.map((img, i) => (
+                                <img key={i} src={img.url} alt={img.label} className="w-full h-full object-contain p-2 shrink-0" />
+                              ))}
                             </div>
                           </div>
+                          {images.length > 1 && (
+                            <div className="flex items-center justify-center gap-1 mt-1.5">
+                              {images.map((img, i) => (
+                                <button key={i} onClick={() => setSheetImgIdx(i)}
+                                  className={`w-1.5 h-1.5 rounded-full border-none cursor-pointer transition-all ${i === idx ? 'bg-indigo-500 w-3' : 'bg-slate-300'}`} />
+                              ))}
+                            </div>
+                          )}
+                          {images.length > 1 && (
+                            <div className="text-[10px] text-slate-400 text-center mt-0.5">{images[idx]?.label}</div>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-2.5 cursor-pointer w-fit max-sm:mx-auto" onClick={() => toggleFavorite(selectedProduct)}>
-                      <Heart className={`w-4.5 h-4.5 transition-colors ${favorites.some(f => f.id === selectedProduct.id) ? 'fill-red-500 text-red-500' : 'text-slate-400'}`} />
-                      <span className="text-xs text-slate-400">{favorites.some(f => f.id === selectedProduct.id) ? 'Saved' : 'Add to favorites'}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="h-px bg-slate-200 mx-5 shrink-0" />
-                <div className="p-5 overflow-y-auto flex-1">
-                  <div className="text-[13px] font-semibold text-slate-800 mb-3">Add to Order</div>
-                  <div className="flex gap-0 bg-slate-100 border border-slate-200 rounded-lg p-0.5 mb-3">
-                    <button className={`flex-1 py-2 text-center rounded-md border-none text-[13px] font-medium cursor-pointer transition-all flex items-center justify-center gap-1.5 ${selectedUnit === 'cases' ? 'bg-white text-indigo-500 shadow-sm font-semibold' : 'bg-transparent text-slate-500'}`}
-                      onClick={() => setSelectedUnit('cases')}><Package className="w-3.5 h-3.5" /> Cases</button>
-                    <button className={`flex-1 py-2 text-center rounded-md border-none text-[13px] font-medium cursor-pointer transition-all flex items-center justify-center gap-1.5 ${selectedUnit === 'pallets' ? 'bg-white text-indigo-500 shadow-sm font-semibold' : 'bg-transparent text-slate-500'}`}
-                      onClick={() => setSelectedUnit('pallets')}><Building className="w-3.5 h-3.5" /> Pallets</button>
-                  </div>
-                  {selectedProduct.show_price !== false && showPrices && (() => {
-                    const casePrice = parseFloat(selectedProduct.price || 0);
-                    const casesPerPallet = parseInt(selectedProduct.cases_per_pallet) || 60;
-                    const unitPrice = selectedUnit === 'pallets' ? casePrice * casesPerPallet : casePrice;
-                    const subtotal = unitPrice * sheetQty;
-                    return (
-                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 mb-3 text-[13px]">
-                        {selectedUnit === 'pallets' && <div className="flex justify-between py-0.5"><span className="text-slate-400">Cases per pallet</span><span className="text-slate-800 font-medium">{casesPerPallet}</span></div>}
-                        <div className="flex justify-between py-0.5"><span className="text-slate-400">Price per {selectedUnit === 'pallets' ? 'pallet' : 'case'}</span><span className="text-slate-800 font-medium">${unitPrice.toFixed(2)}{selectedUnit === 'pallets' ? ` (${casesPerPallet} × $${casePrice.toFixed(2)})` : ''}</span></div>
-                        <div className="flex justify-between py-0.5"><span className="text-slate-400">Est. subtotal</span><span className="text-indigo-500 font-semibold">${subtotal.toFixed(2)}</span></div>
+                      );
+                    })()}
+                    <div className="flex-1 min-w-0 pt-1 max-sm:w-full">
+                      <div className="text-2xl font-semibold text-slate-800 leading-tight mb-2 tracking-tight pr-10 max-sm:text-[17px] max-sm:pr-0">{selectedProduct.name}</div>
+                      <div className="flex flex-wrap gap-1.5 mb-2 max-sm:justify-center">
+                        <span className="bg-slate-100 border border-slate-200 rounded-md px-2.5 py-0.5 text-[11px] text-slate-500">{selectedProduct.super_category}</span>
+                        <span className="bg-slate-100 border border-slate-200 rounded-md px-2.5 py-0.5 text-[11px] text-slate-500">{selectedProduct.category}</span>
                       </div>
-                    );
-                  })()}
-                  <div className="flex items-center gap-2.5 mb-3.5">
-                    <span className="text-[13px] text-slate-500 flex-1 font-medium">Qty ({selectedUnit})</span>
-                    <button onClick={() => setSheetQty(prev => Math.max(1, prev - 1))}
-                      className="w-9 h-9 rounded-lg border border-slate-200 bg-white text-slate-800 cursor-pointer flex items-center justify-center shadow-sm transition-colors hover:bg-indigo-500 hover:border-indigo-500 hover:text-white"><Minus className="w-4 h-4" /></button>
-                    <input type="number" min="1" value={sheetQty} onChange={(e) => setSheetQty(Math.max(1, parseInt(e.target.value) || 1))}
-                      className="w-14 text-center bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[17px] font-semibold py-1.5 focus:outline-none focus:border-indigo-400" />
-                    <button onClick={() => setSheetQty(prev => prev + 1)}
-                      className="w-9 h-9 rounded-lg border border-slate-200 bg-white text-slate-800 cursor-pointer flex items-center justify-center shadow-sm transition-colors hover:bg-indigo-500 hover:border-indigo-500 hover:text-white"><Plus className="w-4 h-4" /></button>
+                      <div className="mb-3 max-sm:hidden">
+                        {selectedProduct.brand && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Brand</span><span className="text-slate-800 font-medium">{selectedProduct.brand}</span></div>}
+                        {selectedProduct.weight && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Weight</span><span className="text-slate-800 font-medium">{selectedProduct.weight}</span></div>}
+                        {selectedProduct.bags_per_case && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Bags/Case</span><span className="text-slate-800 font-medium">{selectedProduct.bags_per_case}</span></div>}
+                        {selectedProduct.cases_per_pallet && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Cases/Pallet</span><span className="text-slate-800 font-medium">{selectedProduct.cases_per_pallet}</span></div>}
+                        {selectedProduct.sku && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">SKU</span><span className="text-slate-800 font-medium font-mono text-[13px]">{selectedProduct.sku}</span></div>}
+                        {[
+                          { value: selectedProduct.barcode_pack, label: 'Barcode (Pack)' },
+                          { value: selectedProduct.barcode_bundle, label: 'Barcode (Bundle)' },
+                          { value: selectedProduct.barcode_box, label: 'Barcode (Box)' },
+                        ].filter(b => b.value).map(b => (
+                          <div key={b.label} className="relative group flex justify-between py-0.5 text-xs cursor-pointer">
+                            <span className="text-slate-400">{b.label}</span>
+                            <span className="text-slate-800 font-medium font-mono text-[11px] underline decoration-dotted underline-offset-2">{b.value}</span>
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block max-sm:group-active:block z-50">
+                              <div className="bg-white rounded-xl shadow-xl border border-slate-200 p-3 flex flex-col items-center gap-1">
+                                <svg ref={el => { if (el) { try { import('jsbarcode').then(m => m.default(el, b.value.replace(/\s/g, ''), { format: 'CODE128', width: 1.5, height: 50, displayValue: false, margin: 0 })); } catch { } } }} />
+                                <span className="text-[10px] text-slate-500 font-mono">{b.value}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {userRole !== 'admin' && (
+                        <div className="flex items-center gap-1.5 mt-2.5 cursor-pointer w-fit max-sm:mx-auto" onClick={() => toggleFavorite(selectedProduct)}>
+                          <Heart className={`w-4.5 h-4.5 transition-colors ${favorites.some(f => f.id === selectedProduct.id) ? 'fill-red-500 text-red-500' : 'text-slate-400'}`} />
+                          <span className="text-xs text-slate-400">{favorites.some(f => f.id === selectedProduct.id) ? 'Saved' : 'Add to favorites'}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="h-px bg-slate-200 mx-5 shrink-0" />
+                  <div className="p-5 overflow-y-auto flex-1">
+                    <div className="text-[13px] font-semibold text-slate-800 mb-3">Add to Order</div>
+                    <div className="flex gap-0 bg-slate-100 border border-slate-200 rounded-lg p-0.5 mb-3">
+                      <button className={`flex-1 py-2 text-center rounded-md border-none text-[13px] font-medium cursor-pointer transition-all flex items-center justify-center gap-1.5 ${selectedUnit === 'cases' ? 'bg-white text-indigo-500 shadow-sm font-semibold' : 'bg-transparent text-slate-500'}`}
+                        onClick={() => setSelectedUnit('cases')}><Package className="w-3.5 h-3.5" /> Cases</button>
+                      <button className={`flex-1 py-2 text-center rounded-md border-none text-[13px] font-medium cursor-pointer transition-all flex items-center justify-center gap-1.5 ${selectedUnit === 'pallets' ? 'bg-white text-indigo-500 shadow-sm font-semibold' : 'bg-transparent text-slate-500'}`}
+                        onClick={() => setSelectedUnit('pallets')}><Building className="w-3.5 h-3.5" /> Pallets</button>
+                    </div>
+                    {selectedProduct.show_price !== false && showPrices && (() => {
+                      const casePrice = parseFloat(selectedProduct.price || 0);
+                      const casesPerPallet = parseInt(selectedProduct.cases_per_pallet) || 60;
+                      const unitPrice = selectedUnit === 'pallets' ? casePrice * casesPerPallet : casePrice;
+                      const subtotal = unitPrice * sheetQty;
+                      return (
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 mb-3 text-[13px]">
+                          {selectedUnit === 'pallets' && <div className="flex justify-between py-0.5"><span className="text-slate-400">Cases per pallet</span><span className="text-slate-800 font-medium">{casesPerPallet}</span></div>}
+                          <div className="flex justify-between py-0.5"><span className="text-slate-400">Price per {selectedUnit === 'pallets' ? 'pallet' : 'case'}</span><span className="text-slate-800 font-medium">${unitPrice.toFixed(2)}{selectedUnit === 'pallets' ? ` (${casesPerPallet} × $${casePrice.toFixed(2)})` : ''}</span></div>
+                          <div className="flex justify-between py-0.5"><span className="text-slate-400">Est. subtotal</span><span className="text-indigo-500 font-semibold">${subtotal.toFixed(2)}</span></div>
+                        </div>
+                      );
+                    })()}
+                    <div className="flex items-center gap-2.5 mb-3.5">
+                      <span className="text-[13px] text-slate-500 flex-1 font-medium">Qty ({selectedUnit})</span>
+                      <button onClick={() => setSheetQty(prev => Math.max(1, prev - 1))}
+                        className="w-9 h-9 rounded-lg border border-slate-200 bg-white text-slate-800 cursor-pointer flex items-center justify-center shadow-sm transition-colors hover:bg-indigo-500 hover:border-indigo-500 hover:text-white"><Minus className="w-4 h-4" /></button>
+                      <input type="number" min="1" value={sheetQty} onChange={(e) => setSheetQty(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="w-14 text-center bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[17px] font-semibold py-1.5 focus:outline-none focus:border-indigo-400" />
+                      <button onClick={() => setSheetQty(prev => prev + 1)}
+                        className="w-9 h-9 rounded-lg border border-slate-200 bg-white text-slate-800 cursor-pointer flex items-center justify-center shadow-sm transition-colors hover:bg-indigo-500 hover:border-indigo-500 hover:text-white"><Plus className="w-4 h-4" /></button>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div className="p-4 border-t border-slate-200 bg-white shrink-0 max-sm:p-4 max-sm:border-t-0">
-                <button onClick={() => { addToCart(selectedProduct, sheetQty, selectedUnit); closeProductSheet(); }}
-                  className="w-full py-3.5 bg-indigo-500 border-none rounded-xl text-white font-semibold text-[15px] cursor-pointer transition-colors hover:bg-indigo-600">
-                  Add {sheetQty} {selectedUnit}{selectedUnit === 'pallets' ? ` (${sheetQty * (parseInt(selectedProduct.cases_per_pallet) || 60)} cases)` : ''} to Cart
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>,
-      document.body
+                <div className="p-4 border-t border-slate-200 bg-white shrink-0 max-sm:p-4 max-sm:border-t-0">
+                  <button onClick={() => { addToCart(selectedProduct, sheetQty, selectedUnit); closeProductSheet(); }}
+                    className="w-full py-3.5 bg-indigo-500 border-none rounded-xl text-white font-semibold text-[15px] cursor-pointer transition-colors hover:bg-indigo-600">
+                    Add {sheetQty} {selectedUnit}{selectedUnit === 'pallets' ? ` (${sheetQty * (parseInt(selectedProduct.cases_per_pallet) || 60)} cases)` : ''} to Cart
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* FULLSCREEN IMAGE VIEWER (mobile) */}
