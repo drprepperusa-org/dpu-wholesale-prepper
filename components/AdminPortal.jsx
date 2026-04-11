@@ -2137,12 +2137,21 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
             </div>
             <div className="h-px bg-slate-200"></div>
 
-            {superCategoriesList.filter(sc => !sidebarFilter || sc.name.toLowerCase().includes(sidebarFilter.toLowerCase()) || (categoriesBySuper[sc.id] || []).some(c => c.name.toLowerCase().includes(sidebarFilter.toLowerCase()))).map(superCat => (
+            <div onDragOver={(e) => handleDragOver(e, 'super', null)} onDrop={(e) => handleDrop(e, 'super', null)}>
+            {superCategoriesList.map((superCat, realIndex) => {
+              const matchesFilter = !sidebarFilter || superCat.name.toLowerCase().includes(sidebarFilter.toLowerCase()) || (categoriesBySuper[superCat.id] || []).some(c => c.name.toLowerCase().includes(sidebarFilter.toLowerCase()))
+              if (!matchesFilter) return null
+              return (
               <React.Fragment key={superCat.id}>
                 <button
-                  className={`w-full flex items-center gap-2.5 px-3.5 py-3.5 border-none cursor-pointer text-sm font-medium text-left transition-all border-b border-slate-200 ${currentFilter === `super:${superCat.name}` ? 'text-indigo-500 bg-indigo-50' : 'text-slate-500 bg-slate-50 hover:bg-slate-100 hover:text-slate-800'}`}
+                  className={`cat-item w-full flex items-center gap-2.5 px-3.5 py-3.5 border-none cursor-pointer text-sm font-medium text-left transition-all border-b border-slate-200 ${currentFilter === `super:${superCat.name}` ? 'text-indigo-500 bg-indigo-50' : 'text-slate-500 bg-slate-50 hover:bg-slate-100 hover:text-slate-800'} ${dragContext?.listType === 'super' && dragOverItemRef.current === realIndex && dragItemRef.current !== realIndex ? '!border-t-2 !border-t-indigo-500' : ''}`}
                   onClick={() => toggleSuperCat(superCat.name)}
+                  draggable={!sidebarFilter}
+                  onDragStart={(e) => handleDragStart(e, realIndex, 'super', null)}
+                  onDragEnter={(e) => handleDragEnter(e, realIndex, 'super', null)}
+                  onDragEnd={handleDragEnd}
                 >
+                  <GripVertical className="w-3 h-3 text-slate-300 flex-shrink-0 cursor-grab" />
                   <span className="text-base w-5 text-center flex-shrink-0">{getSuperCategoryEmoji(superCat.name)}</span>
                   <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{superCat.name}</span>
                   <span className="text-[11px] text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-200">{products.filter(p => p.super_category_id === superCat.id).length}</span>
@@ -2161,7 +2170,9 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                   ))}
                 </div>
               </React.Fragment>
-            ))}
+              )
+            })}
+            </div>
 
             <div className="h-px bg-slate-200"></div>
             <div className={`flex items-center justify-between px-3.5 py-2 cursor-pointer text-xs transition-all ${currentFilter === 'hidden' ? 'text-indigo-500 bg-indigo-50' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'}`} onClick={() => { setFilter('hidden'); loadProducts(1); }}>
