@@ -49,8 +49,8 @@ export async function POST(request) {
     const customerId = uuidv4();
 
     await pool.query(
-      `INSERT INTO customers (id, company_name, contact_name, email, phone, password_hash, view_preset, active, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, true, NOW())`,
+      `INSERT INTO customers (id, company_name, contact_name, email, phone, password_hash, view_preset, active, show_prices, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, true, FALSE, NOW())`,
       [customerId, company_name, contact_name || '', email, phone || '', passwordHash, preset || 'full']
     );
 

@@ -28,6 +28,14 @@ export async function GET(request) {
       ORDER BY s.sort_order, c.sort_order, p.sort_order
     `);
 
+    // Extract just the filename from a Supabase URL (e.g. "1775776912923-481487594.jpg")
+    const urlToFilename = (url) => {
+      if (!url) return '';
+      try {
+        return url.split('/').pop().split('?')[0] || url;
+      } catch { return url; }
+    };
+
     const rows = result.rows.map(p => ({
       'Product ID (leave blank for new)': p.id,
       'SKU': p.sku || '',
@@ -42,9 +50,9 @@ export async function GET(request) {
       'Cases Per Pallet': p.cases_per_pallet || '',
       'Super Category': p.super_category || '',
       'Category': p.category || '',
-      'Image': p.image_url || '',
-      'Box Image': p.box_image_url || '',
-      'Bundle Image': p.bundle_image_url || '',
+      'Image': urlToFilename(p.image_url),
+      'Box Image': urlToFilename(p.box_image_url),
+      'Bundle Image': urlToFilename(p.bundle_image_url),
       'Hidden': p.is_hidden ? 'Yes' : 'No',
       'Out of Stock': p.is_oos ? 'Yes' : 'No',
       'Show Price': p.show_price === false ? 'No' : 'Yes',

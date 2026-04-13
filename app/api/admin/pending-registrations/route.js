@@ -55,8 +55,8 @@ export async function POST(request) {
 
       // Insert into customers
       await client.query(
-        `INSERT INTO customers (id, company_name, contact_name, email, phone, password_hash, active)
-         VALUES ($1, $2, $3, $4, $5, $6, TRUE)`,
+        `INSERT INTO customers (id, company_name, contact_name, email, phone, password_hash, active, show_prices)
+         VALUES ($1, $2, $3, $4, $5, $6, TRUE, FALSE)`,
         [custId, registration.company_name, registration.contact_name || '', registration.email, registration.phone || '', passwordHash]
       );
 

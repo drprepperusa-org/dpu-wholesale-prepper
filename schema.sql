@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS customers (
   zip VARCHAR(20),
   country VARCHAR(100),
   view_preset VARCHAR(50) DEFAULT 'full',
-  show_prices BOOLEAN DEFAULT TRUE,
+  show_prices BOOLEAN DEFAULT FALSE,
   active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT NOW(),
   last_login TIMESTAMP

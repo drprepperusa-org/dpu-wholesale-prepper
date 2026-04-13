@@ -147,34 +147,38 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
   }
 
   return (
-    <div className="p-5 bg-slate-50 min-h-full overflow-y-auto flex-1 max-sm:p-3 max-sm:pb-[70px]">
-      {/* Header */}
-      <div className="flex justify-between items-start mb-5 gap-4 max-sm:flex-col max-sm:gap-2.5 max-sm:mb-3.5">
-        <div>
-          <h2 className="text-xl font-semibold text-slate-800 m-0 max-sm:text-[17px]">Bulk Edit Products</h2>
-          <span className="text-slate-400 text-[13px] mt-0.5 max-sm:text-xs">Edit prices, categories, and visibility across all products</span>
+    <div className="bg-slate-50 min-h-full overflow-y-auto flex-1 max-sm:pb-[70px]">
+      {/* Sticky header + search bar — stays visible while scrolling the product list */}
+      <div className="sticky top-0 z-20 bg-slate-50 px-5 pt-5 max-sm:px-3 max-sm:pt-3">
+        {/* Header */}
+        <div className="flex justify-between items-start mb-5 gap-4 max-sm:flex-col max-sm:gap-2.5 max-sm:mb-3.5">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-800 m-0 max-sm:text-[17px]">Bulk Edit Products</h2>
+            <span className="text-slate-400 text-[13px] mt-0.5 max-sm:text-xs">Edit prices, categories, and visibility across all products</span>
+          </div>
+          <div className="bg-white p-2.5 px-3.5 border border-slate-200 rounded-xl min-w-[220px] flex items-center gap-2 flex-wrap shadow-sm max-sm:min-w-0 max-sm:w-full max-sm:p-2">
+            <label className="text-slate-500 text-xs font-medium whitespace-nowrap">View as:</label>
+            <select value={selectedMode} onChange={onModeChange}
+              className="text-slate-800 border border-slate-200 rounded-md px-2.5 py-1.5 bg-slate-50 text-[13px] max-sm:w-full max-sm:text-sm">
+              <option value="all">All Customers (defaults)</option>
+              {initialCustomers?.map(c => <option key={c.id} value={`customer:${c.id}`}>{c.company_name}</option>)}
+            </select>
+            {selectedCustomerId && <span className="text-slate-400 text-[11px] w-full">This customer sees {visibleProductCount} of {totalProducts} products</span>}
+          </div>
         </div>
-        <div className="bg-white p-2.5 px-3.5 border border-slate-200 rounded-xl min-w-[220px] flex items-center gap-2 flex-wrap shadow-sm max-sm:min-w-0 max-sm:w-full max-sm:p-2">
-          <label className="text-slate-500 text-xs font-medium whitespace-nowrap">View as:</label>
-          <select value={selectedMode} onChange={onModeChange}
-            className="text-slate-800 border border-slate-200 rounded-md px-2.5 py-1.5 bg-slate-50 text-[13px] max-sm:w-full max-sm:text-sm">
-            <option value="all">All Customers (defaults)</option>
-            {initialCustomers?.map(c => <option key={c.id} value={`customer:${c.id}`}>{c.company_name}</option>)}
-          </select>
-          {selectedCustomerId && <span className="text-slate-400 text-[11px] w-full">This customer sees {visibleProductCount} of {totalProducts} products</span>}
+
+        {/* Toolbar */}
+        <div className="flex gap-2.5 mb-3.5 items-center max-sm:flex-col max-sm:gap-1.5">
+          <div className="flex-1 relative max-sm:w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} type="text" placeholder="Search SKU, name, category..."
+              className="w-full py-2.5 pl-9 pr-3 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-white shadow-sm focus:outline-none focus:border-indigo-400 placeholder:text-slate-400 max-sm:!text-base" />
+          </div>
+          <span className="text-slate-400 text-xs whitespace-nowrap max-sm:self-end">{filteredProducts.length} products</span>
         </div>
       </div>
 
-      {/* Toolbar */}
-      <div className="flex gap-2.5 mb-3.5 items-center max-sm:flex-col max-sm:gap-1.5">
-        <div className="flex-1 relative max-sm:w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} type="text" placeholder="Search SKU, name, category..."
-            className="w-full py-2.5 pl-9 pr-3 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-white shadow-sm focus:outline-none focus:border-indigo-400 placeholder:text-slate-400 max-sm:!text-base" />
-        </div>
-        <span className="text-slate-400 text-xs whitespace-nowrap max-sm:self-end">{filteredProducts.length} products</span>
-      </div>
-
+      <div className="px-5 pb-5 max-sm:px-3 max-sm:pb-3">
       {/* Bulk action bar */}
       {selectedRows.size > 0 && (
         <div className="flex gap-2 items-center px-4 py-2.5 bg-indigo-50 border border-indigo-200 rounded-lg mb-4 flex-wrap max-sm:px-2.5 max-sm:py-2 max-sm:gap-1.5">
@@ -192,17 +196,17 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
         <table className="w-full border-collapse max-sm:min-w-[500px]">
           <thead>
             <tr>
-              <th className="w-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">
+              <th className="sticky top-[148px] z-10 w-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:top-[120px] max-sm:p-2 max-sm:text-[9px]">
                 <input type="checkbox" onChange={toggleSelectAll} checked={filteredProducts.length > 0 && selectedRows.size === filteredProducts.length} className="accent-indigo-500" />
               </th>
-              <th className="w-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2"></th>
-              <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">SKU</th>
-              <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Name</th>
-              <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Brand</th>
-              <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Price</th>
-              <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Super Category</th>
-              <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Category</th>
-              <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Hidden</th>
+              <th className="sticky top-[148px] z-10 w-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:top-[120px] max-sm:p-2"></th>
+              <th className="sticky top-[148px] z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:top-[120px] max-sm:p-2 max-sm:text-[9px]">SKU</th>
+              <th className="sticky top-[148px] z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:top-[120px] max-sm:p-2 max-sm:text-[9px]">Name</th>
+              <th className="sticky top-[148px] z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:top-[120px] max-sm:p-2 max-sm:text-[9px]">Brand</th>
+              <th className="sticky top-[148px] z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:top-[120px] max-sm:p-2 max-sm:text-[9px]">Price</th>
+              <th className="sticky top-[148px] z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:top-[120px] max-sm:p-2 max-sm:text-[9px]">Super Category</th>
+              <th className="sticky top-[148px] z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:top-[120px] max-sm:p-2 max-sm:text-[9px]">Category</th>
+              <th className="sticky top-[148px] z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:top-[120px] max-sm:p-2 max-sm:text-[9px]">Hidden</th>
             </tr>
           </thead>
           <tbody>
@@ -254,6 +258,7 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
             ))}
           </tbody>
         </table>
+      </div>
       </div>
 
       {/* Bulk Price Modal */}

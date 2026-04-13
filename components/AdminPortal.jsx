@@ -205,6 +205,130 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
   const [editingSubCatId, setEditingSubCatId] = useState(null)
   const [editingSubCatName, setEditingSubCatName] = useState('')
 
+  // Compute auto-zoom and offset for a URL image so the product fills the crop container
+  const computeAutoZoom = useCallback((imageUrl) => {
+    return new Promise((resolve) => {
+      if (!imageUrl) { resolve({ zoom: 1, offsetX: 0, offsetY: 0 }); return }
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      img.onload = () => {
+        try {
+          const c = document.createElement('canvas')
+          c.width = img.naturalWidth
+          c.height = img.naturalHeight
+          const ctx = c.getContext('2d')
+          ctx.drawImage(img, 0, 0)
+          const data = ctx.getImageData(0, 0, c.width, c.height).data
+          const threshold = 240
+          let minX = c.width, minY = c.height, maxX = 0, maxY = 0
+          let hasContent = false
+          for (let y = 0; y < c.height; y++) {
+            for (let x = 0; x < c.width; x++) {
+              const i = (y * c.width + x) * 4
+              const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3]
+              const isBg = a < 10 || (r >= threshold && g >= threshold && b >= threshold)
+              if (!isBg) {
+                hasContent = true
+                if (x < minX) minX = x
+                if (x > maxX) maxX = x
+                if (y < minY) minY = y
+                if (y > maxY) maxY = y
+              }
+            }
+          }
+          if (!hasContent) { resolve({ zoom: 1, offsetX: 0, offsetY: 0 }); return }
+          const cropW = maxX - minX + 1
+          const cropH = maxY - minY + 1
+          const longSide = Math.max(cropW, cropH)
+          // The image is rendered using object-contain in a square preview.
+          // The visible "scale 1" maps the longest side of the image to the container.
+          // Auto-zoom should make the content fill ~76% of the container (leaving ~12% white padding on each side).
+          const imgLongSide = Math.max(c.width, c.height)
+          const zoom = Math.min(4, Math.max(0.3, (imgLongSide / longSide) * 0.76))
+          // Center the content: compute offset in displayed pixels (container is 400px tall)
+          const containerSize = 400
+          const displayScale = containerSize / imgLongSide
+          const contentCenterX = (minX + maxX) / 2
+          const contentCenterY = (minY + maxY) / 2
+          const imgCenterX = c.width / 2
+          const imgCenterY = c.height / 2
+          // Offset in displayed pixels at zoom=1
+          const offsetX = -(contentCenterX - imgCenterX) * displayScale * zoom
+          const offsetY = -(contentCenterY - imgCenterY) * displayScale * zoom
+          resolve({ zoom, offsetX, offsetY })
+        } catch { resolve({ zoom: 1, offsetX: 0, offsetY: 0 }) }
+      }
+      img.onerror = () => resolve({ zoom: 1, offsetX: 0, offsetY: 0 })
+      img.src = imageUrl
+    })
+  }, [])
+
+  // Open the crop modal with auto-computed zoom and offset
+  const openCropAutoZoom = useCallback(async (imageUrl, fieldKey, source) => {
+    setCropState({ open: true, imageUrl, fieldKey, source, zoom: 1, offsetX: 0, offsetY: 0 })
+    const auto = await computeAutoZoom(imageUrl)
+    setCropState(prev => prev.open && prev.imageUrl === imageUrl ? { ...prev, ...auto } : prev)
+  }, [computeAutoZoom])
+
+  // Auto-trim white background and center the product on a square canvas
+  const autoTrimImage = useCallback((file) => {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      img.onload = () => {
+        try {
+          const c = document.createElement('canvas')
+          c.width = img.naturalWidth
+          c.height = img.naturalHeight
+          const ctx = c.getContext('2d')
+          ctx.drawImage(img, 0, 0)
+          const data = ctx.getImageData(0, 0, c.width, c.height).data
+          // Threshold: pixel is "background" if all channels >= 240 OR alpha < 10
+          const threshold = 240
+          let minX = c.width, minY = c.height, maxX = 0, maxY = 0
+          let hasContent = false
+          for (let y = 0; y < c.height; y++) {
+            for (let x = 0; x < c.width; x++) {
+              const i = (y * c.width + x) * 4
+              const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3]
+              const isBg = a < 10 || (r >= threshold && g >= threshold && b >= threshold)
+              if (!isBg) {
+                hasContent = true
+                if (x < minX) minX = x
+                if (x > maxX) maxX = x
+                if (y < minY) minY = y
+                if (y > maxY) maxY = y
+              }
+            }
+          }
+          if (!hasContent) { resolve(file); return }
+          const cropW = maxX - minX + 1
+          const cropH = maxY - minY + 1
+          const longSide = Math.max(cropW, cropH)
+          // Output to a square canvas larger than the content so there's visible white padding
+          // Padding is 12% of the long side on each edge
+          const padding = Math.round(longSide * 0.12)
+          const outSize = longSide + padding * 2
+          const out = document.createElement('canvas')
+          out.width = outSize
+          out.height = outSize
+          const octx = out.getContext('2d')
+          octx.fillStyle = '#ffffff'
+          octx.fillRect(0, 0, outSize, outSize)
+          const dx = Math.round((outSize - cropW) / 2)
+          const dy = Math.round((outSize - cropH) / 2)
+          octx.drawImage(c, minX, minY, cropW, cropH, dx, dy, cropW, cropH)
+          out.toBlob((blob) => {
+            if (!blob) { resolve(file); return }
+            resolve(new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }))
+          }, 'image/jpeg', 0.92)
+        } catch (e) { reject(e) }
+      }
+      img.onerror = reject
+      img.src = URL.createObjectURL(file)
+    })
+  }, [])
+
   // Debounce
   const searchDebounceRef = useRef(null)
   const imageFileInputRef = useRef(null)
@@ -1889,6 +2013,60 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
     } catch (err) { showToast('Failed to remove image', 'error') }
   }, [showToast])
 
+  // Auto-trim a remote image URL and re-upload it. Returns new URL or null on failure.
+  const autoTrimRemoteImage = useCallback(async (url) => {
+    try {
+      const res = await fetch(url, { mode: 'cors' })
+      if (!res.ok) return null
+      const blob = await res.blob()
+      const file = new File([blob], 'image.jpg', { type: blob.type || 'image/jpeg' })
+      const trimmed = await autoTrimImage(file)
+      const fd = new FormData(); fd.append('image', trimmed)
+      const token = localStorage.getItem('token')
+      const upRes = await fetch('/api/products/upload-image', { method: 'POST', headers: token ? { 'Authorization': `Bearer ${token}` } : {}, body: fd })
+      const data = await upRes.json()
+      return data.url || null
+    } catch { return null }
+  }, [autoTrimImage])
+
+  const [bulkCropping, setBulkCropping] = useState(false)
+  const [bulkCropProgress, setBulkCropProgress] = useState({ done: 0, total: 0 })
+
+  const bulkAutoCropAllImages = useCallback(async () => {
+    if (!window.confirm('Auto-crop all product images? This will replace existing images with auto-trimmed versions and may take several minutes.')) return
+    setBulkCropping(true)
+    const fields = ['image_url', 'box_image_url', 'bundle_image_url']
+    // Build job list
+    const jobs = []
+    products.forEach(p => {
+      fields.forEach(f => { if (p[f]) jobs.push({ productId: p.id, field: f, url: p[f] }) })
+    })
+    setBulkCropProgress({ done: 0, total: jobs.length })
+    const token = localStorage.getItem('token')
+    let succeeded = 0, failed = 0
+    for (let i = 0; i < jobs.length; i++) {
+      const job = jobs[i]
+      try {
+        const newUrl = await autoTrimRemoteImage(job.url)
+        if (newUrl && newUrl !== job.url) {
+          const res = await fetch(`/api/products/${job.productId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+            body: JSON.stringify({ [job.field]: newUrl })
+          })
+          if (res.ok) {
+            succeeded++
+            // Optimistically update local state
+            setProducts(prev => prev.map(p => p.id === job.productId ? { ...p, [job.field]: newUrl } : p))
+          } else { failed++ }
+        } else { failed++ }
+      } catch { failed++ }
+      setBulkCropProgress({ done: i + 1, total: jobs.length })
+    }
+    setBulkCropping(false)
+    showToast(`Auto-crop complete: ${succeeded} updated, ${failed} skipped/failed`)
+  }, [products, autoTrimRemoteImage, showToast])
+
   const downloadExcel = useCallback(async () => {
     try {
       const token = localStorage.getItem('token')
@@ -1902,16 +2080,17 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       const a = document.createElement('a'); a.href = url; a.download = `products-${new Date().toISOString().split('T')[0]}.xlsx`; a.click()
       URL.revokeObjectURL(url)
 
-      // Also create zip with images
+      // Also create zip with images — use the supabase URL filename so import/export round-trips
       const prodRes = await fetch('/api/products?limit=0', { headers: { 'Authorization': `Bearer ${token}` } })
       if (prodRes.ok) {
         const prodData = await prodRes.json()
         const prods = prodData.products || []
+        const urlToFilename = (url) => { try { return url.split('/').pop().split('?')[0] || '' } catch { return '' } }
         const imageUrls = []
         prods.forEach(p => {
-          if (p.image_url) imageUrls.push({ url: p.image_url, name: `unit/${(p.sku || p.id)}.${p.image_url.split('.').pop()?.split('?')[0] || 'jpg'}` })
-          if (p.box_image_url) imageUrls.push({ url: p.box_image_url, name: `box/${(p.sku || p.id)}.${p.box_image_url.split('.').pop()?.split('?')[0] || 'jpg'}` })
-          if (p.bundle_image_url) imageUrls.push({ url: p.bundle_image_url, name: `bundle/${(p.sku || p.id)}.${p.bundle_image_url.split('.').pop()?.split('?')[0] || 'jpg'}` })
+          if (p.image_url) { const fn = urlToFilename(p.image_url); if (fn) imageUrls.push({ url: p.image_url, name: `unit/${fn}` }) }
+          if (p.box_image_url) { const fn = urlToFilename(p.box_image_url); if (fn) imageUrls.push({ url: p.box_image_url, name: `box/${fn}` }) }
+          if (p.bundle_image_url) { const fn = urlToFilename(p.bundle_image_url); if (fn) imageUrls.push({ url: p.bundle_image_url, name: `bundle/${fn}` }) }
         })
         if (imageUrls.length > 0) {
           showToast(`Downloading ${imageUrls.length} images...`)
@@ -1953,13 +2132,16 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       const token = localStorage.getItem('token')
       const imageMap = {}
       if (importImageFiles.length > 0) {
-        // Upload images in parallel batches of 5
+        // Upload images in parallel batches of 5, auto-trim each before upload
         const BATCH = 5
         for (let i = 0; i < importImageFiles.length; i += BATCH) {
           const batch = importImageFiles.slice(i, i + BATCH)
-          setImportProgress(`Uploading images ${i + 1}-${Math.min(i + BATCH, importImageFiles.length)} of ${importImageFiles.length}...`)
+          setImportProgress(`Auto-cropping & uploading images ${i + 1}-${Math.min(i + BATCH, importImageFiles.length)} of ${importImageFiles.length}...`)
           const results = await Promise.allSettled(batch.map(async (img) => {
-            const fd = new FormData(); fd.append('image', img)
+            // Auto-trim white background and center the product before upload
+            let processed = img
+            try { processed = await autoTrimImage(img) } catch {}
+            const fd = new FormData(); fd.append('image', processed)
             const res = await fetch('/api/upload', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: fd })
             if (res.ok) return { name: img.name, url: (await res.json()).url }
             return null
@@ -1985,7 +2167,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       loadProducts(1)
     } catch (e) { showToast('Import failed: ' + e.message, 'error') }
     finally { setExcelUploading(false); setImportProgress('') }
-  }, [importExcelFile, importImageFiles, showToast])
+  }, [importExcelFile, importImageFiles, autoTrimImage, showToast])
 
   useEffect(() => {
     try { localStorage.setItem('admin_views_zoom', String(viewsZoom)); } catch (e) { }
@@ -2261,6 +2443,10 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                   <button className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-600 font-semibold text-[12px] cursor-pointer transition-all hover:border-indigo-300 hover:text-indigo-500 whitespace-nowrap h-9 flex items-center gap-1.5"
                     onClick={() => setImportModalOpen(true)} title="Import products from Excel">
                     <Upload className="w-3.5 h-3.5" /> <span className="max-sm:hidden">Import</span>
+                  </button>
+                  <button className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-slate-600 font-semibold text-[12px] cursor-pointer transition-all hover:border-indigo-300 hover:text-indigo-500 whitespace-nowrap h-9 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={bulkAutoCropAllImages} disabled={bulkCropping} title="Auto-crop all product images to remove white background">
+                    <Crop className="w-3.5 h-3.5" /> <span className="max-sm:hidden">{bulkCropping ? `Cropping ${bulkCropProgress.done}/${bulkCropProgress.total}` : 'Auto-Crop All'}</span>
                   </button>
                 </div>
                 <button className="px-4 py-2 bg-indigo-500 border-none rounded-lg text-white font-semibold text-[13px] cursor-pointer transition-all hover:bg-indigo-600 whitespace-nowrap h-9 max-sm:w-full max-sm:py-3" onClick={() => openModal('addProdModal')}><Plus className="w-3.5 h-3.5 inline mr-1 -mt-0.5" /> Add Product</button>
@@ -2580,15 +2766,47 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                   <button key={sc} className="px-2.5 py-1 rounded-md border border-slate-200 bg-white text-slate-500 text-[11px] max-sm:text-[10px] font-medium cursor-pointer transition-all hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50 whitespace-nowrap" onClick={() => showOnlyForCust(sc)}>{sc}</button>
                 ))}
               </div>
-              <div className="flex items-center gap-2.5 p-2.5 px-3.5 bg-slate-50 border border-slate-200 rounded-lg mb-3">
-                <span className="text-[13px] font-semibold text-slate-800"><DollarSign className="w-3.5 h-3.5 inline mr-1 -mt-px" /> Show Prices</span>
-                <button
-                  className={`w-9 h-5 rounded-full border-none cursor-pointer relative transition-colors flex-shrink-0 ${selectedCustomer.showPrices !== false ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                  onClick={() => setSelectedCustomer(prev => ({ ...prev, showPrices: prev.showPrices === false ? true : false }))}
-                >
-                  <span className={`absolute top-[3px] w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-[left] ${selectedCustomer.showPrices !== false ? 'left-[19px]' : 'left-[3px]'}`}></span>
-                </button>
-                <span className="text-xs text-slate-400">{selectedCustomer.showPrices !== false ? 'Prices visible' : 'Prices hidden'}</span>
+              <div className="flex items-center gap-2.5 p-2.5 px-3.5 bg-slate-50 border border-slate-200 rounded-lg mb-3 flex-wrap">
+                <span className="text-[13px] font-semibold text-slate-800"><DollarSign className="w-3.5 h-3.5 inline mr-1 -mt-px" /> Prices for this customer:</span>
+                {(() => {
+                  const setShowPricesForCustomer = async (newVal) => {
+                    setSelectedCustomer(prev => ({ ...prev, showPrices: newVal }))
+                    setCustomers(prev => prev.map(c => c.id === selectedCustomer.id ? { ...c, show_prices: newVal, showPrices: newVal } : c))
+                    try {
+                      const token = localStorage.getItem('token')
+                      const catHiddenIds = (selectedCustomer.catHidden || []).map(name => {
+                        const sc = superCategoriesList.find(s => s.name === name)
+                        return sc ? sc.id : name
+                      }).filter(Boolean)
+                      const res = await fetch(`/api/admin/customers/${selectedCustomer.id}/view`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+                        body: JSON.stringify({
+                          catHidden: catHiddenIds,
+                          customHidden: selectedCustomer.customHidden || [],
+                          customOos: selectedCustomer.customOos || [],
+                          showPrices: newVal
+                        })
+                      })
+                      if (res.ok) showToast(newVal ? 'Saved: prices VISIBLE' : 'Saved: prices HIDDEN')
+                      else { setSelectedCustomer(prev => ({ ...prev, showPrices: !newVal })); showToast('Save failed', 'error') }
+                    } catch { setSelectedCustomer(prev => ({ ...prev, showPrices: !newVal })); showToast('Save failed', 'error') }
+                  }
+                  const isVisible = selectedCustomer.showPrices !== false
+                  return (
+                    <>
+                      <button onClick={() => setShowPricesForCustomer(true)}
+                        className={`px-3 py-1.5 rounded-md text-xs font-semibold border cursor-pointer transition-all ${isVisible ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-emerald-300'}`}>
+                        Show
+                      </button>
+                      <button onClick={() => setShowPricesForCustomer(false)}
+                        className={`px-3 py-1.5 rounded-md text-xs font-semibold border cursor-pointer transition-all ${!isVisible ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-slate-200 text-slate-500 hover:border-red-300'}`}>
+                        Hide
+                      </button>
+                      <span className="text-xs text-slate-400">{isVisible ? 'Visible' : 'Hidden'}</span>
+                    </>
+                  )
+                })()}
               </div>
               <div className="text-xs text-slate-500 p-2.5 px-3 bg-slate-50 rounded-lg border-l-[3px] border-l-indigo-500 mb-4 max-sm:mb-2 max-sm:text-[11px]">Toggle visibility per category or product. Changes only affect this customer.</div>
 
@@ -2616,32 +2834,46 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                     </button>
                     <ChevronRight className={`w-3 h-3 text-slate-300 cursor-pointer transition-transform ${expandedViewCats[superCat.name] ? 'rotate-90' : ''}`} />
                   </div>
-                  <div className={`p-2.5 px-3 grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-[7px] ${!expandedViewCats[superCat.name] ? 'hidden' : ''}`}>
-                    {getProductsInCategory(superCat.name).map(prod => (
-                      <div key={prod.id} className={`bg-slate-50 border-[1.5px] border-slate-200 rounded-lg p-2 flex items-center gap-2 transition-all hover:border-indigo-300 ${(!isProductVisibleForCustomer(prod.id) || prod.is_hidden) ? 'opacity-45 border-dashed' : ''} ${(isProductOosForCustomer(prod.id) || prod.is_oos) ? '!border-amber-300' : ''}`}>
-                        <img src={prod.image_url} className="w-9 h-9 object-contain rounded-[5px] bg-white flex-shrink-0 border border-slate-200" alt="" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[11px] text-slate-800 font-medium whitespace-nowrap overflow-hidden text-ellipsis">{prod.name}</div>
-                          <div className="text-[9px] text-slate-400 font-mono">{prod.sku || 'N/A'}</div>
+                  <div className={`${!expandedViewCats[superCat.name] ? 'hidden' : ''}`}>
+                    {superCat.subcats.map(subcat => {
+                      const subcatProducts = getProductsInCategory(superCat.name).filter(p => p.category === subcat);
+                      if (subcatProducts.length === 0) return null;
+                      return (
+                        <div key={subcat}>
+                          <div className="px-4 max-sm:px-3 py-[7px] text-[11px] font-semibold text-slate-500 uppercase tracking-wide bg-slate-100/70 border-b border-slate-100 flex items-center gap-2">
+                            <span>{subcat}</span>
+                            <span className="text-slate-400 font-normal normal-case text-[10px]">({subcatProducts.length})</span>
+                          </div>
+                          <div className="p-2.5 px-3 grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-[7px]">
+                            {subcatProducts.map(prod => (
+                              <div key={prod.id} className={`bg-slate-50 border-[1.5px] border-slate-200 rounded-lg p-2 flex items-center gap-2 transition-all hover:border-indigo-300 ${(!isProductVisibleForCustomer(prod.id) || prod.is_hidden) ? 'opacity-45 border-dashed' : ''} ${(isProductOosForCustomer(prod.id) || prod.is_oos) ? '!border-amber-300' : ''}`}>
+                                <img src={prod.image_url} className="w-9 h-9 object-contain rounded-[5px] bg-white flex-shrink-0 border border-slate-200" alt="" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-[11px] text-slate-800 font-medium whitespace-nowrap overflow-hidden text-ellipsis">{prod.name}</div>
+                                  <div className="text-[9px] text-slate-400 font-mono">{prod.sku || 'N/A'}</div>
+                                </div>
+                                <div className="flex flex-col gap-0.5 flex-shrink-0">
+                                  <button
+                                    className={`w-[30px] h-4 rounded-lg border-none cursor-pointer relative transition-colors ${isProductVisibleForCustomer(prod.id) ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                                    onClick={() => toggleProductForCustomer(prod.id)}
+                                    title="Toggle visibility"
+                                  >
+                                    <span className={`absolute top-[2px] w-3 h-3 rounded-full bg-white shadow-sm transition-[left] ${isProductVisibleForCustomer(prod.id) ? 'left-[16px]' : 'left-[2px]'}`}></span>
+                                  </button>
+                                  <button
+                                    className={`w-[30px] h-4 rounded border text-[8px] font-bold text-center leading-[14px] p-0 cursor-pointer transition-all ${isProductOosForCustomer(prod.id) ? 'bg-amber-100 border-amber-200 text-amber-600' : 'bg-white border-slate-200 text-slate-400 hover:border-red-200 hover:text-red-500'}`}
+                                    onClick={() => toggleOosForCustomer(prod.id)}
+                                    title="Toggle OOS for this customer"
+                                  >
+                                    {isProductOosForCustomer(prod.id) ? 'OOS' : 'OK'}
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                        <div className="flex flex-col gap-0.5 flex-shrink-0">
-                          <button
-                            className={`w-[30px] h-4 rounded-lg border-none cursor-pointer relative transition-colors ${isProductVisibleForCustomer(prod.id) ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                            onClick={() => toggleProductForCustomer(prod.id)}
-                            title="Toggle visibility"
-                          >
-                            <span className={`absolute top-[2px] w-3 h-3 rounded-full bg-white shadow-sm transition-[left] ${isProductVisibleForCustomer(prod.id) ? 'left-[16px]' : 'left-[2px]'}`}></span>
-                          </button>
-                          <button
-                            className={`w-[30px] h-4 rounded border text-[8px] font-bold text-center leading-[14px] p-0 cursor-pointer transition-all ${isProductOosForCustomer(prod.id) ? 'bg-amber-100 border-amber-200 text-amber-600' : 'bg-white border-slate-200 text-slate-400 hover:border-red-200 hover:text-red-500'}`}
-                            onClick={() => toggleOosForCustomer(prod.id)}
-                            title="Toggle OOS for this customer"
-                          >
-                            {isProductOosForCustomer(prod.id) ? 'OOS' : 'OK'}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -2945,15 +3177,6 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
               </div>
               <button className={`w-9 h-5 rounded-full border-none cursor-pointer relative transition-colors flex-shrink-0 ${registrationEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`} onClick={toggleRegistration}>
                 <span className={`absolute top-[3px] w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-[left] ${registrationEnabled ? 'left-[19px]' : 'left-[3px]'}`}></span>
-              </button>
-            </div>
-            <div className="flex items-center max-sm:flex-col max-sm:items-start gap-5 max-sm:gap-2 px-5 max-sm:px-3.5 py-4">
-              <div className="flex-1">
-                <div className="text-sm font-medium text-slate-800 mb-0.5">Show prices to customers <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded ml-1">Default</span></div>
-                <div className="text-xs text-slate-400 leading-relaxed">Default setting for all customers. Per-customer "Show Prices" toggle in Customer View overrides this. Default is OFF — enable per customer as needed.</div>
-              </div>
-              <button className={`w-9 h-5 rounded-full border-none cursor-pointer relative transition-colors flex-shrink-0 ${priceVisibility ? 'bg-emerald-500' : 'bg-slate-300'}`} onClick={togglePriceVisibility}>
-                <span className={`absolute top-[3px] w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-[left] ${priceVisibility ? 'left-[19px]' : 'left-[3px]'}`}></span>
               </button>
             </div>
           </div>
@@ -3340,16 +3563,18 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                     <label className="px-3 py-1.5 rounded-md text-xs font-semibold border-none cursor-pointer transition-all bg-indigo-50 text-indigo-500 hover:bg-indigo-100 flex items-center gap-1">
                       <Camera className="w-3 h-3" /> Upload
                       <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        if (file.size > 5 * 1024 * 1024) { showToast('Image must be under 5MB'); return; }
+                        const rawFile = e.target.files?.[0];
+                        if (!rawFile) return;
+                        if (rawFile.size > 5 * 1024 * 1024) { showToast('Image must be under 5MB'); return; }
+                        let file = rawFile;
+                        try { file = await autoTrimImage(rawFile); } catch {}
                         const formData = new FormData();
                         formData.append('image', file);
                         const token = localStorage.getItem('token');
                         try {
                           const res = await fetch('/api/products/upload-image', { method: 'POST', headers: token ? { 'Authorization': `Bearer ${token}` } : {}, body: formData });
                           const data = await res.json();
-                          if (data.url) { setNewProductForm(prev => ({ ...prev, [imgField.key]: data.url })); showToast(`${imgField.label} uploaded`); }
+                          if (data.url) { setNewProductForm(prev => ({ ...prev, [imgField.key]: data.url })); showToast(`${imgField.label} uploaded & auto-cropped`); }
                           else { showToast('Upload failed'); }
                         } catch { showToast('Upload failed'); }
                         e.target.value = '';
@@ -3357,7 +3582,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                     </label>
                     {newProductForm[imgField.key] && (
                       <button type="button" className="px-3 py-1.5 rounded-md text-xs font-semibold border-none cursor-pointer transition-all bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1"
-                        onClick={() => setCropState({ open: true, imageUrl: newProductForm[imgField.key], fieldKey: imgField.key, source: 'new', zoom: 1, offsetX: 0, offsetY: 0 })}>
+                        onClick={() => openCropAutoZoom(newProductForm[imgField.key], imgField.key, 'new')}>
                         <Crop className="w-3 h-3" /> Crop
                       </button>
                     )}
@@ -3466,17 +3691,19 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                 { key: 'box_image_url', label: 'Box Image', Icon: Package },
                 { key: 'bundle_image_url', label: 'Bundle Image', Icon: Package },
               ].map(imgField => {
-                const uploadEditImage = async (file) => {
-                  if (!file) return;
-                  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { showToast('Only JPG, PNG, or WebP images are allowed'); return; }
-                  if (file.size > 5 * 1024 * 1024) { showToast('Image must be under 5MB'); return; }
+                const uploadEditImage = async (rawFile) => {
+                  if (!rawFile) return;
+                  if (!['image/jpeg', 'image/png', 'image/webp'].includes(rawFile.type)) { showToast('Only JPG, PNG, or WebP images are allowed'); return; }
+                  if (rawFile.size > 5 * 1024 * 1024) { showToast('Image must be under 5MB'); return; }
+                  let file = rawFile;
+                  try { file = await autoTrimImage(rawFile); } catch {}
                   const formData = new FormData();
                   formData.append('image', file);
                   const token = localStorage.getItem('token');
                   try {
                     const res = await fetch('/api/products/upload-image', { method: 'POST', headers: token ? { 'Authorization': `Bearer ${token}` } : {}, body: formData });
                     const data = await res.json();
-                    if (data.url) { setEditingProduct(prev => ({ ...prev, [imgField.key]: data.url })); showToast(`${imgField.label} uploaded`); }
+                    if (data.url) { setEditingProduct(prev => ({ ...prev, [imgField.key]: data.url })); showToast(`${imgField.label} uploaded & auto-cropped`); }
                     else { showToast('Upload failed'); }
                   } catch { showToast('Upload failed'); }
                 };
@@ -3518,7 +3745,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                         </label>
                         {editingProduct[imgField.key] && (
                           <button type="button" className="px-3 py-1.5 rounded-md text-xs font-semibold border-none cursor-pointer transition-all bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center gap-1"
-                            onClick={() => setCropState({ open: true, imageUrl: editingProduct[imgField.key], fieldKey: imgField.key, zoom: 1, offsetX: 0, offsetY: 0 })}>
+                            onClick={() => openCropAutoZoom(editingProduct[imgField.key], imgField.key, 'edit')}>
                             <Crop className="w-3 h-3" /> Crop
                           </button>
                         )}

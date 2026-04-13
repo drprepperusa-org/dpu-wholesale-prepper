@@ -931,7 +931,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 max-sm:items-end"
           style={{ animation: 'fadeIn 0.2s ease', touchAction: 'none', overscrollBehavior: 'none' }}
           onClick={(e) => { if (e.target === e.currentTarget) closeProductSheet(); }}>
-          <div className="bg-white rounded-2xl w-full max-w-[900px] overflow-hidden shadow-2xl flex flex-col relative max-sm:max-w-full max-sm:rounded-t-xl max-sm:rounded-b-none max-sm:h-[75vh] max-sm:max-h-[75vh]"
+          <div className="bg-white rounded-2xl w-full max-w-[1200px] overflow-hidden shadow-2xl flex flex-col relative max-sm:max-w-full max-sm:rounded-t-xl max-sm:rounded-b-none max-sm:h-[75vh] max-sm:max-h-[75vh]"
             style={{ maxHeight: '85vh', animation: !sheetInteracted.current ? 'popIn 0.25s ease' : undefined, transform: `translateY(${sheetDragY}px)`, transition: sheetDragging.current ? 'none' : 'transform 0.35s cubic-bezier(.32,1,.32,1)', willChange: 'transform' }} onClick={e => e.stopPropagation()}
             onTouchStart={onSheetTouchStart} onTouchMove={onSheetTouchMove} onTouchEnd={onSheetTouchEnd}>
             <div className="shrink-0 hidden max-sm:flex justify-center items-center pt-2 pb-3">
@@ -954,7 +954,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                       const idx = sheetImgIdx < images.length ? sheetImgIdx : 0;
                       return (
                         <div className="shrink-0 max-sm:items-center max-sm:flex max-sm:flex-col">
-                          <div className="w-[400px] h-[400px] bg-white rounded-xl overflow-hidden border border-slate-200 max-sm:w-[150px] max-sm:h-[150px] relative max-sm:cursor-pointer"
+                          <div className="w-[520px] h-[520px] bg-white rounded-xl overflow-hidden border border-slate-200 max-sm:w-[150px] max-sm:h-[150px] relative max-sm:cursor-pointer"
                             onClick={() => { if (window.innerWidth <= 640) setImgViewerOpen(true); }}
                             onTouchStart={e => { sheetImgTouchX.current = e.touches[0].clientX; }}
                             onTouchEnd={e => {
@@ -963,7 +963,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                             }}>
                             <div className="flex transition-transform duration-300 h-full" style={{ transform: `translateX(-${idx * 100}%)` }}>
                               {images.map((img, i) => (
-                                <img key={i} src={img.url} alt={img.label} className="w-full h-full object-contain p-2 shrink-0" />
+                                <img key={i} src={img.url} alt={img.label} className="w-full h-full object-cover shrink-0" />
                               ))}
                             </div>
                           </div>

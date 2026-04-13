@@ -45,12 +45,15 @@ export async function GET(request) {
     const orders = [];
     for (const order of result.rows) {
       const itemsResult = await pool.query(`
-        SELECT oi.product_id, oi.qty, oi.unit, p.name, p.sku, p.price, p.cases_per_pallet
+        SELECT oi.product_id, oi.qty, oi.unit,
+               COALESCE(oi.price, co.override_price, p.price) AS price,
+               p.name, p.sku, p.cases_per_pallet, p.show_price
         FROM order_items oi
         JOIN products p ON oi.product_id = p.id
+        LEFT JOIN customer_overrides co ON co.product_id = oi.product_id AND co.customer_id = $2
         WHERE oi.order_id = $1
         ORDER BY oi.id
-      `, [order.id]);
+      `, [order.id, order.customer_id]);
 
       const computedCases = itemsResult.rows.reduce((s, i) => {
         const cpp = parseInt(i.cases_per_pallet) || 60;
@@ -105,9 +108,19 @@ export async function POST(request) {
       );
 
       for (const item of items) {
+        // Capture the effective price at order time: customer override -> product price.
+        // Storing it on the order_item ensures historical accuracy if prices change later.
+        const priceLookup = await client.query(
+          `SELECT COALESCE(co.override_price, p.price) AS price
+           FROM products p
+           LEFT JOIN customer_overrides co ON co.product_id = p.id AND co.customer_id = $2
+           WHERE p.id = $1`,
+          [item.product_id, customer.id]
+        );
+        const effectivePrice = priceLookup.rows[0]?.price ?? null;
         await client.query(
-          'INSERT INTO order_items (order_id, product_id, qty, unit) VALUES ($1, $2, $3, $4)',
-          [orderId, item.product_id, item.qty, item.unit || 'cases']
+          'INSERT INTO order_items (order_id, product_id, qty, unit, price) VALUES ($1, $2, $3, $4, $5)',
+          [orderId, item.product_id, item.qty, item.unit || 'cases', effectivePrice]
         );
       }
 
