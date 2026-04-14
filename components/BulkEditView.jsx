@@ -67,7 +67,8 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
       if (!response.ok) throw new Error('Failed to load customer products')
       const data = await response.json()
       const newOverrides = {}
-      data.forEach(prod => { if (prod.override_price !== null || prod.override_is_hidden) newOverrides[prod.id] = { price: prod.override_price, hidden: prod.override_is_hidden } })
+      const prods = Array.isArray(data) ? data : (data.products || [])
+      prods.forEach(prod => { if (prod.override_price !== null || prod.override_is_hidden) newOverrides[prod.id] = { price: prod.override_price, hidden: prod.override_is_hidden } })
       setOverrides(newOverrides)
     } catch (e) { console.error('Error loading overrides:', e); showToast('Failed to load customer overrides', 'error') }
     finally { setIsLoading(false) }
@@ -168,13 +169,34 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
         </div>
 
         {/* Toolbar */}
-        <div className="flex gap-2.5 mb-3.5 items-center max-sm:flex-col max-sm:gap-1.5">
+        <div className="flex gap-2.5 mb-3 items-center max-sm:flex-col max-sm:gap-1.5">
           <div className="flex-1 relative max-sm:w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} type="text" placeholder="Search SKU, name, category..."
               className="w-full py-2.5 pl-9 pr-3 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-white shadow-sm focus:outline-none focus:border-indigo-400 placeholder:text-slate-400 max-sm:!text-base" />
           </div>
           <span className="text-slate-400 text-xs whitespace-nowrap max-sm:self-end">{filteredProducts.length} products</span>
+        </div>
+
+        {/* Column headers — inside sticky so they always sit right below the search bar */}
+        <div className="bg-white border border-slate-200 border-b-0 rounded-t-xl shadow-sm max-sm:overflow-x-auto max-sm:rounded-t-lg">
+          <table className="w-full border-collapse max-sm:min-w-[500px]">
+            <thead>
+              <tr>
+                <th className="w-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">
+                  <input type="checkbox" onChange={toggleSelectAll} checked={filteredProducts.length > 0 && selectedRows.size === filteredProducts.length} className="accent-indigo-500" />
+                </th>
+                <th className="w-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2"></th>
+                <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">SKU</th>
+                <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Name</th>
+                <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Brand</th>
+                <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Price</th>
+                <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Super Category</th>
+                <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Category</th>
+                <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Hidden</th>
+              </tr>
+            </thead>
+          </table>
         </div>
       </div>
 
@@ -191,24 +213,9 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
         </div>
       )}
 
-      {/* Table */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto shadow-sm max-sm:rounded-lg">
+      {/* Table body */}
+      <div className="bg-white border border-slate-200 border-t-0 rounded-b-xl shadow-sm max-sm:rounded-b-lg max-sm:overflow-x-auto">
         <table className="w-full border-collapse max-sm:min-w-[500px]">
-          <thead>
-            <tr>
-              <th className="sticky top-[148px] z-10 w-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:top-[120px] max-sm:p-2 max-sm:text-[9px]">
-                <input type="checkbox" onChange={toggleSelectAll} checked={filteredProducts.length > 0 && selectedRows.size === filteredProducts.length} className="accent-indigo-500" />
-              </th>
-              <th className="sticky top-[148px] z-10 w-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:top-[120px] max-sm:p-2"></th>
-              <th className="sticky top-[148px] z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:top-[120px] max-sm:p-2 max-sm:text-[9px]">SKU</th>
-              <th className="sticky top-[148px] z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:top-[120px] max-sm:p-2 max-sm:text-[9px]">Name</th>
-              <th className="sticky top-[148px] z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:top-[120px] max-sm:p-2 max-sm:text-[9px]">Brand</th>
-              <th className="sticky top-[148px] z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:top-[120px] max-sm:p-2 max-sm:text-[9px]">Price</th>
-              <th className="sticky top-[148px] z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:top-[120px] max-sm:p-2 max-sm:text-[9px]">Super Category</th>
-              <th className="sticky top-[148px] z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:top-[120px] max-sm:p-2 max-sm:text-[9px]">Category</th>
-              <th className="sticky top-[148px] z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:top-[120px] max-sm:p-2 max-sm:text-[9px]">Hidden</th>
-            </tr>
-          </thead>
           <tbody>
             {filteredProducts.map(prod => (
               <tr key={prod.id} className={`border-b border-slate-200 hover:bg-slate-50 transition-colors ${selectedRows.has(prod.id) ? 'bg-indigo-50' : ''}`}>
