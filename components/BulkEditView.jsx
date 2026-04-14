@@ -157,14 +157,16 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
             <h2 className="text-xl font-semibold text-slate-800 m-0 max-sm:text-[17px]">Bulk Edit Products</h2>
             <span className="text-slate-400 text-[13px] mt-0.5 max-sm:text-xs">Edit prices, categories, and visibility across all products</span>
           </div>
-          <div className="bg-white p-2.5 px-3.5 border border-slate-200 rounded-xl min-w-[220px] flex items-center gap-2 flex-wrap shadow-sm max-sm:min-w-0 max-sm:w-full max-sm:p-2">
-            <label className="text-slate-500 text-xs font-medium whitespace-nowrap">View as:</label>
-            <select value={selectedMode} onChange={onModeChange}
-              className="text-slate-800 border border-slate-200 rounded-md px-2.5 py-1.5 bg-slate-50 text-[13px] max-sm:w-full max-sm:text-sm">
-              <option value="all">All Customers (defaults)</option>
-              {initialCustomers?.map(c => <option key={c.id} value={`customer:${c.id}`}>{c.company_name}</option>)}
-            </select>
-            {selectedCustomerId && <span className="text-slate-400 text-[11px] w-full">This customer sees {visibleProductCount} of {totalProducts} products</span>}
+          <div className="flex flex-col gap-1 max-sm:w-full">
+            <div className="bg-white p-2.5 px-3.5 border border-slate-200 rounded-xl min-w-[220px] flex items-center gap-2 shadow-sm max-sm:min-w-0 max-sm:w-full max-sm:p-2">
+              <label className="text-slate-500 text-xs font-medium whitespace-nowrap">View as:</label>
+              <select value={selectedMode} onChange={onModeChange}
+                className="text-slate-800 border border-slate-200 rounded-md px-2.5 py-1.5 bg-slate-50 text-[13px] max-sm:w-full max-sm:text-sm">
+                <option value="all">All Customers (defaults)</option>
+                {initialCustomers?.map(c => <option key={c.id} value={`customer:${c.id}`}>{c.company_name}</option>)}
+              </select>
+            </div>
+            {selectedCustomerId && <span className="text-slate-400 text-[11px] text-right">This customer sees {visibleProductCount} of {totalProducts} products</span>}
           </div>
         </div>
 
@@ -178,44 +180,39 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
           <span className="text-slate-400 text-xs whitespace-nowrap max-sm:self-end">{filteredProducts.length} products</span>
         </div>
 
-        {/* Column headers — inside sticky so they always sit right below the search bar */}
-        <div className="bg-white border border-slate-200 border-b-0 rounded-t-xl shadow-sm max-sm:overflow-x-auto max-sm:rounded-t-lg">
-          <table className="w-full border-collapse max-sm:min-w-[500px]">
-            <thead>
-              <tr>
-                <th className="w-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">
-                  <input type="checkbox" onChange={toggleSelectAll} checked={filteredProducts.length > 0 && selectedRows.size === filteredProducts.length} className="accent-indigo-500" />
-                </th>
-                <th className="w-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2"></th>
-                <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">SKU</th>
-                <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Name</th>
-                <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Brand</th>
-                <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Price</th>
-                <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Super Category</th>
-                <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Category</th>
-                <th className="bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Hidden</th>
-              </tr>
-            </thead>
-          </table>
-        </div>
+        {/* Bulk action bar — inside sticky so it stays visible while scrolling */}
+        {selectedRows.size > 0 && (
+          <div className="flex gap-2 items-center px-4 py-2.5 bg-indigo-50 border border-indigo-200 rounded-lg mb-2 flex-wrap max-sm:px-2.5 max-sm:py-2 max-sm:gap-1.5">
+            <span className="text-[13px] font-semibold text-indigo-500 mr-1 max-sm:text-xs max-sm:w-full">{selectedRows.size} selected</span>
+            <button onClick={() => setShowBulkPriceModal(true)} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-semibold cursor-pointer transition-colors hover:border-indigo-400 hover:text-indigo-500 max-sm:text-[11px] max-sm:px-2.5"><DollarSign className="w-3.5 h-3.5" /> Set Price</button>
+            <button onClick={() => setShowBulkBrandModal(true)} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-semibold cursor-pointer transition-colors hover:border-indigo-400 hover:text-indigo-500 max-sm:text-[11px] max-sm:px-2.5"><Tag className="w-3.5 h-3.5" /> Set Brand</button>
+            <button onClick={() => setShowBulkCategoryModal(true)} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-semibold cursor-pointer transition-colors hover:border-indigo-400 hover:text-indigo-500 max-sm:text-[11px] max-sm:px-2.5"><FolderOpen className="w-3.5 h-3.5" /> Set Category</button>
+            <button onClick={applyBulkHide} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-500 text-xs font-semibold cursor-pointer transition-colors hover:bg-red-500 hover:text-white max-sm:text-[11px] max-sm:px-2.5"><Ban className="w-3.5 h-3.5" /> Hide</button>
+            <button onClick={() => setSelectedRows(new Set())} className="px-3.5 py-1.5 rounded-lg bg-slate-100 text-slate-400 border border-slate-200 text-xs font-semibold cursor-pointer transition-colors hover:text-slate-700 hover:border-slate-300 ml-auto max-sm:text-[11px] max-sm:px-2.5">Deselect</button>
+          </div>
+        )}
       </div>
 
       <div className="px-5 pb-5 max-sm:px-3 max-sm:pb-3">
-      {/* Bulk action bar */}
-      {selectedRows.size > 0 && (
-        <div className="flex gap-2 items-center px-4 py-2.5 bg-indigo-50 border border-indigo-200 rounded-lg mb-4 flex-wrap max-sm:px-2.5 max-sm:py-2 max-sm:gap-1.5">
-          <span className="text-[13px] font-semibold text-indigo-500 mr-1 max-sm:text-xs max-sm:w-full">{selectedRows.size} selected</span>
-          <button onClick={() => setShowBulkPriceModal(true)} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-semibold cursor-pointer transition-colors hover:border-indigo-400 hover:text-indigo-500 max-sm:text-[11px] max-sm:px-2.5"><DollarSign className="w-3.5 h-3.5" /> Set Price</button>
-          <button onClick={() => setShowBulkBrandModal(true)} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-semibold cursor-pointer transition-colors hover:border-indigo-400 hover:text-indigo-500 max-sm:text-[11px] max-sm:px-2.5"><Tag className="w-3.5 h-3.5" /> Set Brand</button>
-          <button onClick={() => setShowBulkCategoryModal(true)} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-semibold cursor-pointer transition-colors hover:border-indigo-400 hover:text-indigo-500 max-sm:text-[11px] max-sm:px-2.5"><FolderOpen className="w-3.5 h-3.5" /> Set Category</button>
-          <button onClick={applyBulkHide} className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-500 text-xs font-semibold cursor-pointer transition-colors hover:bg-red-500 hover:text-white max-sm:text-[11px] max-sm:px-2.5"><Ban className="w-3.5 h-3.5" /> Hide</button>
-          <button onClick={() => setSelectedRows(new Set())} className="px-3.5 py-1.5 rounded-lg bg-slate-100 text-slate-400 border border-slate-200 text-xs font-semibold cursor-pointer transition-colors hover:text-slate-700 hover:border-slate-300 ml-auto max-sm:text-[11px] max-sm:px-2.5">Deselect</button>
-        </div>
-      )}
 
-      {/* Table body */}
-      <div className="bg-white border border-slate-200 border-t-0 rounded-b-xl shadow-sm max-sm:rounded-b-lg max-sm:overflow-x-auto">
+      {/* Table */}
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm max-sm:rounded-lg max-sm:overflow-x-auto">
         <table className="w-full border-collapse max-sm:min-w-[500px]">
+          <thead>
+            <tr>
+              <th className="sticky top-0 z-10 w-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">
+                <input type="checkbox" onChange={toggleSelectAll} checked={filteredProducts.length > 0 && selectedRows.size === filteredProducts.length} className="accent-indigo-500" />
+              </th>
+              <th className="sticky top-0 z-10 w-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2"></th>
+              <th className="sticky top-0 z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">SKU</th>
+              <th className="sticky top-0 z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Name</th>
+              <th className="sticky top-0 z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Brand</th>
+              <th className="sticky top-0 z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Price</th>
+              <th className="sticky top-0 z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Super Category</th>
+              <th className="sticky top-0 z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Category</th>
+              <th className="sticky top-0 z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Hidden</th>
+            </tr>
+          </thead>
           <tbody>
             {filteredProducts.map(prod => (
               <tr key={prod.id} className={`border-b border-slate-200 hover:bg-slate-50 transition-colors ${selectedRows.has(prod.id) ? 'bg-indigo-50' : ''}`}>

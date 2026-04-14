@@ -104,7 +104,7 @@ export async function GET(request) {
     const total = parseInt(countResult.rows[0]?.total || 0);
 
     const _brandSort = _cols.has('brand') ? 'p.brand NULLS LAST, ' : '';
-    query += ` ORDER BY s.sort_order NULLS LAST, c.sort_order NULLS LAST, ${_brandSort}p.name`;
+    query += ` ORDER BY s.sort_order NULLS LAST, c.sort_order NULLS LAST, p.sort_order NULLS LAST, ${_brandSort}p.name`;
 
     if (limit > 0) {
       query += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;

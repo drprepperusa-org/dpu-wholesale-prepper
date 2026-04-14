@@ -40,13 +40,32 @@ export async function PATCH(request) {
   try {
     const admin = await requireAdmin(request);
     if (!admin) return NextResponse.json({ error: 'Admin required' }, { status: 403 });
-    const { id, name } = await request.json();
-    if (!id || !name || !name.trim()) return NextResponse.json({ error: 'ID and name are required' }, { status: 400 });
+    const { id, name, super_category_id } = await request.json();
+    if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 });
+
+    const updates = [];
+    const params = [];
+    let paramIdx = 1;
+    if (name && name.trim()) { updates.push(`name = $${paramIdx++}`); params.push(name.trim()); }
+    if (super_category_id !== undefined) {
+      updates.push(`super_category_id = $${paramIdx++}`);
+      params.push(super_category_id);
+      // Also update products in this category to the new super_category_id
+    }
+    if (updates.length === 0) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
+
+    params.push(id);
     const result = await pool.query(
-      'UPDATE categories SET name = $1 WHERE id = $2 RETURNING id, name, super_category_id, sort_order',
-      [name.trim(), id]
+      `UPDATE categories SET ${updates.join(', ')} WHERE id = $${paramIdx} RETURNING id, name, super_category_id, sort_order`,
+      params
     );
     if (result.rows.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+    // If super_category_id changed, update all products in this category too
+    if (super_category_id !== undefined) {
+      await pool.query('UPDATE products SET super_category_id = $1 WHERE category_id = $2', [super_category_id, id]);
+    }
+
     return NextResponse.json({ success: true, category: result.rows[0] });
   } catch (err) {
     console.error('Update category error:', err);

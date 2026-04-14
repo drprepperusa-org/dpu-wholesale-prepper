@@ -697,10 +697,10 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
 
                 {/* Category quick-nav pills */}
                 {superCatList.length > 0 && !selectedCategory && filteredProducts.length > 0 &&
-                  superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).length > 1 && (
+                  superCatList.length > 1 && (
                     <div className="sm:mt-2 flex items-center gap-1.5">
                       <div ref={pillsRowRef} className="flex gap-2 max-sm:gap-1.5 overflow-x-auto flex-1 min-w-0" style={{ scrollbarWidth: 'none' }}>
-                        {superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).map(sc => (
+                        {superCatList.map(sc => (
                           <button key={sc.id} data-pill-id={sc.id}
                             onClick={() => {
                               setActiveSuperCatId(sc.id);
@@ -900,9 +900,9 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
             </div>
           </div>
           {superCatList.length > 0 && !selectedCategory && filteredProducts.length > 0 &&
-            superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).length > 1 && (
+            superCatList.length > 1 && (
               <div ref={floatingPillsRef} className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-                {superCatList.filter(sc => filteredProducts.some(p => p.super_category_id === sc.id)).map(sc => (
+                {superCatList.map(sc => (
                   <button key={sc.id}
                     onClick={() => {
                       setActiveSuperCatId(sc.id);
@@ -931,7 +931,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
         <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 max-sm:items-end"
           style={{ animation: 'fadeIn 0.2s ease', touchAction: 'none', overscrollBehavior: 'none' }}
           onClick={(e) => { if (e.target === e.currentTarget) closeProductSheet(); }}>
-          <div className="bg-white rounded-2xl w-full max-w-[1200px] overflow-hidden shadow-2xl flex flex-col relative max-sm:max-w-full max-sm:rounded-t-xl max-sm:rounded-b-none max-sm:h-[75vh] max-sm:max-h-[75vh]"
+          <div className="bg-white rounded-2xl w-full max-w-[780px] overflow-hidden shadow-2xl flex flex-col relative max-sm:max-w-full max-sm:rounded-t-xl max-sm:rounded-b-none max-sm:h-[75vh] max-sm:max-h-[75vh]"
             style={{ maxHeight: '85vh', animation: !sheetInteracted.current ? 'popIn 0.25s ease' : undefined, transform: `translateY(${sheetDragY}px)`, transition: sheetDragging.current ? 'none' : 'transform 0.35s cubic-bezier(.32,1,.32,1)', willChange: 'transform' }} onClick={e => e.stopPropagation()}
             onTouchStart={onSheetTouchStart} onTouchMove={onSheetTouchMove} onTouchEnd={onSheetTouchEnd}>
             <div className="shrink-0 hidden max-sm:flex justify-center items-center pt-2 pb-3">
@@ -943,7 +943,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
             </button>
             {selectedProduct && (
               <>
-                <div ref={sheetScrollRef} className="flex-1 overflow-hidden min-h-0">
+                <div ref={sheetScrollRef} className="flex-1 overflow-y-auto min-h-0">
                   <div className="flex gap-6 p-6 max-sm:flex-col max-sm:items-center max-sm:gap-2 max-sm:p-4 max-sm:text-center">
                     {(() => {
                       const images = [
@@ -954,7 +954,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                       const idx = sheetImgIdx < images.length ? sheetImgIdx : 0;
                       return (
                         <div className="shrink-0 max-sm:items-center max-sm:flex max-sm:flex-col">
-                          <div className="w-[520px] h-[520px] bg-white rounded-xl overflow-hidden border border-slate-200 max-sm:w-[150px] max-sm:h-[150px] relative max-sm:cursor-pointer"
+                          <div className="w-[260px] h-[260px] rounded-xl overflow-hidden border border-slate-200 max-sm:w-[150px] max-sm:h-[150px] relative max-sm:cursor-pointer"
                             onClick={() => { if (window.innerWidth <= 640) setImgViewerOpen(true); }}
                             onTouchStart={e => { sheetImgTouchX.current = e.touches[0].clientX; }}
                             onTouchEnd={e => {
@@ -1019,7 +1019,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                     </div>
                   </div>
                   <div className="h-px bg-slate-200 mx-5 shrink-0" />
-                  <div className="p-5 overflow-y-auto flex-1">
+                  <div className="p-5 shrink-0">
                     <div className="text-[13px] font-semibold text-slate-800 mb-3">Add to Order</div>
                     <div className="flex gap-0 bg-slate-100 border border-slate-200 rounded-lg p-0.5 mb-3">
                       <button className={`flex-1 py-2 text-center rounded-md border-none text-[13px] font-medium cursor-pointer transition-all flex items-center justify-center gap-1.5 ${selectedUnit === 'cases' ? 'bg-white text-indigo-500 shadow-sm font-semibold' : 'bg-transparent text-slate-500'}`}

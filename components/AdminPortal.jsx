@@ -91,60 +91,55 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
   const [cropState, setCropState] = useState({ open: false, imageUrl: '', fieldKey: '', zoom: 1, offsetX: 0, offsetY: 0 })
   const cropDragging = useRef(false)
   const cropStart = useRef({ x: 0, y: 0 })
-  const [dragProdId, setDragProdId] = useState(null)
-  const [dragOverProdId, setDragOverProdId] = useState(null)
-  const [dragProdCategoryKey, setDragProdCategoryKey] = useState('')
-  const [isReorderingProducts, setIsReorderingProducts] = useState(false)
+  // All drag state is refs-only (zero re-renders during drag = stable HTML5 drag)
   const dragProdRef = useRef(null)
   const dragOverProdRef = useRef(null)
+  const dragProdCategoryKeyRef = useRef('')
   const productsRef = useRef(products)
   productsRef.current = products
   const autoScrollRef = useRef(null)
   const catalogScrollRef = useRef(null)
+  const dragScrollHandlers = useRef(null)
 
   const resetProductDragState = useCallback(() => {
+    // Clean up dragged card visual via DOM (no setState)
+    document.querySelectorAll('.drag-active-card').forEach(el => el.classList.remove('drag-active-card', 'opacity-40'))
+    document.querySelectorAll('.drag-drop-zone').forEach(el => el.classList.remove('drag-drop-zone'))
     dragProdRef.current = null
     dragOverProdRef.current = null
-    setDragProdId(null)
-    setDragOverProdId(null)
-    setDragProdCategoryKey('')
+    dragProdCategoryKeyRef.current = ''
+    // Stop auto-scroll
     if (autoScrollRef.current) { cancelAnimationFrame(autoScrollRef.current); autoScrollRef.current = null }
+    if (dragScrollHandlers.current) {
+      const scrollEl = catalogScrollRef.current
+      if (scrollEl) scrollEl.removeEventListener('dragover', dragScrollHandlers.current.onDragOver)
+      document.removeEventListener('wheel', dragScrollHandlers.current.onWheel)
+      dragScrollHandlers.current = null
+    }
   }, [])
 
-  // Auto-scroll the catalog area when dragging near top/bottom edges
-  useEffect(() => {
+  // Start auto-scroll + wheel (called from onDragStart, not useEffect)
+  const startDragScroll = useCallback(() => {
     const scrollEl = catalogScrollRef.current
-    if (!dragProdId || !scrollEl) return
+    if (!scrollEl) return
     let mouseY = 0
-    const EDGE = 80 // px from edge to start scrolling
-    const MAX_SPEED = 18 // px per frame
+    const EDGE = 80, MAX_SPEED = 18
     const onDragOver = (e) => { mouseY = e.clientY }
     const tick = () => {
       if (!dragProdRef.current) return
       const rect = scrollEl.getBoundingClientRect()
       const fromTop = mouseY - rect.top
       const fromBottom = rect.bottom - mouseY
-      if (fromTop < EDGE && fromTop > 0) {
-        scrollEl.scrollTop -= MAX_SPEED * (1 - fromTop / EDGE)
-      } else if (fromBottom < EDGE && fromBottom > 0) {
-        scrollEl.scrollTop += MAX_SPEED * (1 - fromBottom / EDGE)
-      }
+      if (fromTop < EDGE && fromTop > 0) scrollEl.scrollTop -= MAX_SPEED * (1 - fromTop / EDGE)
+      else if (fromBottom < EDGE && fromBottom > 0) scrollEl.scrollTop += MAX_SPEED * (1 - fromBottom / EDGE)
       autoScrollRef.current = requestAnimationFrame(tick)
     }
-    // Force mouse wheel scrolling during drag (some browsers block native wheel-scroll during drag)
-    const onWheel = (e) => {
-      e.preventDefault()
-      scrollEl.scrollTop += e.deltaY
-    }
+    const onWheel = (e) => { if (!dragProdRef.current) return; e.preventDefault(); scrollEl.scrollTop += e.deltaY }
     scrollEl.addEventListener('dragover', onDragOver)
-    scrollEl.addEventListener('wheel', onWheel, { passive: false })
+    document.addEventListener('wheel', onWheel, { passive: false })
+    dragScrollHandlers.current = { onDragOver, onWheel }
     autoScrollRef.current = requestAnimationFrame(tick)
-    return () => {
-      scrollEl.removeEventListener('dragover', onDragOver)
-      scrollEl.removeEventListener('wheel', onWheel)
-      if (autoScrollRef.current) { cancelAnimationFrame(autoScrollRef.current); autoScrollRef.current = null }
-    }
-  }, [dragProdId])
+  }, [])
 
   const getProductCategoryKey = useCallback((product) => {
     if (!product) return ''
@@ -178,6 +173,8 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
     pendingSaveRef.current = null
     pendingMoveRef.current = null
     draggedIdsRef.current = []
+    // Sync React state with ref (ref was updated during drag without triggering re-render)
+    setProducts([...productsRef.current])
     resetProductDragState()
 
     const token = localStorage.getItem('token')
@@ -614,13 +611,19 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
   }, [])
 
   const handleDragEnter = useCallback((e, index, listType, superId) => {
-    if (!dragContext || dragContext.listType !== listType || dragContext.superId !== superId) return
+    if (!dragContext || dragContext.listType !== listType) return
+    // Allow cross-super-category drops for subcategories
+    if (listType === 'super' && dragContext.superId !== superId) return
     dragOverItemRef.current = index
+    // Track target super category for cross-moves
+    if (listType === 'sub' && dragContext.superId !== superId) dragContext._targetSuperId = superId
+    else if (listType === 'sub') dragContext._targetSuperId = null
     e.preventDefault()
   }, [dragContext])
 
   const handleDragOver = useCallback((e, listType, superId) => {
-    if (!dragContext || dragContext.listType !== listType || dragContext.superId !== superId) return
+    if (!dragContext || dragContext.listType !== listType) return
+    if (listType === 'super' && dragContext.superId !== superId) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
   }, [dragContext])
@@ -650,23 +653,52 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
   const handleDrop = useCallback((e, listType, superId) => {
     e.preventDefault()
     document.querySelectorAll('.opacity-40').forEach(el => el.classList.remove('opacity-40'))
-    if (!dragContext || dragContext.listType !== listType || dragContext.superId !== superId) return
+    if (!dragContext || dragContext.listType !== listType) return
+    if (listType === 'super' && dragContext.superId !== superId) return
     const from = dragItemRef.current
     const to = dragOverItemRef.current
-    if (from === null || to === null || from === to) { setDragContext(null); return }
 
     if (listType === 'super') {
+      if (from === null || to === null || from === to) { setDragContext(null); return }
       const copy = [...superCategoriesList]
       const [moved] = copy.splice(from, 1)
       copy.splice(to, 0, moved)
       setSuperCategoriesList(copy)
       saveCategoryOrder('super-categories-reorder', copy)
     } else {
-      const copy = [...(categoriesBySuper[superId] || [])]
-      const [moved] = copy.splice(from, 1)
-      copy.splice(to, 0, moved)
-      setCategoriesBySuper(prev => ({ ...prev, [superId]: copy }))
-      saveCategoryOrder('categories-reorder', copy)
+      const sourceSuperId = dragContext.superId
+      const targetSuperId = dragContext._targetSuperId || superId
+
+      if (sourceSuperId === targetSuperId) {
+        // Same super category — simple reorder
+        if (from === null || to === null || from === to) { setDragContext(null); return }
+        const copy = [...(categoriesBySuper[superId] || [])]
+        const [moved] = copy.splice(from, 1)
+        copy.splice(to, 0, moved)
+        setCategoriesBySuper(prev => ({ ...prev, [superId]: copy }))
+        saveCategoryOrder('categories-reorder', copy)
+      } else {
+        // Cross-super-category move
+        if (from === null) { setDragContext(null); return }
+        const sourceCats = [...(categoriesBySuper[sourceSuperId] || [])]
+        const targetCats = [...(categoriesBySuper[targetSuperId] || [])]
+        const [moved] = sourceCats.splice(from, 1)
+        const insertAt = to !== null ? to : targetCats.length
+        targetCats.splice(insertAt, 0, moved)
+        // Optimistic UI update
+        setCategoriesBySuper(prev => ({ ...prev, [sourceSuperId]: sourceCats, [targetSuperId]: targetCats }))
+        // Update the category's super_category_id in DB + reorder in target
+        const token = localStorage.getItem('token')
+        const headers = { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
+        fetch('/api/admin/categories', {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ id: moved.id, super_category_id: targetSuperId })
+        }).then(res => {
+          if (!res.ok) console.error('Move category failed')
+          saveCategoryOrder('categories-reorder', targetCats)
+        }).catch(e => console.error('Move category error:', e))
+      }
     }
     dragItemRef.current = null
     dragOverItemRef.current = null
@@ -2400,8 +2432,28 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
               return (
               <React.Fragment key={superCat.id}>
                 <button
-                  className={`cat-item w-full flex items-center gap-2.5 px-3.5 py-3.5 border-none cursor-pointer text-sm font-medium text-left transition-all border-b border-slate-200 ${currentFilter === `super:${superCat.name}` ? 'text-indigo-500 bg-indigo-50' : 'text-slate-500 bg-slate-50 hover:bg-slate-100 hover:text-slate-800'} ${dragContext?.listType === 'super' && dragOverItemRef.current === realIndex && dragItemRef.current !== realIndex ? '!border-t-2 !border-t-indigo-500' : ''}`}
+                  className={`cat-item w-full flex items-center gap-2.5 px-3.5 py-3.5 border-none cursor-pointer text-sm font-medium text-left transition-all border-b border-slate-200 ${currentFilter === `super:${superCat.name}` ? 'text-indigo-500 bg-indigo-50' : 'text-slate-500 bg-slate-50 hover:bg-slate-100 hover:text-slate-800'} ${dragContext?.listType === 'super' && dragOverItemRef.current === realIndex && dragItemRef.current !== realIndex ? '!border-t-2 !border-t-indigo-500' : ''} ${dragContext?.listType === 'sub' && dragContext?.superId !== superCat.id ? 'hover:!bg-indigo-50 hover:!border-indigo-300' : ''}`}
                   onClick={() => toggleSuperCat(superCat.name)}
+                  onDragOver={(e) => { if (dragContext?.listType === 'sub' && dragContext?.superId !== superCat.id) { e.preventDefault(); e.dataTransfer.dropEffect = 'move' } }}
+                  onDrop={(e) => {
+                    if (!dragContext || dragContext.listType !== 'sub' || dragContext.superId === superCat.id) return
+                    e.preventDefault(); e.stopPropagation()
+                    document.querySelectorAll('.opacity-40').forEach(el => el.classList.remove('opacity-40'))
+                    const from = dragItemRef.current
+                    if (from === null) { setDragContext(null); return }
+                    const sourceCats = [...(categoriesBySuper[dragContext.superId] || [])]
+                    const targetCats = [...(categoriesBySuper[superCat.id] || [])]
+                    const [moved] = sourceCats.splice(from, 1)
+                    targetCats.push(moved)
+                    setCategoriesBySuper(prev => ({ ...prev, [dragContext.superId]: sourceCats, [superCat.id]: targetCats }))
+                    setExpandedSuperCats(prev => ({ ...prev, [superCat.name]: true }))
+                    const token = localStorage.getItem('token')
+                    const headers = { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
+                    fetch('/api/admin/categories', { method: 'PATCH', headers, body: JSON.stringify({ id: moved.id, super_category_id: superCat.id }) })
+                      .then(r => { if (!r.ok) console.error('Move failed'); saveCategoryOrder('categories-reorder', targetCats) })
+                      .catch(e => console.error('Move error:', e))
+                    dragItemRef.current = null; dragOverItemRef.current = null; setDragContext(null)
+                  }}
                   draggable={!sidebarFilter}
                   onDragStart={(e) => handleDragStart(e, realIndex, 'super', null)}
                   onDragEnter={(e) => handleDragEnter(e, realIndex, 'super', null)}
@@ -2413,14 +2465,53 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                   <span className="text-[11px] text-slate-400 bg-white px-2 py-0.5 rounded-full border border-slate-200">{(categoriesBySuper[superCat.id] || []).reduce((sum, cat) => sum + products.filter(p => p.category_id === cat.id).length, 0)}</span>
                   <ChevronRight className={`w-2.5 h-2.5 text-slate-300 transition-transform flex-shrink-0 ${expandedSuperCats[superCat.name] ? 'rotate-90' : ''}`} />
                 </button>
-                <div className={`overflow-hidden transition-all duration-300 ${expandedSuperCats[superCat.name] ? 'max-h-[700px]' : 'max-h-0'}`}>
-                  {(categoriesBySuper[superCat.id] || []).filter(c => !sidebarFilter || c.name.toLowerCase().includes(sidebarFilter.toLowerCase())).map(cat => (
+                <div className={`overflow-hidden transition-all duration-300 ${expandedSuperCats[superCat.name] ? 'max-h-[700px]' : 'max-h-0'}`}
+                  onDragOver={(e) => { if (dragContext?.listType === 'sub') { e.preventDefault(); e.dataTransfer.dropEffect = 'move' } }}
+                  onDrop={(e) => {
+                    if (!dragContext || dragContext.listType !== 'sub') return
+                    e.preventDefault()
+                    document.querySelectorAll('.opacity-40').forEach(el => el.classList.remove('opacity-40'))
+                    const sourceSuperId = dragContext.superId
+                    const from = dragItemRef.current
+                    const to = dragOverItemRef.current
+                    if (from === null) { setDragContext(null); return }
+                    const token = localStorage.getItem('token')
+                    const headers = { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
+
+                    if (sourceSuperId === superCat.id) {
+                      // Same super category — reorder
+                      if (to === null || from === to) { setDragContext(null); return }
+                      const copy = [...(categoriesBySuper[superCat.id] || [])]
+                      const [moved] = copy.splice(from, 1)
+                      copy.splice(to, 0, moved)
+                      setCategoriesBySuper(prev => ({ ...prev, [superCat.id]: copy }))
+                      saveCategoryOrder('categories-reorder', copy)
+                    } else {
+                      // Cross super category — move
+                      const sourceCats = [...(categoriesBySuper[sourceSuperId] || [])]
+                      const targetCats = [...(categoriesBySuper[superCat.id] || [])]
+                      const [moved] = sourceCats.splice(from, 1)
+                      const insertAt = to !== null ? to : targetCats.length
+                      targetCats.splice(insertAt, 0, moved)
+                      setCategoriesBySuper(prev => ({ ...prev, [sourceSuperId]: sourceCats, [superCat.id]: targetCats }))
+                      fetch('/api/admin/categories', { method: 'PATCH', headers, body: JSON.stringify({ id: moved.id, super_category_id: superCat.id }) })
+                        .then(r => { if (!r.ok) console.error('Move failed'); saveCategoryOrder('categories-reorder', targetCats) })
+                        .catch(e => console.error('Move error:', e))
+                    }
+                    dragItemRef.current = null; dragOverItemRef.current = null; setDragContext(null)
+                  }}
+                >
+                  {(categoriesBySuper[superCat.id] || []).filter(c => !sidebarFilter || c.name.toLowerCase().includes(sidebarFilter.toLowerCase())).map((cat, catIdx) => (
                     <div
                       key={cat.id}
-                      className={`flex items-center justify-between px-3.5 py-2.5 pl-11 cursor-pointer text-[13px] transition-all border-b border-slate-100 ${currentFilter === `cat:${cat.name}` ? 'text-indigo-500 bg-indigo-50 font-medium' : 'text-slate-500 bg-white hover:bg-slate-50 hover:text-slate-800'}`}
+                      className={`cat-item flex items-center justify-between px-3.5 py-2.5 pl-8 cursor-pointer text-[13px] transition-all border-b border-slate-100 ${currentFilter === `cat:${cat.name}` ? 'text-indigo-500 bg-indigo-50 font-medium' : 'text-slate-500 bg-white hover:bg-slate-50 hover:text-slate-800'} ${dragContext?.listType === 'sub' && dragContext?.superId !== superCat.id ? 'hover:!bg-indigo-50 hover:!border-indigo-200' : ''}`}
                       onClick={() => { setFilter('cat', cat.name); loadProducts(1); }}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, catIdx, 'sub', superCat.id)}
+                      onDragEnter={(e) => handleDragEnter(e, catIdx, 'sub', superCat.id)}
+                      onDragEnd={handleDragEnd}
                     >
-                      <span>{cat.name}</span>
+                      <span className="flex items-center gap-1.5"><GripVertical className="w-2.5 h-2.5 text-slate-300 cursor-grab" />{cat.name}</span>
                       <span className="text-[11px] text-slate-400">{products.filter(p => p.category_id === cat.id).length}</span>
                     </div>
                   ))}
@@ -2593,26 +2684,28 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
 
                   {Object.entries(superCatData.categories).map(([catName, catProds]) => {
                     const _scObj = superCategoriesList.find(s => s.name === superCat)
-                    const _catMeta = categoryMetadata[catName] || (_scObj && (categoriesBySuper[_scObj.id] || []).find(c => c.name === catName))
+                    const _firstProd = catProds[0]
+                    const _catMeta = categoryMetadata[catName]
+                      || (_scObj && (categoriesBySuper[_scObj.id] || []).find(c => c.name === catName))
+                      || (_firstProd && { id: _firstProd.category_id, name: catName })
+                    const _scFallback = _scObj || (_firstProd && { id: _firstProd.super_category_id, name: superCat })
                     return (
-                    <div key={catName} className={`mb-7 rounded-lg transition-colors ${dragProdId ? 'p-2 -m-2 border-2 border-transparent hover:border-indigo-200 hover:bg-indigo-50/30' : ''}`}
+                    <div key={catName} className="mb-7 rounded-lg transition-colors"
                       onDragOver={(e) => {
                         if (!dragProdRef.current) return
                         e.preventDefault()
                         e.dataTransfer.dropEffect = 'move'
                       }}
                       onDrop={(e) => {
-                        if (!dragProdRef.current || !_catMeta || !_scObj) return
+                        if (!dragProdRef.current || !_catMeta || !_scFallback) return
                         e.preventDefault()
                         e.stopPropagation()
                         const idsToMove = draggedIdsRef.current.length > 0 ? [...draggedIdsRef.current] : [dragProdRef.current]
                         const idsSet = new Set(idsToMove)
-                        pendingMoveRef.current = { productIds: idsToMove, categoryId: _catMeta.id, superCategoryId: _scObj.id }
-                        const existingInTarget = productsRef.current.filter(p => p.category_id === _catMeta.id && !idsSet.has(p.id)).map(p => p.id)
+                        pendingMoveRef.current = { productIds: idsToMove, categoryId: _catMeta.id, superCategoryId: _scFallback.id }
+                        productsRef.current = productsRef.current.map(p => idsSet.has(p.id) ? { ...p, category_id: _catMeta.id, super_category_id: _scFallback.id, category: catName, super_category: superCat } : p)
+                        const existingInTarget = productsRef.current.filter(p => String(p.category_id) === String(_catMeta.id) && !idsSet.has(p.id)).map(p => p.id)
                         pendingSaveRef.current = [...existingInTarget, ...idsToMove]
-                        const copy = productsRef.current.map(p => idsSet.has(p.id) ? { ...p, category_id: _catMeta.id, super_category_id: _scObj.id, category: catName, super_category: superCat } : p)
-                        productsRef.current = copy
-                        setProducts(copy)
                         handleProductDrop()
                       }}
                     >
@@ -2651,29 +2744,23 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                           <GripVertical className="w-3 h-3" />
                           Drag cards to change product position
                         </span>
-                        {isReorderingProducts && dragProdCategoryKey === getProductCategoryKey(catProds[0]) && (
-                          <span className="inline-flex items-center gap-1 text-indigo-600 font-semibold">
-                            <span className="w-2.5 h-2.5 rounded-full border-2 border-indigo-200 border-t-indigo-500 animate-spin"></span>
-                            Saving order...
-                          </span>
-                        )}
                       </div>
                       <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] max-sm:grid-cols-2 gap-2.5 max-sm:gap-2">
-                        {catProds.length === 0 && dragProdId && _catMeta && _scObj && (
+                        {catProds.length === 0 && _catMeta && _scFallback && (
                             <div
-                              className="col-span-full border-2 border-dashed border-indigo-300 bg-indigo-50/50 rounded-xl p-6 text-center text-sm text-indigo-400 font-medium transition-colors"
-                              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+                              className="col-span-full border-2 border-dashed border-slate-200 rounded-xl p-6 text-center text-sm text-slate-300 font-medium transition-colors"
+                              onDragOver={(e) => { if (dragProdRef.current) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; e.currentTarget.classList.add('!border-indigo-300', '!bg-indigo-50/50', '!text-indigo-400') } }}
+                              onDragLeave={(e) => { e.currentTarget.classList.remove('!border-indigo-300', '!bg-indigo-50/50', '!text-indigo-400') }}
                               onDrop={(e) => {
                                 e.preventDefault()
                                 e.stopPropagation()
+                                e.currentTarget.classList.remove('!border-indigo-300', '!bg-indigo-50/50', '!text-indigo-400')
                                 if (!dragProdRef.current) return
                                 const idsToMove = draggedIdsRef.current.length > 0 ? [...draggedIdsRef.current] : [dragProdRef.current]
                                 const idsSet = new Set(idsToMove)
-                                pendingMoveRef.current = { productIds: idsToMove, categoryId: _catMeta.id, superCategoryId: _scObj.id }
+                                pendingMoveRef.current = { productIds: idsToMove, categoryId: _catMeta.id, superCategoryId: _scFallback.id }
                                 pendingSaveRef.current = [...idsToMove]
-                                const copy = productsRef.current.map(p => idsSet.has(p.id) ? { ...p, category_id: _catMeta.id, super_category_id: _scObj.id, category: catName, super_category: superCat } : p)
-                                productsRef.current = copy
-                                setProducts(copy)
+                                productsRef.current = productsRef.current.map(p => idsSet.has(p.id) ? { ...p, category_id: _catMeta.id, super_category_id: _scFallback.id, category: catName, super_category: superCat } : p)
                                 handleProductDrop()
                               }}
                             >
@@ -2681,50 +2768,52 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                             </div>
                         )}
                         {catProds.map((prod, index) => {
-                          const productCategoryKey = getProductCategoryKey(prod)
-                          const isDragged = dragProdId === prod.id || (!!dragProdId && selectedProducts[prod.id] && selectedProducts[dragProdId])
-                          const canDropHere = !!dragProdId && !isDragged
-                          const isDropTarget = canDropHere && dragOverProdId === prod.id
-
                           return (
                             <div key={prod.id}
-                              draggable={!isReorderingProducts}
+                              draggable
                               onDragStart={(e) => {
                                 e.dataTransfer.effectAllowed = 'move'
                                 e.dataTransfer.setData('text/plain', String(prod.id))
                                 dragProdRef.current = prod.id
                                 dragOverProdRef.current = null
-                                setDragProdCategoryKey(productCategoryKey)
-                                setDragProdId(prod.id)
-                                // Multi-select: if dragged product is selected, drag all selected products
+                                dragProdCategoryKeyRef.current = getProductCategoryKey(prod)
                                 draggedIdsRef.current = selectedProducts[prod.id] ? selectedProductIds : [prod.id]
+                                // Visual: mark dragged card(s) via DOM classList (no setState = no re-render)
+                                e.target.closest('[draggable]')?.classList.add('drag-active-card', 'opacity-40')
+                                // Mark parent as having active drag for CSS-based drop zone visibility
+                                catalogScrollRef.current?.classList.add('drag-drop-zone')
+                                startDragScroll()
                               }}
                               onDragEnter={(e) => {
                                 if (!dragProdRef.current || dragProdRef.current === prod.id) return
                                 e.preventDefault()
                                 e.stopPropagation()
                                 dragOverProdRef.current = prod.id
-                                setDragOverProdId(prod.id)
                                 const idsToMove = draggedIdsRef.current.length > 0 ? draggedIdsRef.current : [dragProdRef.current]
                                 const idsSet = new Set(idsToMove)
-                                // For multi-select: remove all dragged items, insert at target position
-                                const copy = productsRef.current.filter(p => !idsSet.has(p.id))
-                                const toIdx = copy.findIndex(p => p.id === prod.id)
-                                if (toIdx === -1) return
-                                const movedItems = productsRef.current.filter(p => idsSet.has(p.id)).map(p => {
-                                  if (p.category_id !== prod.category_id || p.super_category_id !== prod.super_category_id) {
-                                    return { ...p, category_id: prod.category_id, super_category_id: prod.super_category_id, category: prod.category, super_category: prod.super_category }
-                                  }
-                                  return p
-                                })
-                                if (movedItems.some(m => m.category_id !== productsRef.current.find(p => p.id === m.id)?.category_id)) {
+                                const sourceProduct = productsRef.current.find(p => p.id === dragProdRef.current)
+                                const isCrossCategory = sourceProduct && (String(sourceProduct.category_id) !== String(prod.category_id) || String(sourceProduct.super_category_id) !== String(prod.super_category_id))
+
+                                if (isCrossCategory) {
+                                  // Cross-category: update ref with new category assignment (NO setState = no re-render)
                                   pendingMoveRef.current = { productIds: idsToMove, categoryId: prod.category_id, superCategoryId: prod.super_category_id }
+                                  productsRef.current = productsRef.current.map(p =>
+                                    idsSet.has(p.id) ? { ...p, category_id: prod.category_id, super_category_id: prod.super_category_id, category: prod.category, super_category: prod.super_category } : p
+                                  )
+                                  const existingInTarget = productsRef.current.filter(p => String(p.category_id) === String(prod.category_id) && !idsSet.has(p.id)).map(p => p.id)
+                                  pendingSaveRef.current = [...existingInTarget, ...idsToMove]
+                                } else {
+                                  // Same category: compute new order in ref only (NO setProducts during drag —
+                                  // React re-render would recalculate groupedProducts and unmount DOM nodes, cancelling the drag)
+                                  const copy = productsRef.current.filter(p => !idsSet.has(p.id))
+                                  const toIdx = copy.findIndex(p => p.id === prod.id)
+                                  if (toIdx === -1) return
+                                  const movedItems = productsRef.current.filter(p => idsSet.has(p.id))
+                                  copy.splice(toIdx, 0, ...movedItems)
+                                  const targetKey = `${prod.super_category_id || ''}:${prod.category_id || ''}`
+                                  pendingSaveRef.current = copy.filter(p => `${p.super_category_id || ''}:${p.category_id || ''}` === targetKey).map(p => p.id)
+                                  productsRef.current = copy
                                 }
-                                copy.splice(toIdx, 0, ...movedItems)
-                                const targetKey = `${prod.super_category_id || ''}:${prod.category_id || ''}`
-                                pendingSaveRef.current = copy.filter(p => `${p.super_category_id || ''}:${p.category_id || ''}` === targetKey).map(p => p.id)
-                                productsRef.current = copy
-                                setProducts(copy)
                               }}
                               onDragOver={(e) => {
                                 if (!dragProdRef.current || dragProdRef.current === prod.id) return
@@ -2732,7 +2821,6 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                                 e.stopPropagation()
                                 e.dataTransfer.dropEffect = 'move'
                                 dragOverProdRef.current = prod.id
-                                if (dragOverProdId !== prod.id) setDragOverProdId(prod.id)
                               }}
                               onDragEnd={() => {
                                 if (pendingSaveRef.current || pendingMoveRef.current) {
@@ -2746,8 +2834,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                                 e.stopPropagation()
                                 handleProductDrop()
                               }}
-                              className={`bg-white border-[1.5px] rounded-xl p-3 max-sm:p-2 relative shadow-sm hover:border-indigo-300 hover:shadow-md ${prod.is_hidden ? 'opacity-50 border-dashed border-slate-300 bg-slate-50' : 'border-slate-200'} ${prod.is_oos ? '!border-amber-300' : ''} ${selectedProducts[prod.id] ? 'outline-2 outline-indigo-500 outline-offset-[-2px] !bg-indigo-50' : ''} ${isDragged ? 'opacity-40 scale-95 !border-indigo-400 !bg-indigo-50 shadow-lg' : ''}`}
-                              style={{ transition: isDragged ? 'none' : 'transform 150ms ease, opacity 150ms ease' }}>
+                              className={`bg-white border-[1.5px] rounded-xl p-3 max-sm:p-2 relative shadow-sm hover:border-indigo-300 hover:shadow-md ${prod.is_hidden ? 'opacity-50 border-dashed border-slate-300 bg-slate-50' : 'border-slate-200'} ${prod.is_oos ? '!border-amber-300' : ''} ${selectedProducts[prod.id] ? 'outline-2 outline-indigo-500 outline-offset-[-2px] !bg-indigo-50' : ''} `}>
                               <div className="absolute right-2 top-2 text-[9px] font-semibold text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded-md">
                                 #{index + 1}
                               </div>
