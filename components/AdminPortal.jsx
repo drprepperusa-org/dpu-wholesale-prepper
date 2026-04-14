@@ -2548,6 +2548,21 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                     <span><span className="font-semibold text-indigo-600">{excelResult.updated}</span> updated</span>
                     {excelResult.skipped > 0 && <span><span className="font-semibold text-amber-600">{excelResult.skipped}</span> skipped</span>}
                   </div>
+                  {excelResult.matchDiagnostics && (
+                    <div className="mt-1 text-[11px] text-slate-500">
+                      <div className="flex flex-wrap gap-2">
+                        <span>match-id: {excelResult.matchDiagnostics.matchedById || 0}</span>
+                        <span>match-sku: {excelResult.matchDiagnostics.matchedBySku || 0}</span>
+                        <span>match-loose: {excelResult.matchDiagnostics.matchedByLoose || 0}</span>
+                        <span>match-name: {excelResult.matchDiagnostics.matchedByName || 0}</span>
+                        <span>fallback: {excelResult.matchDiagnostics.matchedByFallbackUpdate || 0}</span>
+                        <span>db-products: {excelResult.matchDiagnostics.existingProductCount || 0}</span>
+                      </div>
+                      {excelResult.matchDiagnostics.detectedHeaders && (
+                        <div className="mt-1 text-[10px] text-slate-400">Headers: {excelResult.matchDiagnostics.detectedHeaders.map(h => h.original).join(', ')}</div>
+                      )}
+                    </div>
+                  )}
                   {excelResult.errors?.length > 0 && (
                     <div className="mt-2 text-[11px] text-red-500 max-h-[60px] overflow-y-auto">
                       {excelResult.errors.map((e, i) => <div key={i}>{e}</div>)}

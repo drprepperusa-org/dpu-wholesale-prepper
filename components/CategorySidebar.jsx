@@ -2,13 +2,15 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { Package, Search, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react'
 
-function CategorySidebar({ isOpen, onClose, onSelectCategory, token }) {
+function CategorySidebar({ isOpen, onClose, onSelectCategory, token, products = [] }) {
   const [hierarchy, setHierarchy] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [expandedSuper, setExpandedSuper] = useState(null)
   const [selectedId, setSelectedId] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [brandQuery, setBrandQuery] = useState('')
+  const [selectedBrand, setSelectedBrand] = useState(null)
 
   const emojiMap = {
     'Chips & Savory Snacks': '\uD83E\uDD54',
@@ -49,9 +51,25 @@ function CategorySidebar({ isOpen, onClose, onSelectCategory, token }) {
 
   const getEmoji = (name) => emojiMap[name] || '\uD83D\uDCE6'
 
-  const selectAll = () => { setSelectedId(null); setExpandedSuper(null); onSelectCategory(null) }
+  const brands = useMemo(() => {
+    const brandMap = {}
+    products.filter(p => p.brand && !p.is_hidden).forEach(p => {
+      if (!brandMap[p.brand]) brandMap[p.brand] = 0
+      brandMap[p.brand]++
+    })
+    return Object.entries(brandMap).sort((a, b) => a[0].localeCompare(b[0])).map(([name, count]) => ({ name, count }))
+  }, [products])
+
+  const filteredBrands = useMemo(() => {
+    if (!brandQuery) return brands
+    const q = brandQuery.toLowerCase()
+    return brands.filter(b => b.name.toLowerCase().includes(q))
+  }, [brands, brandQuery])
+
+  const selectAll = () => { setSelectedId(null); setExpandedSuper(null); setSelectedBrand(null); onSelectCategory(null) }
   const toggleSuper = (superCat) => { setExpandedSuper(expandedSuper === superCat.name ? null : superCat.name) }
-  const selectSub = (subCat) => { setSelectedId(subCat.id || subCat.name); onSelectCategory(subCat) }
+  const selectSub = (subCat) => { setSelectedId(subCat.id || subCat.name); setSelectedBrand(null); onSelectCategory(subCat) }
+  const selectBrand = (brand) => { setSelectedBrand(brand.name); setSelectedId(null); setExpandedSuper(null); onSelectCategory({ type: 'brand', name: brand.name }) }
 
   return (
     <>
@@ -134,6 +152,37 @@ function CategorySidebar({ isOpen, onClose, onSelectCategory, token }) {
                 <div className="p-4 text-center text-slate-500 text-[13px]">No categories found</div>
               )}
             </div>
+
+            {/* Brand Search */}
+            {brands.length > 0 && (
+              <>
+                <div className="h-px bg-white/[0.06]" />
+                <div className="px-3.5 pt-3 pb-1.5">
+                  <div className="text-[10px] font-semibold tracking-widest uppercase text-slate-500 mb-2">Brands</div>
+                </div>
+                <div className="px-2.5 pb-2">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                    <input type="text" placeholder="Search Brands..." value={brandQuery} onChange={e => setBrandQuery(e.target.value)}
+                      className="w-full py-1.5 pl-8 pr-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 text-[12px] outline-none transition-colors focus:border-indigo-400 placeholder:text-slate-500 max-sm:!text-base" />
+                  </div>
+                </div>
+                <div className="max-h-[200px] overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#334155 transparent' }}>
+                  {filteredBrands.map(brand => (
+                    <div key={brand.name}
+                      className={`flex items-center justify-between px-3.5 py-2 cursor-pointer text-xs transition-colors border-b border-white/[0.04]
+                        ${selectedBrand === brand.name ? 'text-indigo-400 bg-indigo-500/[0.08] font-medium' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'}`}
+                      onClick={() => selectBrand(brand)}>
+                      <span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{brand.name}</span>
+                      <span className="text-[11px] text-slate-500">{brand.count}</span>
+                    </div>
+                  ))}
+                  {filteredBrands.length === 0 && brandQuery && (
+                    <div className="p-3 text-center text-slate-500 text-[12px]">No brands found</div>
+                  )}
+                </div>
+              </>
+            )}
           </>
         )}
       </aside>

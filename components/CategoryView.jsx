@@ -74,7 +74,7 @@ function CategoryView({ products, favorites, cart, onProductSelected, onAddToCar
                     {category.products.length}
                   </span>
                 </div>
-                <div style={isMobile ? { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' } : { display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${148 * (cardSize || 1)}px, 1fr))`, gap: `${10 * (cardSize || 1)}px` }}>
+                <div style={isMobile ? { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' } : { display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${130 * (cardSize || 0.8)}px, 1fr))`, gap: `${10 * (cardSize || 1)}px` }}>
                   {category.products.map(product => {
                     const isFirst = !firstCardRendered.current;
                     if (isFirst) firstCardRendered.current = true;

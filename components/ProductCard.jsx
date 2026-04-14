@@ -90,45 +90,48 @@ function ProductCard({ product, isFavorited, inCart, isFirst, onProductSelected,
       )}
 
       <div className="w-full bg-white overflow-hidden flex items-center justify-center"
-        style={{ height: `${160 * scale}px`, marginBottom: `${8 * scale}px`, padding: `${4 * scale}px` }}
+        style={{ height: `${168 * scale}px`, marginBottom: `${8 * scale}px`, padding: `${2 * scale}px` }}
         onClick={() => onProductSelected(product)}>
         <img
           src={imgError ? placeholderSvg : (product.image_url || placeholderSvg)}
           alt={product.name}
           className="max-w-full max-h-full object-contain"
-          style={{ transform: 'scale(1.08)' }}
+          style={{ transform: 'scale(1.23)' }}
           onError={() => setImgError(true)}
         />
       </div>
 
-<div className="text-slate-800 font-semibold leading-tight overflow-hidden cursor-pointer text-center max-sm:!text-[14px] max-sm:!leading-[17px] max-sm:!h-[34px]"
-        style={{ fontSize: `${12 * scale}px`, height: `${32 * scale}px`, marginBottom: `${4 * scale}px` }}
+      {product.brand && <div className="text-slate-400 text-center truncate max-sm:!text-[11px]"
+        style={{ fontSize: `${14 * scale}px`, marginBottom: `${2 * scale}px` }}>{product.brand}</div>}
+
+      <div className="text-slate-800 font-semibold leading-tight overflow-hidden cursor-pointer text-center max-sm:!text-[14px] max-sm:!leading-[17px] max-sm:!h-[34px]"
+        style={{ fontSize: `${17 * scale}px`, height: `${44 * scale}px`, marginBottom: `${4 * scale}px` }}
         onClick={() => onProductSelected(product)}>
         {product.name}
       </div>
 
       <div className="text-slate-400 leading-snug text-center max-sm:!text-[12px]"
-        style={{ fontSize: `${10 * scale}px`, marginBottom: `${8 * scale}px` }}>
+        style={{ fontSize: `${14 * scale}px`, marginBottom: `${8 * scale}px` }}>
         {product.weight && <div>{product.weight}</div>}
         {product.bags_per_case && <div>{product.bags_per_case} bags/case</div>}
       </div>
 
       {product.show_price !== false && showPrices && (
         <div className="text-slate-800 font-bold text-center"
-          style={{ fontSize: `${16 * scale}px`, marginBottom: `${8 * scale}px` }}>
+          style={{ fontSize: `${22 * scale}px`, marginBottom: `${8 * scale}px` }}>
           ${parseFloat(product.price || 0).toFixed(2)}
-          <span className="font-normal text-slate-400" style={{ fontSize: `${11 * scale}px` }}> /case</span>
+          <span className="font-normal text-slate-400" style={{ fontSize: `${15 * scale}px` }}> /case</span>
         </div>
       )}
 
       <div className="flex gap-1.5 mt-auto" style={{ gap: `${6 * scale}px` }} onClick={(e) => e.stopPropagation()}>
         <button className="flex-1 bg-slate-100 text-slate-700 border-none rounded-md font-semibold cursor-pointer transition-colors hover:bg-slate-200"
-          style={{ padding: `${6 * scale}px ${8 * scale}px`, fontSize: `${11 * scale}px` }}
+          style={{ padding: `${8 * scale}px ${10 * scale}px`, fontSize: `${15 * scale}px` }}
           onClick={() => onProductSelected(product)}>
           View
         </button>
         <button className="flex-1 bg-indigo-500 text-white border-none rounded-md font-semibold cursor-pointer transition-colors hover:bg-indigo-600"
-          style={{ padding: `${6 * scale}px ${8 * scale}px`, fontSize: `${11 * scale}px` }}
+          style={{ padding: `${8 * scale}px ${10 * scale}px`, fontSize: `${15 * scale}px` }}
           onClick={() => onAddToCart(product)}>
           Add
         </button>

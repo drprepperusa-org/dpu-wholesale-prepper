@@ -6,6 +6,41 @@ import { v4 as uuidv4 } from 'uuid';
 
 export const dynamic = 'force-dynamic';
 
+// Normalize CSV/Excel header names (handles BOM, spacing, punctuation, case)
+function normalizeHeaderKey(key) {
+  return String(key || '')
+    .replace(/^\uFEFF/, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_\-()/]+/g, '');
+}
+
+// Normalize cell values for matching and parsing
+function cleanCellValue(value) {
+  if (value === undefined || value === null) return null;
+  const cleaned = String(value)
+    .replace(/^\uFEFF/, '')
+    .trim()
+    // Excel/CSV often wraps text identifiers in quotes/apostrophes
+    .replace(/^['"]+|['"]+$/g, '')
+    .trim();
+  return cleaned === '' ? null : cleaned;
+}
+
+// Normalize IDs/SKUs for resilient lookup (case-insensitive, ignores extra spaces)
+function normalizeLookupValue(value) {
+  const cleaned = cleanCellValue(value);
+  if (!cleaned) return null;
+  return cleaned.replace(/\s+/g, '').toLowerCase();
+}
+
+// Looser matching for IDs/SKUs that may come with punctuation/formatting changes
+function normalizeLooseLookupValue(value) {
+  const cleaned = cleanCellValue(value);
+  if (!cleaned) return null;
+  return cleaned.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 // GET - Download products as Excel
 export async function GET(request) {
   try {
@@ -131,6 +166,16 @@ export async function POST(request) {
     const file = formData.get('file');
     if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
 
+    // Ensure optional columns exist so imports work on older schemas
+    await pool.query(`
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS brand VARCHAR(255);
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS barcode_pack VARCHAR(100);
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS barcode_bundle VARCHAR(100);
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS barcode_box VARCHAR(100);
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS box_image_url VARCHAR(512);
+      ALTER TABLE products ADD COLUMN IF NOT EXISTS bundle_image_url VARCHAR(512);
+    `);
+
     // Parse image filename→URL map sent from client
     let imageMap = {};
     const imageMapStr = formData.get('imageMap');
@@ -141,7 +186,7 @@ export async function POST(request) {
     const bytes = await file.arrayBuffer();
     const wb = XLSX.read(Buffer.from(bytes), { type: 'buffer' });
     const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws);
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
 
     if (!rows.length) return NextResponse.json({ error: 'Excel file is empty' }, { status: 400 });
 
@@ -150,29 +195,63 @@ export async function POST(request) {
     const cats = await pool.query('SELECT id, name, super_category_id FROM categories');
     const superMap = {};
     superCats.rows.forEach(s => { superMap[s.name.toLowerCase()] = s.id });
-    const catMap = {};
-    cats.rows.forEach(c => { catMap[c.name.toLowerCase()] = { id: c.id, super_id: c.super_category_id } });
+    const catMapByName = {};
+    const catMapById = {};
+    cats.rows.forEach(c => {
+      catMapByName[c.name.toLowerCase()] = { id: c.id, super_id: c.super_category_id };
+      catMapById[String(c.id)] = { id: c.id, super_id: c.super_category_id };
+    });
 
     // Pre-load all existing product IDs and SKUs into maps (1 query instead of 2 per row)
-    const existingProducts = await pool.query('SELECT id, sku FROM products');
-    const idSet = new Set(existingProducts.rows.map(p => p.id));
+    const existingProducts = await pool.query('SELECT id, sku, name, super_category_id, category_id FROM products');
+    const idLookup = {};
+    const idLookupLoose = {};
     const skuToId = {};
-    existingProducts.rows.forEach(p => { if (p.sku) skuToId[p.sku.toLowerCase()] = p.id });
+    const skuToIdLoose = {};
+    const nameToIds = {};
+    const existingById = {};
+    existingProducts.rows.forEach((p) => {
+      const idKey = normalizeLookupValue(p.id);
+      if (idKey) idLookup[idKey] = p.id;
+      const idLooseKey = normalizeLooseLookupValue(p.id);
+      if (idLooseKey) idLookupLoose[idLooseKey] = p.id;
+      const skuKey = normalizeLookupValue(p.sku);
+      if (skuKey) skuToId[skuKey] = p.id;
+      const skuLooseKey = normalizeLooseLookupValue(p.sku);
+      if (skuLooseKey) skuToIdLoose[skuLooseKey] = p.id;
+      const nameKey = normalizeLookupValue(p.name);
+      if (nameKey) {
+        if (!nameToIds[nameKey]) nameToIds[nameKey] = [];
+        nameToIds[nameKey].push(p.id);
+      }
+      existingById[p.id] = p;
+    });
 
     let created = 0, updated = 0, skipped = 0;
+    let matchedById = 0, matchedBySku = 0, matchedByLoose = 0, matchedByName = 0, matchedByFallbackUpdate = 0;
     const errors = [];
+    const unmatchedSamples = [];
     const toUpdate = [];
     const toCreate = [];
+
+    // Capture detected headers for diagnostics
+    const detectedHeaders = rows.length > 0 ? Object.keys(rows[0]).map(k => ({ original: k, normalized: normalizeHeaderKey(k) })) : [];
 
     // Parse all rows first
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const rowNum = i + 2;
 
+      const normalizedRow = {};
+      Object.entries(row || {}).forEach(([key, value]) => {
+        normalizedRow[normalizeHeaderKey(key)] = value;
+      });
+
       const get = (keys) => {
         for (const k of keys) {
-          const val = row[k] ?? row[k.toLowerCase()] ?? row[k.toUpperCase()];
-          if (val !== undefined && val !== null && val !== '') return String(val).trim();
+          const val = normalizedRow[normalizeHeaderKey(k)];
+          const cleaned = cleanCellValue(val);
+          if (cleaned !== null) return cleaned;
         }
         return null;
       };
@@ -180,12 +259,13 @@ export async function POST(request) {
       const name = get(['Product Name', 'Name', 'product_name', 'name']);
       if (!name) { skipped++; continue; }
 
-      const sku = get(['SKU', 'sku', 'Sku']);
+      const sku = get(['SKU', 'sku', 'Sku', 'Item SKU', 'Product SKU', 'item_sku', 'product_sku', 'ItemSKU', 'ProductSKU']);
       const brand = get(['Brand', 'brand', 'BRAND']);
       const barcode_pack = get(['Barcode (Pack)', 'barcode_pack', 'Barcode Pack', 'UPC', 'upc']);
       const barcode_bundle = get(['Barcode (Bundle)', 'barcode_bundle', 'Barcode Bundle']);
       const barcode_box = get(['Barcode (Box)', 'barcode_box', 'Barcode Box']);
-      const price = parseFloat(get(['Price', 'price']) || 0) || null;
+      const rawPrice = get(['Price', 'price', 'Unit Price', 'unit_price', 'Cost', 'cost']);
+      const price = rawPrice ? (parseFloat(String(rawPrice).replace(/[$,]/g, '')) || null) : null;
       const weight = get(['Weight', 'weight']);
       const bagsPerCase = get(['Bags Per Case', 'bags_per_case', 'Bags/Case']);
       const casesPerPallet = parseInt(get(['Cases Per Pallet', 'cases_per_pallet', 'Cases/Pallet']) || 0) || null;
@@ -213,28 +293,125 @@ export async function POST(request) {
 
       const superCatName = get(['Super Category', 'super_category', 'Super_Category']);
       const catName = get(['Category', 'category']);
-      const superCatId = get(['Super Category ID', 'super_category_id']) || (superCatName ? superMap[superCatName.toLowerCase()] : null);
-      const catId = get(['Category ID', 'category_id']) || (catName ? catMap[catName.toLowerCase()]?.id : null);
-
-      if (!superCatId || !catId) {
-        errors.push(`Row ${rowNum}: "${name}" - missing/invalid category`);
-        skipped++;
-        continue;
-      }
+      const rawSuperCatId = get(['Super Category ID', 'super_category_id']);
+      const rawCatId = get(['Category ID', 'category_id']);
 
       const productId = get(['Product ID (leave blank for new)', 'Product ID', 'product_id', 'id', 'ID']);
 
       // Lookup existing using pre-loaded maps (no DB query)
       let existingId = null;
-      if (productId && idSet.has(productId)) existingId = productId;
-      if (!existingId && sku && skuToId[sku.toLowerCase()]) existingId = skuToId[sku.toLowerCase()];
+      const productIdKey = normalizeLookupValue(productId);
+      if (productIdKey && idLookup[productIdKey]) {
+        existingId = idLookup[productIdKey];
+        matchedById++;
+      }
+      const skuKey = normalizeLookupValue(sku);
+      if (!existingId && skuKey && skuToId[skuKey]) {
+        existingId = skuToId[skuKey];
+        matchedBySku++;
+      }
+      if (!existingId) {
+        const productIdLooseKey = normalizeLooseLookupValue(productId);
+        if (productIdLooseKey && idLookupLoose[productIdLooseKey]) {
+          existingId = idLookupLoose[productIdLooseKey];
+          matchedByLoose++;
+        }
+      }
+      if (!existingId) {
+        const skuLooseKey = normalizeLooseLookupValue(sku);
+        if (skuLooseKey && skuToIdLoose[skuLooseKey]) {
+          existingId = skuToIdLoose[skuLooseKey];
+          matchedByLoose++;
+        }
+      }
+      if (!existingId) {
+        const nameKey = normalizeLookupValue(name);
+        const ids = nameKey ? nameToIds[nameKey] : null;
+        if (ids && ids.length === 1) {
+          existingId = ids[0];
+          matchedByName++;
+        }
+      }
+
+      // Category name takes priority — if a name is provided, use it (triggers auto-create if new).
+      // Only fall back to ID when no name is given.
+      let catId = null;
+      if (catName) {
+        catId = catMapByName[catName.toLowerCase()]?.id || null;
+        // Don't fall back to rawCatId — the user explicitly typed a category name
+      } else if (rawCatId) {
+        const parsedCatId = parseInt(rawCatId, 10);
+        if (Number.isFinite(parsedCatId) && catMapById[String(parsedCatId)]) {
+          catId = parsedCatId;
+        }
+      }
+
+      let superCatId = null;
+      if (superCatName) {
+        superCatId = superMap[superCatName.toLowerCase()] || null;
+      } else if (rawSuperCatId) {
+        const parsedSuperId = parseInt(rawSuperCatId, 10);
+        if (Number.isFinite(parsedSuperId)) superCatId = parsedSuperId;
+      }
+
+      // Auto-create missing super category if name provided but not found
+      if (!superCatId && superCatName) {
+        try {
+          const newSc = await pool.query('INSERT INTO super_categories (name, sort_order) VALUES ($1, (SELECT COALESCE(MAX(sort_order),0)+1 FROM super_categories)) RETURNING id', [superCatName.trim()]);
+          superCatId = newSc.rows[0].id;
+          superMap[superCatName.toLowerCase()] = superCatId;
+        } catch (e) {
+          // Might already exist from concurrent insert — re-check
+          const check = await pool.query('SELECT id FROM super_categories WHERE LOWER(name) = LOWER($1)', [superCatName.trim()]);
+          if (check.rows.length > 0) { superCatId = check.rows[0].id; superMap[superCatName.toLowerCase()] = superCatId; }
+        }
+      }
+
+      // Auto-create missing subcategory if name provided but not found
+      if (!catId && catName && superCatId) {
+        try {
+          const newCat = await pool.query('INSERT INTO categories (name, super_category_id, sort_order) VALUES ($1, $2, (SELECT COALESCE(MAX(sort_order),0)+1 FROM categories WHERE super_category_id=$2)) RETURNING id', [catName.trim(), superCatId]);
+          catId = newCat.rows[0].id;
+          catMapByName[catName.toLowerCase()] = { id: catId, super_id: superCatId };
+          catMapById[String(catId)] = { id: catId, super_id: superCatId };
+        } catch (e) {
+          // Might already exist — re-check
+          const check = await pool.query('SELECT id FROM categories WHERE LOWER(name) = LOWER($1) AND super_category_id = $2', [catName.trim(), superCatId]);
+          if (check.rows.length > 0) { catId = check.rows[0].id; catMapByName[catName.toLowerCase()] = { id: catId, super_id: superCatId }; catMapById[String(catId)] = { id: catId, super_id: superCatId }; }
+        }
+      }
+
+      // If category is known but super category is omitted, derive it from categories table
+      if (!superCatId && catId) {
+        const catInfo = catMapById[String(parseInt(catId, 10))];
+        if (catInfo) superCatId = catInfo.super_id;
+      }
+
+      // For updates, category columns are optional: fallback to existing values when absent.
+      if (existingId) {
+        const existing = existingById[existingId];
+        if (!catId && existing?.category_id) catId = existing.category_id;
+        if (!superCatId && existing?.super_category_id) superCatId = existing.super_category_id;
+      } else {
+        // For new rows, category fields are required.
+        if (!superCatId || !catId) {
+          errors.push(`Row ${rowNum}: "${name}" - missing/invalid category`);
+          skipped++;
+          continue;
+        }
+      }
 
       if (existingId) {
         toUpdate.push([name, sku, brand, barcode_pack, barcode_bundle, barcode_box, price, weight, bagsPerCase, casesPerPallet, imageUrl || '', boxImageUrl || '', bundleImageUrl || '', isHidden, isOos, showPrice, superCatId, catId, existingId]);
       } else {
+        if (unmatchedSamples.length < 20) unmatchedSamples.push({ row: rowNum, productId: productId || '', sku: sku || '', name });
         const newId = productId || uuidv4();
         const newSku = sku || `SKU-${newId.substring(0, 8).toUpperCase()}`;
-        toCreate.push([newId, name, newSku, brand, barcode_pack, barcode_bundle, barcode_box, price, weight, bagsPerCase, casesPerPallet, imageUrl, boxImageUrl, bundleImageUrl, isHidden, isOos, showPrice, superCatId, catId]);
+        toCreate.push({
+          params: [newId, name, newSku, brand, barcode_pack, barcode_bundle, barcode_box, price, weight, bagsPerCase, casesPerPallet, imageUrl, boxImageUrl, bundleImageUrl, isHidden, isOos, showPrice, superCatId, catId],
+          providedId: !!productId,
+          providedSku: !!sku
+        });
       }
     }
 
@@ -243,9 +420,9 @@ export async function POST(request) {
     for (let i = 0; i < toUpdate.length; i += BATCH) {
       const batch = toUpdate.slice(i, i + BATCH);
       await Promise.all(batch.map(params =>
-        pool.query(`UPDATE products SET name=$1, sku=$2, brand=$3, barcode_pack=$4, barcode_bundle=$5, barcode_box=$6, price=$7, weight=$8, bags_per_case=$9,
-          cases_per_pallet=$10, image_url=COALESCE(NULLIF($11,''), image_url), box_image_url=COALESCE(NULLIF($12,''), box_image_url), bundle_image_url=COALESCE(NULLIF($13,''), bundle_image_url), is_hidden=$14, is_oos=$15,
-          show_price=$16, super_category_id=$17, category_id=$18 WHERE id=$19`, params)
+        pool.query(`UPDATE products SET name=$1, sku=COALESCE(NULLIF($2,''), sku), brand=$3, barcode_pack=$4, barcode_bundle=$5, barcode_box=$6, price=COALESCE($7, price), weight=$8, bags_per_case=$9,
+          cases_per_pallet=COALESCE($10, cases_per_pallet), image_url=COALESCE(NULLIF($11,''), image_url), box_image_url=COALESCE(NULLIF($12,''), box_image_url), bundle_image_url=COALESCE(NULLIF($13,''), bundle_image_url), is_hidden=$14, is_oos=$15,
+          show_price=$16, super_category_id=COALESCE($17, super_category_id), category_id=COALESCE($18, category_id) WHERE id=$19`, params)
           .then(() => { updated++ })
           .catch(e => { errors.push(`Update "${params[0]}": ${e.message}`); skipped++ })
       ));
@@ -254,12 +431,42 @@ export async function POST(request) {
     // Batch execute creates (10 at a time in parallel)
     for (let i = 0; i < toCreate.length; i += BATCH) {
       const batch = toCreate.slice(i, i + BATCH);
-      await Promise.all(batch.map(params =>
-        pool.query(`INSERT INTO products (id, name, sku, brand, barcode_pack, barcode_bundle, barcode_box, price, weight, bags_per_case, cases_per_pallet, image_url, box_image_url, bundle_image_url, is_hidden, is_oos, show_price, super_category_id, category_id)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`, params)
-          .then(() => { created++ })
-          .catch(e => { errors.push(`Create "${params[1]}": ${e.message}`); skipped++ })
-      ));
+      await Promise.all(batch.map(async (entry) => {
+        const params = entry.params;
+        try {
+          // Strong fallback: if caller provided ID or SKU, force an overwrite attempt before creating.
+          if (entry.providedId) {
+            const updateByIdParams = [params[1], params[2], params[3], params[4], params[5], params[6], params[7], params[8], params[9], params[10], params[11] || '', params[12] || '', params[13] || '', params[14], params[15], params[16], params[17], params[18], params[0]];
+            const byId = await pool.query(`UPDATE products SET name=$1, sku=COALESCE(NULLIF($2,''), sku), brand=$3, barcode_pack=$4, barcode_bundle=$5, barcode_box=$6, price=$7, weight=$8, bags_per_case=$9,
+              cases_per_pallet=$10, image_url=COALESCE(NULLIF($11,''), image_url), box_image_url=COALESCE(NULLIF($12,''), box_image_url), bundle_image_url=COALESCE(NULLIF($13,''), bundle_image_url), is_hidden=$14, is_oos=$15,
+              show_price=$16, super_category_id=COALESCE($17, super_category_id), category_id=COALESCE($18, category_id) WHERE id=$19`, updateByIdParams);
+            if (byId.rowCount > 0) {
+              updated++;
+              matchedByFallbackUpdate++;
+              return;
+            }
+          }
+
+          if (entry.providedSku) {
+            const updateBySkuParams = [params[1], params[2], params[3], params[4], params[5], params[6], params[7], params[8], params[9], params[10], params[11] || '', params[12] || '', params[13] || '', params[14], params[15], params[16], params[17], params[18], params[2]];
+            const bySku = await pool.query(`UPDATE products SET name=$1, sku=COALESCE(NULLIF($2,''), sku), brand=$3, barcode_pack=$4, barcode_bundle=$5, barcode_box=$6, price=$7, weight=$8, bags_per_case=$9,
+              cases_per_pallet=$10, image_url=COALESCE(NULLIF($11,''), image_url), box_image_url=COALESCE(NULLIF($12,''), box_image_url), bundle_image_url=COALESCE(NULLIF($13,''), bundle_image_url), is_hidden=$14, is_oos=$15,
+              show_price=$16, super_category_id=COALESCE($17, super_category_id), category_id=COALESCE($18, category_id) WHERE LOWER(sku)=LOWER($19)`, updateBySkuParams);
+            if (bySku.rowCount > 0) {
+              updated++;
+              matchedByFallbackUpdate++;
+              return;
+            }
+          }
+
+          await pool.query(`INSERT INTO products (id, name, sku, brand, barcode_pack, barcode_bundle, barcode_box, price, weight, bags_per_case, cases_per_pallet, image_url, box_image_url, bundle_image_url, is_hidden, is_oos, show_price, super_category_id, category_id)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`, params);
+          created++;
+        } catch (e) {
+          errors.push(`Create "${params[1]}": ${e.message}`);
+          skipped++;
+        }
+      }));
     }
 
     return NextResponse.json({
@@ -268,7 +475,19 @@ export async function POST(request) {
       created,
       updated,
       skipped,
-      errors: errors.slice(0, 20) // Limit error messages
+      matchDiagnostics: {
+        matchedById,
+        matchedBySku,
+        matchedByLoose,
+        matchedByName,
+        matchedByFallbackUpdate,
+        queuedUpdates: toUpdate.length,
+        queuedCreates: toCreate.length,
+        unmatchedSamples,
+        detectedHeaders,
+        existingProductCount: existingProducts.rows.length
+      },
+      errors: errors.slice(0, 20)
     });
   } catch (err) {
     console.error('Excel upload error:', err);

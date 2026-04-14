@@ -59,7 +59,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   };
   const [cartOverlayOpen, setCartOverlayOpen] = useState(false);
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
-  const [cardSize, setCardSize] = useState(1.0);
+  const [cardSize, setCardSize] = useState(0.8);
   const [navsHidden, setNavsHidden] = useState(false);
   const [showFloatingBar, setShowFloatingBar] = useState(false);
   const [floatingSearchFocused, setFloatingSearchFocused] = useState(false);
@@ -445,9 +445,13 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
   const filteredProducts = useMemo(() => {
     let filtered = products.filter(p => !p.is_hidden);
     if (selectedCategory) {
-      const isSuperCat = selectedCategory.totalProducts !== undefined || selectedCategory.categories;
-      if (isSuperCat) filtered = filtered.filter(p => p.super_category_id === selectedCategory.id || p.super_category === selectedCategory.name);
-      else filtered = filtered.filter(p => p.category_id === selectedCategory.id || p.category === selectedCategory.name);
+      if (selectedCategory.type === 'brand') {
+        filtered = filtered.filter(p => p.brand === selectedCategory.name);
+      } else {
+        const isSuperCat = selectedCategory.totalProducts !== undefined || selectedCategory.categories;
+        if (isSuperCat) filtered = filtered.filter(p => p.super_category_id === selectedCategory.id || p.super_category === selectedCategory.name);
+        else filtered = filtered.filter(p => p.category_id === selectedCategory.id || p.category === selectedCategory.name);
+      }
     }
     if (searchQuery) { const q = searchQuery.toLowerCase(); filtered = filtered.filter(p => p.name.toLowerCase().includes(q) || p.sku?.toLowerCase().includes(q) || p.brand?.toLowerCase().includes(q) || p.super_category?.toLowerCase().includes(q) || p.category?.toLowerCase().includes(q)); }
     return filtered;
@@ -568,7 +572,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
           )}
           <div className="hidden sm:flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm">
             <span className="text-xs font-medium text-slate-500 whitespace-nowrap">Cards:</span>
-            <input type="range" min="0.8" max="1.6" step="0.2" value={cardSize} onChange={(e) => setCardSize(parseFloat(e.target.value))}
+            <input type="range" min="0.6" max="2.0" step="0.1" value={cardSize} onChange={(e) => setCardSize(parseFloat(e.target.value))}
               className="w-20 h-1 rounded-full bg-slate-200 outline-none appearance-none accent-indigo-500 cursor-pointer" />
           </div>
         </div>
@@ -633,7 +637,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       {/* CONTENT ROW */}
       <div className="customer-content-row flex-1 flex min-h-0 overflow-hidden transition-[padding] duration-300">
         <CategorySidebar isOpen={sidebarOpen} token={typeof window !== 'undefined' ? localStorage.getItem('token') : null}
-          selectedCategory={selectedCategory} onSelectCategory={(cat) => setSelectedCategory(cat)} onClose={() => setSidebarOpen(false)} />
+          products={products} selectedCategory={selectedCategory} onSelectCategory={(cat) => setSelectedCategory(cat)} onClose={() => setSidebarOpen(false)} />
 
         <main className={`flex-1 flex min-h-0 overflow-hidden transition-[padding] duration-300 ${navsHidden && activePage === 'catalog' ? 'max-sm:pb-0' : 'max-sm:pb-16'}`}>
           {/* CATALOG */}
@@ -982,13 +986,13 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                       );
                     })()}
                     <div className="flex-1 min-w-0 pt-1 max-sm:w-full">
+                      {selectedProduct.brand && <div className="text-2xl font-semibold text-slate-800 leading-tight tracking-tight pr-10 max-sm:text-[17px] max-sm:pr-0">{selectedProduct.brand}</div>}
                       <div className="text-2xl font-semibold text-slate-800 leading-tight mb-2 tracking-tight pr-10 max-sm:text-[17px] max-sm:pr-0">{selectedProduct.name}</div>
                       <div className="flex flex-wrap gap-1.5 mb-2 max-sm:justify-center">
                         <span className="bg-slate-100 border border-slate-200 rounded-md px-2.5 py-0.5 text-[11px] text-slate-500">{selectedProduct.super_category}</span>
                         <span className="bg-slate-100 border border-slate-200 rounded-md px-2.5 py-0.5 text-[11px] text-slate-500">{selectedProduct.category}</span>
                       </div>
                       <div className="mb-3 max-sm:hidden">
-                        {selectedProduct.brand && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Brand</span><span className="text-slate-800 font-medium">{selectedProduct.brand}</span></div>}
                         {selectedProduct.weight && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Weight</span><span className="text-slate-800 font-medium">{selectedProduct.weight}</span></div>}
                         {selectedProduct.bags_per_case && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Bags/Case</span><span className="text-slate-800 font-medium">{selectedProduct.bags_per_case}</span></div>}
                         {selectedProduct.cases_per_pallet && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Cases/Pallet</span><span className="text-slate-800 font-medium">{selectedProduct.cases_per_pallet}</span></div>}

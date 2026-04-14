@@ -27,7 +27,7 @@ function ProductGrid({ products, favorites, cart, cardSize, onProductSelected, o
 
   const gridStyle = isMobile
     ? { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }
-    : { display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${148 * scale}px, 1fr))`, gap: `${10 * scale}px` }
+    : { display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${130 * scale}px, 1fr))`, gap: `${10 * scale}px` }
 
   return (
     <div style={gridStyle}>

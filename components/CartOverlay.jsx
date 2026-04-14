@@ -26,7 +26,7 @@ function CartItem({ item, isLoading, onRemove, onUpdateQty, showPrices = true })
     <div className={`p-3 bg-white rounded-lg border border-slate-200 mb-1 shadow-sm transition-opacity max-sm:p-2.5 ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>
       {/* Top row: image + name + remove button */}
       <div className="flex gap-3 items-start max-sm:gap-2">
-        <div className="shrink-0 bg-slate-50 rounded-md overflow-hidden border border-slate-200 flex items-center justify-center" style={{ width: 'clamp(48px, 5em, 140px)', height: 'clamp(48px, 5em, 140px)' }}>
+        <div className="shrink-0 bg-slate-50 rounded-md overflow-hidden border border-slate-200 flex items-center justify-center" style={{ width: 'clamp(60px, 6.5em, 176px)', height: 'clamp(60px, 6.5em, 176px)' }}>
           {item.image_url
             ? <img src={item.image_url} alt={name} className="w-full h-full object-contain p-1" />
             : <div className="text-slate-400" style={{ fontSize: 'clamp(9px, 0.7em, 20px)' }}>No img</div>
@@ -133,7 +133,7 @@ function CartOverlay({ isOpen, cartItems = [], onClose, onRemoveItem, onPlaceOrd
       <div className={`bg-white rounded-t-2xl w-full max-w-[900px] overflow-hidden shadow-2xl flex flex-col
         max-sm:max-w-full max-sm:rounded-t-xl max-sm:h-[75vh] max-sm:max-h-[75vh]
         ${!isOpen ? 'pointer-events-none' : ''}`}
-        style={{ maxHeight: '92vh', transform: !isOpen ? 'translateY(100%)' : `translateY(${dragY}px)`, transition: dragging.current ? 'none' : 'transform 0.35s cubic-bezier(.32,1,.32,1)', willChange: 'transform', fontSize: 'clamp(14px, 1.6vw, 32px)' }}
+        style={{ maxHeight: '92vh', transform: !isOpen ? 'translateY(100%)' : `translateY(${dragY}px)`, transition: dragging.current ? 'none' : 'transform 0.35s cubic-bezier(.32,1,.32,1)', willChange: 'transform', fontSize: 'clamp(16px, 2vw, 36px)' }}
         onClick={(e) => e.stopPropagation()}
         onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
 
