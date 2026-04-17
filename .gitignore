@@ -64,3 +64,4 @@ public-old/
 public/assets/
 
 .env*.local
+.vercel

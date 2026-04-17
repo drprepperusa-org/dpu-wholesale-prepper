@@ -11,7 +11,7 @@ export async function PATCH(request) {
     const admin = await requireAdmin(request);
     if (!admin) return NextResponse.json({ error: 'Admin required' }, { status: 403 });
 
-    const { ids, price, brand, super_category_id, category_id, is_hidden, barcode_pack, barcode_bundle, barcode_box, box_image_url, bundle_image_url } = await request.json();
+    const { ids, name, sku, price, brand, weight, bags_per_case, units_per_case, cases_per_pallet, super_category_id, category_id, is_hidden, is_oos, show_price, barcode_pack, barcode_bundle, barcode_box, box_image_url, bundle_image_url } = await request.json();
 
     if (!Array.isArray(ids) || ids.length === 0) {
       return NextResponse.json({ error: 'ids array required' }, { status: 400 });
@@ -21,11 +21,19 @@ export async function PATCH(request) {
     const params = [];
     let paramCount = 1;
 
+    if (name !== undefined) { updates.push(`name = $${paramCount++}`); params.push(name); }
+    if (sku !== undefined) { updates.push(`sku = $${paramCount++}`); params.push(sku); }
     if (price !== undefined) { updates.push(`price = $${paramCount++}`); params.push(price); }
     if (brand !== undefined) { updates.push(`brand = $${paramCount++}`); params.push(brand); }
+    if (weight !== undefined) { updates.push(`weight = $${paramCount++}`); params.push(weight); }
+    if (bags_per_case !== undefined) { updates.push(`bags_per_case = $${paramCount++}`); params.push(bags_per_case); }
+    if (units_per_case !== undefined) { updates.push(`units_per_case = $${paramCount++}`); params.push(units_per_case); }
+    if (cases_per_pallet !== undefined) { updates.push(`cases_per_pallet = $${paramCount++}`); params.push(cases_per_pallet); }
     if (super_category_id !== undefined) { updates.push(`super_category_id = $${paramCount++}`); params.push(super_category_id); }
     if (category_id !== undefined) { updates.push(`category_id = $${paramCount++}`); params.push(category_id); }
     if (is_hidden !== undefined) { updates.push(`is_hidden = $${paramCount++}`); params.push(is_hidden); }
+    if (is_oos !== undefined) { updates.push(`is_oos = $${paramCount++}`); params.push(is_oos); }
+    if (show_price !== undefined) { updates.push(`show_price = $${paramCount++}`); params.push(show_price); }
     if (barcode_pack !== undefined) { updates.push(`barcode_pack = $${paramCount++}`); params.push(barcode_pack); }
     if (barcode_bundle !== undefined) { updates.push(`barcode_bundle = $${paramCount++}`); params.push(barcode_bundle); }
     if (barcode_box !== undefined) { updates.push(`barcode_box = $${paramCount++}`); params.push(barcode_box); }

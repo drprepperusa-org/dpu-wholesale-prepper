@@ -1636,7 +1636,8 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
         box_image_url: f.box_image_url ? String(f.box_image_url).trim() : null,
         bundle_image_url: f.bundle_image_url ? String(f.bundle_image_url).trim() : null,
         weight: f.weight ? String(f.weight).trim() : null,
-        bags_per_case: f.bags_per_case ? parseInt(f.bags_per_case) : null,
+        bags_per_case: f.bags_per_case ? String(f.bags_per_case).trim() : null,
+        units_per_case: f.units_per_case ? String(f.units_per_case).trim() : null,
         cases_per_pallet: f.cases_per_pallet ? parseInt(f.cases_per_pallet) : null,
         price: f.price ? parseFloat(f.price) : null,
         category_id: f.category_id,
@@ -1676,7 +1677,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
       } else if (response.ok) {
         await loadProducts()
         setActiveModal(null)
-        setNewProductForm({ name: '', brand: '', sku: '', weight: '', bags_per_case: '', cases_per_pallet: '', price: '', category_id: '', image_url: '', box_image_url: '', bundle_image_url: '', imageFile: null, showPrice: true })
+        setNewProductForm({ name: '', brand: '', sku: '', weight: '', bags_per_case: '', units_per_case: '', cases_per_pallet: '', price: '', category_id: '', image_url: '', box_image_url: '', bundle_image_url: '', imageFile: null, showPrice: true })
         setProductFormErrors({})
         showToast('Product added')
         logActivity(`Added new product: ${payload.name}`)
@@ -2760,7 +2761,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                           Drag cards to change product position
                         </span>
                       </div>
-                      <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] max-sm:grid-cols-2 gap-2.5 max-sm:gap-2">
+                      <div className="grid grid-cols-7 max-sm:grid-cols-2 gap-2.5 max-sm:gap-2">
                         {catProds.length === 0 && _catMeta && _scFallback && (
                             <div
                               className="col-span-full border-2 border-dashed border-slate-200 rounded-xl p-6 text-center text-sm text-slate-300 font-medium transition-colors"
@@ -2865,7 +2866,7 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                                   <div className={`px-[7px] py-0.5 rounded-full text-[9px] font-semibold tracking-wide uppercase cursor-pointer select-none transition-all ${prod.is_oos ? 'bg-red-100 text-red-600 border border-red-200 hover:bg-red-200' : 'bg-emerald-100 text-emerald-600 border border-emerald-200 hover:bg-emerald-200'}`} onClick={(e) => { e.stopPropagation(); toggleOosStatus(prod); }}>{prod.is_oos ? 'OOS: YES' : 'IN STOCK'}</div>
                                 </div>
                               </div>
-                              <div className="w-full h-20 max-sm:h-[100px] rounded-lg bg-white mb-2.5 border border-slate-100 overflow-hidden flex items-center justify-center">
+                              <div className="w-full h-[104px] max-sm:h-[130px] rounded-lg bg-white mb-2.5 border border-slate-100 overflow-hidden flex items-center justify-center">
                                 <img
                                   src={prod.image_url}
                                   className="w-full h-full object-contain"
@@ -2883,15 +2884,15 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                                 />
                               </div>
                               <div className="flex-1 flex flex-col gap-1.5">
-                                <div className="text-[11px] max-sm:text-xs text-slate-800 font-medium leading-snug h-[30px] overflow-hidden mb-0.5 text-center">{prod.name}</div>
-                                <div className="text-[10px] max-sm:text-[9px] text-slate-400 mb-0.5 text-center">{prod.category}</div>
-                                <div className="text-[10px] max-sm:text-[9px] text-slate-300 font-mono mb-2.5 text-center">{prod.sku || 'N/A'}</div>
+                                <div className="text-[14px] max-sm:text-[13px] text-slate-800 font-medium leading-snug mb-0.5 text-center">{prod.name}</div>
+                                <div className="text-[13px] max-sm:text-[12px] text-slate-400 mb-0.5 text-center">{prod.category}</div>
+                                <div className="text-[13px] max-sm:text-[12px] text-slate-300 font-mono mb-2.5 text-center">{prod.sku || 'N/A'}</div>
                                 <div className="flex gap-[5px] max-sm:gap-[3px] flex-wrap">
-                                  <button className="flex-1 min-w-[46px] py-[5px] px-[3px] rounded-md border border-slate-200 bg-transparent text-slate-500 text-[10px] max-sm:text-[9px] font-medium cursor-pointer transition-all text-center whitespace-nowrap hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50" onClick={() => editProduct(prod)} disabled={isDeletingProduct === prod.id}><Pencil className="w-2.5 h-2.5 inline -mt-px" /></button>
-                                  <button className="flex-1 min-w-[46px] py-[5px] px-[3px] rounded-md border border-slate-200 bg-transparent text-slate-500 text-[10px] max-sm:text-[9px] font-medium cursor-pointer transition-all text-center whitespace-nowrap hover:border-red-300 hover:text-red-500 hover:bg-red-50" onClick={() => deleteProduct(prod.id)} disabled={isDeletingProduct === prod.id}>
-                                    {isDeletingProduct === prod.id ? <MoreHorizontal className="w-3 h-3 inline animate-pulse" /> : <Trash2 className="w-2.5 h-2.5 inline -mt-px" />}
+                                  <button className="flex-1 min-w-[46px] py-[7px] px-[5px] rounded-md border border-slate-200 bg-transparent text-slate-500 text-[13px] max-sm:text-[12px] font-medium cursor-pointer transition-all text-center whitespace-nowrap hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50" onClick={() => editProduct(prod)} disabled={isDeletingProduct === prod.id}><Pencil className="w-4 h-4 inline -mt-px" /></button>
+                                  <button className="flex-1 min-w-[46px] py-[7px] px-[5px] rounded-md border border-slate-200 bg-transparent text-slate-500 text-[13px] max-sm:text-[12px] font-medium cursor-pointer transition-all text-center whitespace-nowrap hover:border-red-300 hover:text-red-500 hover:bg-red-50" onClick={() => deleteProduct(prod.id)} disabled={isDeletingProduct === prod.id}>
+                                    {isDeletingProduct === prod.id ? <MoreHorizontal className="w-4.5 h-4.5 inline animate-pulse" /> : <Trash2 className="w-4 h-4 inline -mt-px" />}
                                   </button>
-                                  <button className="flex-1 min-w-[46px] py-[5px] px-[3px] rounded-md border border-slate-200 bg-transparent text-slate-500 text-[10px] max-sm:text-[9px] font-medium cursor-pointer transition-all text-center whitespace-nowrap hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50" onClick={() => toggleVisibility(prod)} title="Toggle visibility" disabled={isDeletingProduct === prod.id}>{prod.is_hidden ? <Eye className="w-2.5 h-2.5 inline -mt-px" /> : <Ban className="w-2.5 h-2.5 inline -mt-px" />}</button>
+                                  <button className="flex-1 min-w-[46px] py-[7px] px-[5px] rounded-md border border-slate-200 bg-transparent text-slate-500 text-[13px] max-sm:text-[12px] font-medium cursor-pointer transition-all text-center whitespace-nowrap hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50" onClick={() => toggleVisibility(prod)} title="Toggle visibility" disabled={isDeletingProduct === prod.id}>{prod.is_hidden ? <Eye className="w-4 h-4 inline -mt-px" /> : <Ban className="w-4 h-4 inline -mt-px" />}</button>
                                 </div>
                               </div>
                             </div>
@@ -3665,84 +3666,52 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
           />
           {productFormErrors.name && <div className="text-[11px] text-red-500 mt-0.5 mb-1 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> {productFormErrors.name}</div>}
 
-          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">SKU / Item ID</label>
-          <input
-            className={`w-full py-[9px] px-3 bg-slate-50 border rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400 ${productFormErrors.sku ? '!border-red-500 bg-red-50/50' : 'border-slate-200'}`}
-            type="text"
-            placeholder="e.g. B02214"
-            value={newProductForm.sku}
-            onChange={e => { setNewProductForm(prev => ({ ...prev, sku: e.target.value })); setProductFormErrors(prev => { const n = { ...prev }; delete n.sku; return n; }); }}
-          />
-          {productFormErrors.sku && <div className="text-[11px] text-red-500 mt-0.5 mb-1 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> {productFormErrors.sku}</div>}
-
-          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Brand</label>
-          <input
-            className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400"
-            type="text"
-            list="brand-options-add"
-            placeholder="Select or type a new brand"
-            value={newProductForm.brand}
-            onChange={e => setNewProductForm(prev => ({ ...prev, brand: e.target.value }))}
-          />
-          <datalist id="brand-options-add">
-            {existingBrands.map(b => <option key={b} value={b} />)}
-          </datalist>
-
-          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Barcode (Pack)</label>
-          <input
-            className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400"
-            type="text"
-            placeholder="e.g. 012345678901"
-            value={newProductForm.barcode_pack}
-            onChange={e => setNewProductForm(prev => ({ ...prev, barcode_pack: e.target.value }))}
-          />
-
-          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Barcode (Bundle)</label>
-          <input
-            className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400"
-            type="text"
-            placeholder="e.g. 012345678902"
-            value={newProductForm.barcode_bundle}
-            onChange={e => setNewProductForm(prev => ({ ...prev, barcode_bundle: e.target.value }))}
-          />
-
-          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Barcode (Box)</label>
-          <input
-            className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400"
-            type="text"
-            placeholder="e.g. 012345678903"
-            value={newProductForm.barcode_box}
-            onChange={e => setNewProductForm(prev => ({ ...prev, barcode_box: e.target.value }))}
-          />
-
-          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Weight</label>
-          <input className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400" type="text" placeholder="e.g. 70g" value={newProductForm.weight} onChange={e => setNewProductForm(prev => ({ ...prev, weight: e.target.value }))} />
-
-          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Pack Size (bags per case)</label>
-          <input className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400" type="text" placeholder="e.g. 22bags/cs" value={newProductForm.bags_per_case} onChange={e => setNewProductForm(prev => ({ ...prev, bags_per_case: e.target.value }))} />
-
-          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Cases per Pallet</label>
-          <input
-            className={`w-full py-[9px] px-3 bg-slate-50 border rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400 ${productFormErrors.cases_per_pallet ? '!border-red-500 bg-red-50/50' : 'border-slate-200'}`}
-            type="number"
-            min="1"
-            placeholder="e.g. 60"
-            value={newProductForm.cases_per_pallet}
-            onChange={e => { setNewProductForm(prev => ({ ...prev, cases_per_pallet: e.target.value })); setProductFormErrors(prev => { const n = { ...prev }; delete n.cases_per_pallet; return n; }); }}
-          />
-          {productFormErrors.cases_per_pallet && <div className="text-[11px] text-red-500 mt-0.5 mb-1 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> {productFormErrors.cases_per_pallet}</div>}
-
-          <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Price</label>
-          <input
-            className={`w-full py-[9px] px-3 bg-slate-50 border rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400 ${productFormErrors.price ? '!border-red-500 bg-red-50/50' : 'border-slate-200'}`}
-            type="number"
-            step="0.01"
-            min="0.01"
-            placeholder="e.g. 25.00"
-            value={newProductForm.price}
-            onChange={e => { setNewProductForm(prev => ({ ...prev, price: e.target.value })); setProductFormErrors(prev => { const n = { ...prev }; delete n.price; return n; }); }}
-          />
-          {productFormErrors.price && <div className="text-[11px] text-red-500 mt-0.5 mb-1 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> {productFormErrors.price}</div>}
+          <div className="grid grid-cols-2 max-sm:!grid-cols-1 gap-x-3 gap-y-0 mt-2">
+            <div>
+              <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-2">SKU / Item ID</label>
+              <input className={`w-full py-[9px] px-3 bg-slate-50 border rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400 ${productFormErrors.sku ? '!border-red-500 bg-red-50/50' : 'border-slate-200'}`} type="text" placeholder="e.g. B02214" value={newProductForm.sku} onChange={e => { setNewProductForm(prev => ({ ...prev, sku: e.target.value })); setProductFormErrors(prev => { const n = { ...prev }; delete n.sku; return n; }); }} />
+              {productFormErrors.sku && <div className="text-[11px] text-red-500 mt-0.5 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> {productFormErrors.sku}</div>}
+            </div>
+            <div>
+              <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-2">Brand</label>
+              <input className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400" type="text" list="brand-options-add" placeholder="Select or type a new brand" value={newProductForm.brand} onChange={e => setNewProductForm(prev => ({ ...prev, brand: e.target.value }))} />
+              <datalist id="brand-options-add">{existingBrands.map(b => <option key={b} value={b} />)}</datalist>
+            </div>
+            <div>
+              <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-2">Barcode (Pack)</label>
+              <input className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400" type="text" placeholder="e.g. 012345678901" value={newProductForm.barcode_pack} onChange={e => setNewProductForm(prev => ({ ...prev, barcode_pack: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-2">Barcode (Bundle)</label>
+              <input className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400" type="text" placeholder="e.g. 012345678902" value={newProductForm.barcode_bundle} onChange={e => setNewProductForm(prev => ({ ...prev, barcode_bundle: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-2">Barcode (Box)</label>
+              <input className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400" type="text" placeholder="e.g. 012345678903" value={newProductForm.barcode_box} onChange={e => setNewProductForm(prev => ({ ...prev, barcode_box: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-2">Weight</label>
+              <input className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400" type="text" placeholder="e.g. 70g" value={newProductForm.weight} onChange={e => setNewProductForm(prev => ({ ...prev, weight: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-2">Bags/Case</label>
+              <input className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400" type="text" placeholder="e.g. 22" value={newProductForm.bags_per_case} onChange={e => setNewProductForm(prev => ({ ...prev, bags_per_case: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-2">Units/Case</label>
+              <input className="w-full py-[9px] px-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400" type="text" placeholder="e.g. 12" value={newProductForm.units_per_case || ''} onChange={e => setNewProductForm(prev => ({ ...prev, units_per_case: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-2">Cases per Pallet</label>
+              <input className={`w-full py-[9px] px-3 bg-slate-50 border rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400 ${productFormErrors.cases_per_pallet ? '!border-red-500 bg-red-50/50' : 'border-slate-200'}`} type="number" min="1" placeholder="e.g. 60" value={newProductForm.cases_per_pallet} onChange={e => { setNewProductForm(prev => ({ ...prev, cases_per_pallet: e.target.value })); setProductFormErrors(prev => { const n = { ...prev }; delete n.cases_per_pallet; return n; }); }} />
+              {productFormErrors.cases_per_pallet && <div className="text-[11px] text-red-500 mt-0.5 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> {productFormErrors.cases_per_pallet}</div>}
+            </div>
+            <div>
+              <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-2">Price</label>
+              <input className={`w-full py-[9px] px-3 bg-slate-50 border rounded-lg text-slate-800 text-[13px] max-sm:!text-sm outline-none transition-colors box-border focus:border-indigo-400 ${productFormErrors.price ? '!border-red-500 bg-red-50/50' : 'border-slate-200'}`} type="number" step="0.01" min="0.01" placeholder="e.g. 25.00" value={newProductForm.price} onChange={e => { setNewProductForm(prev => ({ ...prev, price: e.target.value })); setProductFormErrors(prev => { const n = { ...prev }; delete n.price; return n; }); }} />
+              {productFormErrors.price && <div className="text-[11px] text-red-500 mt-0.5 flex items-center gap-1"><AlertTriangle className="w-2.5 h-2.5" /> {productFormErrors.price}</div>}
+            </div>
+          </div>
 
           <label className="block text-[10px] max-sm:text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px] mt-3">Category <span className="text-red-500 text-xs ml-0.5">*</span></label>
           <select
@@ -3875,6 +3844,18 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
               <div>
                 <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">Weight</label>
                 <input type="text" value={editingProduct.weight || ''} onChange={e => setEditingProduct(prev => ({ ...prev, weight: e.target.value }))} className="w-full py-[9px] px-3 border-[1.5px] border-slate-200 rounded-[9px] text-[13px] max-sm:!text-sm bg-slate-50 text-slate-800 outline-none transition-colors box-border focus:border-indigo-400" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">Bags/Case</label>
+                <input type="text" value={editingProduct.bags_per_case || ''} onChange={e => setEditingProduct(prev => ({ ...prev, bags_per_case: e.target.value }))} placeholder="e.g. 24" className="w-full py-[9px] px-3 border-[1.5px] border-slate-200 rounded-[9px] text-[13px] max-sm:!text-sm bg-slate-50 text-slate-800 outline-none transition-colors box-border focus:border-indigo-400" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">Units/Case</label>
+                <input type="text" value={editingProduct.units_per_case || ''} onChange={e => setEditingProduct(prev => ({ ...prev, units_per_case: e.target.value }))} placeholder="e.g. 12" className="w-full py-[9px] px-3 border-[1.5px] border-slate-200 rounded-[9px] text-[13px] max-sm:!text-sm bg-slate-50 text-slate-800 outline-none transition-colors box-border focus:border-indigo-400" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">Cases/Pallet</label>
+                <input type="number" value={editingProduct.cases_per_pallet || ''} onChange={e => setEditingProduct(prev => ({ ...prev, cases_per_pallet: e.target.value }))} placeholder="e.g. 60" className="w-full py-[9px] px-3 border-[1.5px] border-slate-200 rounded-[9px] text-[13px] max-sm:!text-sm bg-slate-50 text-slate-800 outline-none transition-colors box-border focus:border-indigo-400" />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold tracking-wide uppercase text-slate-400 mb-[5px]">Category</label>

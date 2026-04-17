@@ -9,10 +9,17 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedRows, setSelectedRows] = useState(new Set())
   const [editingPrices, setEditingPrices] = useState({})
+  const [editingNames, setEditingNames] = useState({})
   const [editingBrands, setEditingBrands] = useState({})
+  const [editingSkus, setEditingSkus] = useState({})
+  const [editingWeights, setEditingWeights] = useState({})
+  const [editingBags, setEditingBags] = useState({})
+  const [editingUnits, setEditingUnits] = useState({})
+  const [editingCases, setEditingCases] = useState({})
   const [editingSuper, setEditingSuper] = useState({})
   const [editingCats, setEditingCats] = useState({})
   const [editingHidden, setEditingHidden] = useState({})
+  const [editingOos, setEditingOos] = useState({})
   const [overrides, setOverrides] = useState({})
   const [isLoading, setIsLoading] = useState(false)
   const [showBulkPriceModal, setShowBulkPriceModal] = useState(false)
@@ -28,9 +35,9 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
     if (initialProducts) {
       const prods = JSON.parse(JSON.stringify(initialProducts))
       setProducts(prods)
-      const prices = {}, brands = {}, supers = {}, cats = {}, hiddens = {}
-      prods.forEach(p => { prices[p.id] = p.price; brands[p.id] = p.brand || ''; supers[p.id] = p.super_category_id; cats[p.id] = p.category_id; hiddens[p.id] = p.is_hidden })
-      setEditingPrices(prices); setEditingBrands(brands); setEditingSuper(supers); setEditingCats(cats); setEditingHidden(hiddens)
+      const names = {}, prices = {}, brands = {}, skus = {}, weights = {}, bags = {}, units = {}, cases = {}, supers = {}, cats = {}, hiddens = {}, ooss = {}
+      prods.forEach(p => { names[p.id] = p.name || ''; prices[p.id] = p.price; brands[p.id] = p.brand || ''; skus[p.id] = p.sku || ''; weights[p.id] = p.weight || ''; bags[p.id] = p.bags_per_case || ''; units[p.id] = p.units_per_case || ''; cases[p.id] = p.cases_per_pallet || ''; supers[p.id] = p.super_category_id; cats[p.id] = p.category_id; hiddens[p.id] = p.is_hidden; ooss[p.id] = p.is_oos })
+      setEditingNames(names); setEditingPrices(prices); setEditingBrands(brands); setEditingSkus(skus); setEditingWeights(weights); setEditingBags(bags); setEditingUnits(units); setEditingCases(cases); setEditingSuper(supers); setEditingCats(cats); setEditingHidden(hiddens); setEditingOos(ooss)
     }
   }, [initialProducts])
 
@@ -84,6 +91,24 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
       try { const token = localStorage.getItem('token'); const r = await fetch(`/api/admin/products/bulk`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [prod.id], price }) }); if (!r.ok) throw new Error('Failed'); setProducts(products.map(p => p.id === prod.id ? { ...p, price } : p)); showToast(`Price updated to $${price}`) }
       catch (e) { showToast('Failed to save price', 'error') }
     } else { await setOverrideData(prod.id, { override_price: price }) }
+  }
+
+  const saveNameChange = async (prod, newName) => {
+    const name = newName.trim()
+    if (!name) { setEditingNames({ ...editingNames, [prod.id]: prod.name }); return }
+    try { const token = localStorage.getItem('token'); const r = await fetch(`/api/admin/products/bulk`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [prod.id], name }) }); if (!r.ok) throw new Error('Failed'); setProducts(products.map(p => p.id === prod.id ? { ...p, name } : p)); showToast(`Name updated`) }
+    catch (e) { showToast('Failed to save name', 'error') }
+  }
+
+  const saveFieldChange = async (prod, field, value) => {
+    try {
+      const token = localStorage.getItem('token')
+      const body = { ids: [prod.id], [field]: value }
+      const r = await fetch('/api/admin/products/bulk', { method: 'PATCH', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      if (!r.ok) throw new Error('Failed')
+      setProducts(products.map(p => p.id === prod.id ? { ...p, [field]: value } : p))
+      showToast(`Updated`)
+    } catch (e) { showToast('Failed to save', 'error') }
   }
 
   const saveBrandChange = async (prod, newBrand) => {
@@ -208,9 +233,14 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
               <th className="sticky top-0 z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Name</th>
               <th className="sticky top-0 z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Brand</th>
               <th className="sticky top-0 z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Price</th>
-              <th className="sticky top-0 z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Super Category</th>
+              <th className="sticky top-0 z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Weight</th>
+              <th className="sticky top-0 z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Bags/Case</th>
+              <th className="sticky top-0 z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Units/Case</th>
+              <th className="sticky top-0 z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Cs/Pallet</th>
+              <th className="sticky top-0 z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Super Cat</th>
               <th className="sticky top-0 z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Category</th>
               <th className="sticky top-0 z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">Hidden</th>
+              <th className="sticky top-0 z-10 bg-slate-50 text-slate-400 text-[10px] font-semibold uppercase tracking-wider p-3 text-left border-b border-slate-200 max-sm:p-2 max-sm:text-[9px]">OOS</th>
             </tr>
           </thead>
           <tbody>
@@ -226,8 +256,14 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
                     )}
                   </div>
                 </td>
-                <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]"><code className="text-slate-500 text-xs">{prod.sku || '—'}</code></td>
-                <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]">{prod.name}</td>
+                <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]">
+                  <input type="text" value={editingSkus[prod.id] ?? prod.sku ?? ''} onChange={e => setEditingSkus({ ...editingSkus, [prod.id]: e.target.value })} onBlur={e => { if (e.target.value !== (prod.sku || '')) saveFieldChange(prod, 'sku', e.target.value) }}
+                    placeholder="—" className="w-24 px-1 py-1 border border-slate-200 rounded text-slate-500 text-xs font-mono focus:outline-none focus:border-indigo-400 max-sm:w-[70px] max-sm:p-0.5" />
+                </td>
+                <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]">
+                  <input type="text" value={editingNames[prod.id] ?? prod.name} onChange={e => setEditingNames({ ...editingNames, [prod.id]: e.target.value })} onBlur={e => { if (e.target.value.trim() !== (prod.name || '')) saveNameChange(prod, e.target.value) }}
+                    className="w-full min-w-[120px] px-1 py-1 border border-slate-200 rounded text-slate-800 text-[13px] focus:outline-none focus:border-indigo-400 max-sm:text-xs max-sm:p-0.5" />
+                </td>
                 <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]">
                   <input type="text" value={editingBrands[prod.id] ?? ''} onChange={e => setEditingBrands({ ...editingBrands, [prod.id]: e.target.value })} onBlur={e => { if (e.target.value !== (prod.brand || '')) saveBrandChange(prod, e.target.value) }}
                     placeholder="—"
@@ -239,6 +275,22 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
                       className="w-20 px-1 py-1 border border-slate-200 rounded text-slate-800 text-[13px] focus:outline-none focus:border-indigo-400 max-sm:w-[60px] max-sm:text-xs max-sm:p-0.5" />
                     {hasOverride(prod.id, 'price') && <span className="text-[10px] text-amber-500">●</span>}
                   </div>
+                </td>
+                <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]">
+                  <input type="text" value={editingWeights[prod.id] ?? prod.weight ?? ''} onChange={e => setEditingWeights({ ...editingWeights, [prod.id]: e.target.value })} onBlur={e => { if (e.target.value !== (prod.weight || '')) saveFieldChange(prod, 'weight', e.target.value) }}
+                    placeholder="—" className="w-16 px-1 py-1 border border-slate-200 rounded text-slate-800 text-[13px] focus:outline-none focus:border-indigo-400 max-sm:w-[50px] max-sm:text-xs max-sm:p-0.5" />
+                </td>
+                <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]">
+                  <input type="text" value={editingBags[prod.id] ?? prod.bags_per_case ?? ''} onChange={e => setEditingBags({ ...editingBags, [prod.id]: e.target.value })} onBlur={e => { if (e.target.value !== (prod.bags_per_case || '')) saveFieldChange(prod, 'bags_per_case', e.target.value) }}
+                    placeholder="—" className="w-14 px-1 py-1 border border-slate-200 rounded text-slate-800 text-[13px] focus:outline-none focus:border-indigo-400 max-sm:w-[40px] max-sm:text-xs max-sm:p-0.5" />
+                </td>
+                <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]">
+                  <input type="text" value={editingUnits[prod.id] ?? prod.units_per_case ?? ''} onChange={e => setEditingUnits({ ...editingUnits, [prod.id]: e.target.value })} onBlur={e => { if (e.target.value !== (prod.units_per_case || '')) saveFieldChange(prod, 'units_per_case', e.target.value) }}
+                    placeholder="—" className="w-14 px-1 py-1 border border-slate-200 rounded text-slate-800 text-[13px] focus:outline-none focus:border-indigo-400 max-sm:w-[40px] max-sm:text-xs max-sm:p-0.5" />
+                </td>
+                <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]">
+                  <input type="number" value={editingCases[prod.id] ?? prod.cases_per_pallet ?? ''} onChange={e => setEditingCases({ ...editingCases, [prod.id]: e.target.value })} onBlur={e => { if (String(e.target.value) !== String(prod.cases_per_pallet || '')) saveFieldChange(prod, 'cases_per_pallet', parseInt(e.target.value) || null) }}
+                    placeholder="—" className="w-14 px-1 py-1 border border-slate-200 rounded text-slate-800 text-[13px] focus:outline-none focus:border-indigo-400 max-sm:w-[40px] max-sm:text-xs max-sm:p-0.5" />
                 </td>
                 <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]">
                   <select value={editingSuper[prod.id] || prod.super_category_id || ''} onChange={e => saveSuperCatChange(prod, e.target.value)}
@@ -257,6 +309,9 @@ function BulkEditView({ initialCustomers, initialProducts, superCategories, cate
                     <input type="checkbox" checked={editingHidden[prod.id] || false} onChange={e => { const val = e.target.checked; setEditingHidden({ ...editingHidden, [prod.id]: val }); saveHiddenChange(prod, val) }} className="accent-indigo-500" />
                     {hasOverride(prod.id, 'hidden') && <span className="text-[10px] text-amber-500">●</span>}
                   </div>
+                </td>
+                <td className="p-3 text-[13px] text-slate-800 max-sm:p-2 max-sm:text-[11px]">
+                  <input type="checkbox" checked={editingOos[prod.id] || false} onChange={e => { const val = e.target.checked; setEditingOos({ ...editingOos, [prod.id]: val }); saveFieldChange(prod, 'is_oos', val) }} className="accent-amber-500" />
                 </td>
               </tr>
             ))}

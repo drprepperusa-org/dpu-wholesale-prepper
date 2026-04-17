@@ -995,6 +995,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
                       <div className="mb-3 max-sm:hidden">
                         {selectedProduct.weight && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Weight</span><span className="text-slate-800 font-medium">{selectedProduct.weight}</span></div>}
                         {selectedProduct.bags_per_case && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Bags/Case</span><span className="text-slate-800 font-medium">{selectedProduct.bags_per_case}</span></div>}
+                        {!selectedProduct.bags_per_case && selectedProduct.units_per_case && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Units/Case</span><span className="text-slate-800 font-medium">{selectedProduct.units_per_case}</span></div>}
                         {selectedProduct.cases_per_pallet && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">Cases/Pallet</span><span className="text-slate-800 font-medium">{selectedProduct.cases_per_pallet}</span></div>}
                         {selectedProduct.sku && <div className="flex justify-between py-1 text-sm"><span className="text-slate-400">SKU</span><span className="text-slate-800 font-medium font-mono text-[13px]">{selectedProduct.sku}</span></div>}
                         {[

@@ -53,7 +53,7 @@ export async function GET(request) {
     const optCol = (col) => existingCols.has(col) ? `p.${col}` : `NULL as ${col}`;
 
     const result = await pool.query(`
-      SELECT p.id, p.sku, ${optCol('brand')}, ${optCol('barcode_pack')}, ${optCol('barcode_bundle')}, ${optCol('barcode_box')}, p.name, p.price, p.weight, p.bags_per_case, p.cases_per_pallet,
+      SELECT p.id, p.sku, ${optCol('brand')}, ${optCol('barcode_pack')}, ${optCol('barcode_bundle')}, ${optCol('barcode_box')}, p.name, p.price, p.weight, p.bags_per_case, COALESCE((SELECT units_per_case FROM products WHERE id = p.id), NULL) as units_per_case, p.cases_per_pallet,
              p.image_url, ${optCol('box_image_url')}, ${optCol('bundle_image_url')}, p.is_hidden, p.is_oos, p.show_price,
              s.name as super_category, c.name as category,
              p.super_category_id, p.category_id, p.created_at
@@ -82,6 +82,7 @@ export async function GET(request) {
       'Price': p.price ? parseFloat(p.price) : '',
       'Weight': p.weight || '',
       'Bags Per Case': p.bags_per_case || '',
+      'Units Per Case': p.units_per_case || '',
       'Cases Per Pallet': p.cases_per_pallet || '',
       'Super Category': p.super_category || '',
       'Category': p.category || '',
@@ -268,6 +269,7 @@ export async function POST(request) {
       const price = rawPrice ? (parseFloat(String(rawPrice).replace(/[$,]/g, '')) || null) : null;
       const weight = get(['Weight', 'weight']);
       const bagsPerCase = get(['Bags Per Case', 'bags_per_case', 'Bags/Case']);
+      const unitsPerCase = get(['Units Per Case', 'units_per_case', 'Units/Case']);
       const casesPerPallet = parseInt(get(['Cases Per Pallet', 'cases_per_pallet', 'Cases/Pallet']) || 0) || null;
       let imageUrl = get(['Image URL', 'image_url', 'Image', 'image']);
       if (imageUrl && !imageUrl.startsWith('http')) {
@@ -402,13 +404,13 @@ export async function POST(request) {
       }
 
       if (existingId) {
-        toUpdate.push([name, sku, brand, barcode_pack, barcode_bundle, barcode_box, price, weight, bagsPerCase, casesPerPallet, imageUrl || '', boxImageUrl || '', bundleImageUrl || '', isHidden, isOos, showPrice, superCatId, catId, existingId]);
+        toUpdate.push([name, sku, brand, barcode_pack, barcode_bundle, barcode_box, price, weight, bagsPerCase, unitsPerCase, casesPerPallet, imageUrl || '', boxImageUrl || '', bundleImageUrl || '', isHidden, isOos, showPrice, superCatId, catId, existingId]);
       } else {
         if (unmatchedSamples.length < 20) unmatchedSamples.push({ row: rowNum, productId: productId || '', sku: sku || '', name });
         const newId = productId || uuidv4();
         const newSku = sku || `SKU-${newId.substring(0, 8).toUpperCase()}`;
         toCreate.push({
-          params: [newId, name, newSku, brand, barcode_pack, barcode_bundle, barcode_box, price, weight, bagsPerCase, casesPerPallet, imageUrl, boxImageUrl, bundleImageUrl, isHidden, isOos, showPrice, superCatId, catId],
+          params: [newId, name, newSku, brand, barcode_pack, barcode_bundle, barcode_box, price, weight, bagsPerCase, unitsPerCase, casesPerPallet, imageUrl, boxImageUrl, bundleImageUrl, isHidden, isOos, showPrice, superCatId, catId],
           providedId: !!productId,
           providedSku: !!sku
         });
@@ -420,9 +422,9 @@ export async function POST(request) {
     for (let i = 0; i < toUpdate.length; i += BATCH) {
       const batch = toUpdate.slice(i, i + BATCH);
       await Promise.all(batch.map(params =>
-        pool.query(`UPDATE products SET name=$1, sku=COALESCE(NULLIF($2,''), sku), brand=$3, barcode_pack=$4, barcode_bundle=$5, barcode_box=$6, price=COALESCE($7, price), weight=$8, bags_per_case=$9,
-          cases_per_pallet=COALESCE($10, cases_per_pallet), image_url=COALESCE(NULLIF($11,''), image_url), box_image_url=COALESCE(NULLIF($12,''), box_image_url), bundle_image_url=COALESCE(NULLIF($13,''), bundle_image_url), is_hidden=$14, is_oos=$15,
-          show_price=$16, super_category_id=COALESCE($17, super_category_id), category_id=COALESCE($18, category_id) WHERE id=$19`, params)
+        pool.query(`UPDATE products SET name=$1, sku=COALESCE(NULLIF($2,''), sku), brand=$3, barcode_pack=$4, barcode_bundle=$5, barcode_box=$6, price=COALESCE($7, price), weight=$8, bags_per_case=$9, units_per_case=$10,
+          cases_per_pallet=COALESCE($11, cases_per_pallet), image_url=COALESCE(NULLIF($12,''), image_url), box_image_url=COALESCE(NULLIF($13,''), box_image_url), bundle_image_url=COALESCE(NULLIF($14,''), bundle_image_url), is_hidden=$15, is_oos=$16,
+          show_price=$17, super_category_id=COALESCE($18, super_category_id), category_id=COALESCE($19, category_id) WHERE id=$20`, params)
           .then(() => { updated++ })
           .catch(e => { errors.push(`Update "${params[0]}": ${e.message}`); skipped++ })
       ));
@@ -436,10 +438,10 @@ export async function POST(request) {
         try {
           // Strong fallback: if caller provided ID or SKU, force an overwrite attempt before creating.
           if (entry.providedId) {
-            const updateByIdParams = [params[1], params[2], params[3], params[4], params[5], params[6], params[7], params[8], params[9], params[10], params[11] || '', params[12] || '', params[13] || '', params[14], params[15], params[16], params[17], params[18], params[0]];
-            const byId = await pool.query(`UPDATE products SET name=$1, sku=COALESCE(NULLIF($2,''), sku), brand=$3, barcode_pack=$4, barcode_bundle=$5, barcode_box=$6, price=$7, weight=$8, bags_per_case=$9,
-              cases_per_pallet=$10, image_url=COALESCE(NULLIF($11,''), image_url), box_image_url=COALESCE(NULLIF($12,''), box_image_url), bundle_image_url=COALESCE(NULLIF($13,''), bundle_image_url), is_hidden=$14, is_oos=$15,
-              show_price=$16, super_category_id=COALESCE($17, super_category_id), category_id=COALESCE($18, category_id) WHERE id=$19`, updateByIdParams);
+            const updateByIdParams = [params[1], params[2], params[3], params[4], params[5], params[6], params[7], params[8], params[9], params[10], params[11], params[12] || '', params[13] || '', params[14] || '', params[15], params[16], params[17], params[18], params[19], params[0]];
+            const byId = await pool.query(`UPDATE products SET name=$1, sku=COALESCE(NULLIF($2,''), sku), brand=$3, barcode_pack=$4, barcode_bundle=$5, barcode_box=$6, price=COALESCE($7, price), weight=$8, bags_per_case=$9, units_per_case=$10,
+              cases_per_pallet=COALESCE($11, cases_per_pallet), image_url=COALESCE(NULLIF($12,''), image_url), box_image_url=COALESCE(NULLIF($13,''), box_image_url), bundle_image_url=COALESCE(NULLIF($14,''), bundle_image_url), is_hidden=$15, is_oos=$16,
+              show_price=$17, super_category_id=COALESCE($18, super_category_id), category_id=COALESCE($19, category_id) WHERE id=$20`, updateByIdParams);
             if (byId.rowCount > 0) {
               updated++;
               matchedByFallbackUpdate++;
@@ -448,10 +450,10 @@ export async function POST(request) {
           }
 
           if (entry.providedSku) {
-            const updateBySkuParams = [params[1], params[2], params[3], params[4], params[5], params[6], params[7], params[8], params[9], params[10], params[11] || '', params[12] || '', params[13] || '', params[14], params[15], params[16], params[17], params[18], params[2]];
-            const bySku = await pool.query(`UPDATE products SET name=$1, sku=COALESCE(NULLIF($2,''), sku), brand=$3, barcode_pack=$4, barcode_bundle=$5, barcode_box=$6, price=$7, weight=$8, bags_per_case=$9,
-              cases_per_pallet=$10, image_url=COALESCE(NULLIF($11,''), image_url), box_image_url=COALESCE(NULLIF($12,''), box_image_url), bundle_image_url=COALESCE(NULLIF($13,''), bundle_image_url), is_hidden=$14, is_oos=$15,
-              show_price=$16, super_category_id=COALESCE($17, super_category_id), category_id=COALESCE($18, category_id) WHERE LOWER(sku)=LOWER($19)`, updateBySkuParams);
+            const updateBySkuParams = [params[1], params[2], params[3], params[4], params[5], params[6], params[7], params[8], params[9], params[10], params[11], params[12] || '', params[13] || '', params[14] || '', params[15], params[16], params[17], params[18], params[19], params[2]];
+            const bySku = await pool.query(`UPDATE products SET name=$1, sku=COALESCE(NULLIF($2,''), sku), brand=$3, barcode_pack=$4, barcode_bundle=$5, barcode_box=$6, price=COALESCE($7, price), weight=$8, bags_per_case=$9, units_per_case=$10,
+              cases_per_pallet=COALESCE($11, cases_per_pallet), image_url=COALESCE(NULLIF($12,''), image_url), box_image_url=COALESCE(NULLIF($13,''), box_image_url), bundle_image_url=COALESCE(NULLIF($14,''), bundle_image_url), is_hidden=$15, is_oos=$16,
+              show_price=$17, super_category_id=COALESCE($18, super_category_id), category_id=COALESCE($19, category_id) WHERE LOWER(sku)=LOWER($20)`, updateBySkuParams);
             if (bySku.rowCount > 0) {
               updated++;
               matchedByFallbackUpdate++;
@@ -459,8 +461,8 @@ export async function POST(request) {
             }
           }
 
-          await pool.query(`INSERT INTO products (id, name, sku, brand, barcode_pack, barcode_bundle, barcode_box, price, weight, bags_per_case, cases_per_pallet, image_url, box_image_url, bundle_image_url, is_hidden, is_oos, show_price, super_category_id, category_id)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`, params);
+          await pool.query(`INSERT INTO products (id, name, sku, brand, barcode_pack, barcode_bundle, barcode_box, price, weight, bags_per_case, units_per_case, cases_per_pallet, image_url, box_image_url, bundle_image_url, is_hidden, is_oos, show_price, super_category_id, category_id)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`, params);
           created++;
         } catch (e) {
           errors.push(`Create "${params[1]}": ${e.message}`);

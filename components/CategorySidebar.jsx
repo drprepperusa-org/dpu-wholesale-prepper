@@ -167,7 +167,7 @@ function CategorySidebar({ isOpen, onClose, onSelectCategory, token, products = 
                       className="w-full py-1.5 pl-8 pr-3 bg-slate-800 border border-slate-700 rounded-lg text-slate-200 text-[12px] outline-none transition-colors focus:border-indigo-400 placeholder:text-slate-500 max-sm:!text-base" />
                   </div>
                 </div>
-                <div className="max-h-[200px] overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#334155 transparent' }}>
+                <div className="overflow-y-auto flex-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#334155 transparent' }}>
                   {filteredBrands.map(brand => (
                     <div key={brand.name}
                       className={`flex items-center justify-between px-3.5 py-2 cursor-pointer text-xs transition-colors border-b border-white/[0.04]
