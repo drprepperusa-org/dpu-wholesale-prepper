@@ -186,7 +186,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
       state: u.state || '', zip: u.zip || '', country: u.country || '',
       accountId: u.id ? `HS-${String(u.id).padStart(3, '0')}` : '',
       customerSince: u.created_at ? new Date(u.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '',
-      salesRep: 'Mike Johnson', lastSignIn: 'Today'
+      salesRep: u.sales_rep || u.salesRep || 'DJ', lastSignIn: 'Today'
     }));
     const token = localStorage.getItem('token');
     if (token) {
@@ -203,6 +203,7 @@ function CustomerApp({ currentUser: initialUser, userRole, viewMode, setViewMode
             city: c.city || '', state: c.state || '', zip: c.zip || '', country: c.country || '',
             accountId: c.id ? `HS-${String(c.id).padStart(3, '0')}` : prev.accountId,
             customerSince: c.created_at ? new Date(c.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : prev.customerSince,
+            salesRep: c.sales_rep || prev.salesRep || 'DJ',
             lastSignIn: c.last_login ? new Date(c.last_login).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Today'
           }));
         }).catch(() => { });

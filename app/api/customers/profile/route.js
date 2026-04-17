@@ -15,7 +15,7 @@ export async function GET(request) {
     const result = await pool.query(`
       SELECT id, company_name, contact_name, email, phone, alt_phone,
              address_line1, address_line2, city, state, zip, country,
-             show_prices, created_at, last_login
+             sales_rep, show_prices, created_at, last_login
       FROM customers WHERE id = $1
     `, [customer.id]);
 

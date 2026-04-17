@@ -92,8 +92,6 @@ export async function GET(request) {
       'Hidden': p.is_hidden ? 'Yes' : 'No',
       'Out of Stock': p.is_oos ? 'Yes' : 'No',
       'Show Price': p.show_price === false ? 'No' : 'Yes',
-      'Super Category ID': p.super_category_id || '',
-      'Category ID': p.category_id || '',
     }));
 
     const wb = XLSX.utils.book_new();
@@ -111,6 +109,7 @@ export async function GET(request) {
       { wch: 10 }, // Price
       { wch: 12 }, // Weight
       { wch: 14 }, // Bags/Case
+      { wch: 14 }, // Units/Case
       { wch: 16 }, // Cases/Pallet
       { wch: 22 }, // Super Category
       { wch: 22 }, // Category
@@ -120,8 +119,6 @@ export async function GET(request) {
       { wch: 8 },  // Hidden
       { wch: 12 }, // OOS
       { wch: 10 }, // Show Price
-      { wch: 16 }, // Super Cat ID
-      { wch: 12 }, // Cat ID
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, 'Products');

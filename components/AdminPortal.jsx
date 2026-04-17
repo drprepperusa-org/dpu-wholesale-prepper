@@ -205,6 +205,8 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
 
   // Registration and Activity log
   const [registrationEnabled, setRegistrationEnabled] = useState(true)
+  const [salesReps, setSalesReps] = useState([])
+  const [newRepName, setNewRepName] = useState('')
   const [priceVisibility, setPriceVisibility] = useState(false)
   const [promoBanner, setPromoBanner] = useState({ enabled: false, type: 'text', label: 'LIMITED TIME OFFER', headline: 'Free freight on orders over $2,000', subtitle: 'Use code SPRINGDEAL at checkout for an extra 5% off your first container order.', ctaText: 'Shop New Arrivals', ctaLink: '', imageUrl: '' })
   const [pendingRegistrations, setPendingRegistrations] = useState([])
@@ -1100,6 +1102,9 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
     loadSettings()
     loadCategories()
     loadPendingRegistrations()
+    // Load sales reps
+    fetch('/api/admin/sales-reps', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } })
+      .then(r => r.json()).then(d => { if (d.reps) setSalesReps(d.reps) }).catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -1718,7 +1723,8 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
             catHidden: data.catHidden || [],
             customHidden: data.customHidden || [],
             customOos: data.customOos || [],
-            showPrices: data.showPrices !== false
+            showPrices: data.showPrices !== false,
+            sales_rep: data.salesRep || selectedCustomer.sales_rep || 'DJ'
           }))
         }
       }
@@ -3039,6 +3045,22 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
                   )
                 })()}
               </div>
+              <div className="flex items-center gap-2.5 p-2.5 px-3.5 bg-slate-50 border border-slate-200 rounded-lg mb-3 flex-wrap">
+                <span className="text-[13px] font-semibold text-slate-800">Assigned Rep:</span>
+                <select value={selectedCustomer.sales_rep || ''} onChange={async (e) => {
+                  const val = e.target.value
+                  setSelectedCustomer(prev => ({ ...prev, sales_rep: val }))
+                  setCustomers(prev => prev.map(c => c.id === selectedCustomer.id ? { ...c, sales_rep: val } : c))
+                  try {
+                    const token = localStorage.getItem('token')
+                    await fetch(`/api/admin/customers/${selectedCustomer.id}/view`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ salesRep: val }) })
+                    showToast('Rep assigned')
+                  } catch {}
+                }} className="px-2.5 py-1.5 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-white outline-none focus:border-indigo-400 cursor-pointer">
+                  <option value="">— None —</option>
+                  {salesReps.map(rep => <option key={rep.id} value={rep.name}>{rep.name}</option>)}
+                </select>
+              </div>
               <div className="text-xs text-slate-500 p-2.5 px-3 bg-slate-50 rounded-lg border-l-[3px] border-l-indigo-500 mb-4 max-sm:mb-2 max-sm:text-[11px]">Toggle visibility per category or product. Changes only affect this customer.</div>
 
               <div className="flex gap-1.5 items-center mb-3.5 p-2 px-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
@@ -3409,6 +3431,45 @@ function AdminPortal({ onLogout, onSwitchToCustomer, currentUser }) {
               <button className={`w-9 h-5 rounded-full border-none cursor-pointer relative transition-colors flex-shrink-0 ${registrationEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`} onClick={toggleRegistration}>
                 <span className={`absolute top-[3px] w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-[left] ${registrationEnabled ? 'left-[19px]' : 'left-[3px]'}`}></span>
               </button>
+            </div>
+          </div>
+
+          {/* Sales Reps */}
+          <div className="bg-white border border-slate-200 rounded-[14px] mb-[22px] overflow-hidden">
+            <div className="text-sm max-sm:text-[13px] font-semibold text-slate-800 px-5 max-sm:px-3.5 py-4 max-sm:py-3 border-b border-slate-100 tracking-tight"><Users className="w-4 h-4 inline mr-1.5 -mt-px" /> Sales Reps</div>
+            <div className="px-5 max-sm:px-3.5 py-4">
+              <div className="flex gap-2 mb-3">
+                <input type="text" value={newRepName} onChange={e => setNewRepName(e.target.value)} placeholder="New rep name..." onKeyDown={e => {
+                  if (e.key === 'Enter' && newRepName.trim()) {
+                    const token = localStorage.getItem('token')
+                    fetch('/api/admin/sales-reps', { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newRepName.trim() }) })
+                      .then(r => r.json()).then(d => { if (d.rep) { setSalesReps(prev => [...prev, d.rep]); setNewRepName(''); showToast('Rep added') } else showToast(d.error || 'Failed', 'error') }).catch(() => showToast('Failed', 'error'))
+                  }
+                }} className="flex-1 py-2 px-3 border border-slate-200 rounded-lg text-[13px] text-slate-800 bg-slate-50 outline-none focus:border-indigo-400" />
+                <button onClick={() => {
+                  if (!newRepName.trim()) return
+                  const token = localStorage.getItem('token')
+                  fetch('/api/admin/sales-reps', { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newRepName.trim() }) })
+                    .then(r => r.json()).then(d => { if (d.rep) { setSalesReps(prev => [...prev, d.rep]); setNewRepName(''); showToast('Rep added') } else showToast(d.error || 'Failed', 'error') }).catch(() => showToast('Failed', 'error'))
+                }} className="px-4 py-2 bg-indigo-500 text-white border-none rounded-lg text-[13px] font-semibold cursor-pointer hover:bg-indigo-600 transition-colors">Add</button>
+              </div>
+              {salesReps.length === 0 ? (
+                <div className="text-xs text-slate-400 py-2">No sales reps added yet</div>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  {salesReps.map(rep => (
+                    <div key={rep.id} className="flex items-center justify-between py-2 px-3 bg-slate-50 border border-slate-200 rounded-lg">
+                      <span className="text-[13px] text-slate-800 font-medium">{rep.name}</span>
+                      <button onClick={() => {
+                        if (!window.confirm(`Delete rep "${rep.name}"?`)) return
+                        const token = localStorage.getItem('token')
+                        fetch('/api/admin/sales-reps', { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ id: rep.id }) })
+                          .then(r => r.json()).then(d => { if (d.success) { setSalesReps(prev => prev.filter(r => r.id !== rep.id)); showToast('Rep removed') } }).catch(() => showToast('Failed', 'error'))
+                      }} className="text-slate-400 hover:text-red-500 bg-transparent border-none cursor-pointer transition-colors p-1"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

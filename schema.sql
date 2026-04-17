@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS customers (
   zip VARCHAR(20),
   country VARCHAR(100),
   view_preset VARCHAR(50) DEFAULT 'full',
+  sales_rep VARCHAR(100) DEFAULT 'DJ',
   show_prices BOOLEAN DEFAULT FALSE,
   active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT NOW(),

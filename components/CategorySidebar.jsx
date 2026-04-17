@@ -67,7 +67,13 @@ function CategorySidebar({ isOpen, onClose, onSelectCategory, token, products = 
   }, [brands, brandQuery])
 
   const selectAll = () => { setSelectedId(null); setExpandedSuper(null); setSelectedBrand(null); onSelectCategory(null) }
-  const toggleSuper = (superCat) => { setExpandedSuper(expandedSuper === superCat.name ? null : superCat.name) }
+  const toggleSuper = (superCat) => {
+    const isExpanded = expandedSuper === superCat.name
+    setExpandedSuper(isExpanded ? null : superCat.name)
+    setSelectedId(isExpanded ? null : superCat.id)
+    setSelectedBrand(null)
+    onSelectCategory(isExpanded ? null : superCat)
+  }
   const selectSub = (subCat) => { setSelectedId(subCat.id || subCat.name); setSelectedBrand(null); onSelectCategory(subCat) }
   const selectBrand = (brand) => { setSelectedBrand(brand.name); setSelectedId(null); setExpandedSuper(null); onSelectCategory({ type: 'brand', name: brand.name }) }
 
